@@ -1,0 +1,13 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  // El registry de Fluid Functionalism copia su código fuente adentro del repo,
+  // así que el linter lo trata como nuestro. No lo es: un `shadcn add --overwrite`
+  // pisa cualquier arreglo que hagamos acá. Lo dejamos afuera para que
+  // `npm run lint` sea una puerta de calidad sobre el código propio.
+  "ignorePatterns": ["src/components/ui/", "src/lib/", "src/hooks/"],
+  "plugins": ["react", "typescript", "oxc"],
+  "rules": {
+    "react/rules-of-hooks": "error",
+    "react/only-export-components": ["warn", { "allowConstantExport": true }]
+  }
+}
