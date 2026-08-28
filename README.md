@@ -103,10 +103,27 @@ Tres decisiones que valen la pena:
   label, en el mismo lugar en que estaban. Sin label no hay disparador, así
   que esos grupos no se colapsan: no hay de dónde agarrarlos.
 
-Cada fila lleva **una acción**, revelada con el hover: abre la pestaña sin
-traerla al frente (`openTab(tab, { focus: false })`, que el workspace ya sabía
-hacer y nadie usaba). La fila le reserva el lugar sola —`rowGutter` es exacto,
-no un padding a ojo.
+Cada fila lleva **una acción**, revelada con el hover: abre otra copia de la
+misma pantalla. El clic en la fila lleva a la pestaña que ya está abierta —
+`openTab` deja ganar a la existente para no remontar su contenido—, así que
+duplicar es abrir la misma hoja con un id nuevo: `chat/search#2`, el número más
+chico que esté libre. Cada copia arma su propio contenido y por eso tiene su
+propio estado: su página del paginador, su board, su preview. La fila le
+reserva el lugar a la acción sola —`rowGutter` es exacto, no un padding a ojo.
+
+Dos pestañas de lo mismo destaparon un bug en `WorkspacePanel`: el plano
+montaba `activeTab.content` sin `key`, así que dos pestañas del mismo tipo de
+componente caían en la misma posición del árbol, React las reconciliaba en una
+sola instancia y el estado de la que dejabas aparecía en la que abrías.
+
+Ahora el panel **monta todas las pestañas** y esconde las inactivas, cada una
+en su propia caja de scroll. Es lo que hace que una pestaña conserve lo suyo
+mientras estás en otra: la página del paginador, cuánto habías bajado, un
+formulario a medio llenar. Las esconde con `visibility` y no con `display:
+none` —un elemento que no se maqueta pierde su scroll y el browser se lo
+devuelve en cero, y cuánto habías bajado también es estado— más `inert`, que
+hace el resto: fuera del árbol de accesibilidad, fuera del orden de tabulado y
+sordo al puntero.
 
 El header es un **dropdown**: la insignia y el nombre en una fila, el chevron
 al final, y adentro los tres destinos de producto (What's new, FAQ, Support &

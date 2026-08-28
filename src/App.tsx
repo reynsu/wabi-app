@@ -87,8 +87,13 @@ const SIN_BOARD: BoardState = { open: false, widgets: [] };
    componente. El resto empieza sin board y lo abre desde la barra. */
 const CON_BOARD = new Set(["chat/analytics"]);
 
+/* El id de una copia es el de su hoja más un sufijo (`chat/search#2`). `raiz`
+   lo saca: lo que se pregunta por la hoja —si viene con board, si la fila del
+   sidebar está encendida— se pregunta con la raíz y no con la copia. */
+const raiz = (id: string) => id.split("#")[0];
+
 const estrena = (id: string | undefined): BoardState =>
-  id && CON_BOARD.has(id) ? { open: true, widgets: WIDGETS } : SIN_BOARD;
+  id && CON_BOARD.has(raiz(id)) ? { open: true, widgets: WIDGETS } : SIN_BOARD;
 
 export default function App() {
   return (
@@ -109,7 +114,7 @@ function PreviewScope({ children }: { children: ReactNode }) {
 }
 
 function Shell() {
-  const { openTab, activeId } = useWorkspace();
+  const { openTab, activeId, tabs } = useWorkspace();
   const { preview } = usePreview();
   const [dark, setDark] = useState(false);
   const [apuntado, setApuntado] = useState(false);
@@ -136,6 +141,20 @@ function Shell() {
   const irA = (id: string) => {
     const destino = buscarHoja(id);
     if (destino) openTab(toTab(destino));
+  };
+
+  /* Duplicar una fila. La pestaña se identifica por id y `openTab` deja ganar
+     a la que ya está abierta —para no remontar su contenido y perder lo que
+     hubiera adentro—, así que una copia es la misma hoja con un id nuevo.
+     Busca el número más chico libre: cerrar la #2 y volver a duplicar reusa
+     ese lugar en vez de irse a la #3. Cada copia arma su propio contenido, y
+     por eso tiene su propio estado: su página del paginador, su board, su
+     preview. */
+  const duplicar = (hoja: NavLeaf) => {
+    const usados = new Set(tabs.map((t) => t.id));
+    let id = hoja.id;
+    for (let n = 2; usados.has(id); n++) id = `${hoja.id}#${n}`;
+    openTab({ ...toTab(hoja), id });
   };
 
   const rielVisible = board.open || preview !== null;
@@ -217,22 +236,22 @@ function Shell() {
                   <SidebarMenuItem key={hoja.id}>
                     <SidebarMenuButton
                       icon={hoja.icon}
-                      isActive={hoja.id === activeId}
+                      isActive={activeId !== undefined && raiz(activeId) === hoja.id}
                       onClick={() => openTab(toTab(hoja))}
                     >
                       {hoja.label}
                     </SidebarMenuButton>
 
-                    {/* La acción de la fila. Abre la pestaña sin traerla al
-                        frente —`focus: false`, que el workspace ya sabía
-                        hacer y nadie usaba—: sirve para dejar tres pantallas
-                        cargadas sin perder la que estás mirando. Aparece con
-                        el hover, y la fila le reserva el lugar sola. */}
-                    <Tooltip content="Open in the background" side="right">
+                    {/* La acción de la fila: otra copia de la misma pantalla.
+                        El clic en la fila lleva a la que ya está abierta; el
+                        `+` abre una más, y ahí sí hay dos pestañas de lo
+                        mismo, cada una con su estado. Aparece con el hover, y
+                        la fila le reserva el lugar sola. */}
+                    <Tooltip content="Open another one" side="right">
                       <SidebarMenuAction
                         showOnHover
-                        aria-label={`Open ${hoja.label} in the background`}
-                        onClick={() => openTab(toTab(hoja), { focus: false })}
+                        aria-label={`Open another ${hoja.label} tab`}
+                        onClick={() => duplicar(hoja)}
                       >
                         <Plus />
                       </SidebarMenuAction>

@@ -14,6 +14,7 @@
 
 import {
   useCallback,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -405,6 +406,10 @@ function WorkspacePanel({
   // It's the same hook the `tabs` indicator is measured with: it publishes the
   // rects in layout coordinates —`offsetLeft`, immune to transforms— and takes
   // them again on its own as soon as a tab changes size.
+  // Prefix for the ids that tie each tab to its panel. From useId so two
+  // panels on the same screen don't collide.
+  const uid = useId();
+
   const listRef = useRef<HTMLDivElement>(null);
   const { itemRects, registerItem } = useProximityHover<HTMLDivElement>(
     listRef,
@@ -591,7 +596,9 @@ function WorkspacePanel({
                 <button
                   type="button"
                   role="tab"
+                  id={`${uid}-tab-${tab.id}`}
                   aria-selected={isActive}
+                  aria-controls={`${uid}-panel-${tab.id}`}
                   onClick={() => select(tab.id)}
                   className={cn(
                     "relative inline-flex h-full items-center bg-transparent",
@@ -665,15 +672,52 @@ function WorkspacePanel({
           so the separation from the bar is given entirely by the shadow's ring.
           Without it, #FAFAFA against #FFFFFF is indistinguishable. */}
       <div
-        role="tabpanel"
         className={cn(
-          "min-h-0 flex-1 overflow-auto",
+          "relative min-h-0 flex-1",
           surfaceClasses(planeLevel, PLANE_SHADOW)
         )}
       >
-        {/* Whatever is mounted inside starts from the plane's level and not
+        {/* One panel per tab, all mounted, the inactive ones hidden. A tab
+            keeps what it had while you were somewhere else — the page a
+            paginator was on, how far down it was scrolled, a half-filled
+            form — which is the whole point once two tabs of the same screen
+            can be open at the same time.
+
+            Keyed by tab id, and the key is what keeps the panels apart. Two
+            tabs of the same component type would otherwise land in the same
+            position of the tree, React would reconcile them into one instance
+            and the state of one would show up in the other.
+
+            Each panel brings its own scrolling box —hence `absolute
+            inset-0`, stacked one on top of the other— so the scroll is per tab
+            too.
+
+            Hidden with `visibility` and NOT with `hidden`/`display: none`:
+            an element that isn't laid out loses its scroll position, and the
+            browser gives it back at zero. React state would survive that, but
+            how far down you were is state too. `inert` does the rest of what
+            `hidden` did on its own — out of the a11y tree, out of the tab
+            order, deaf to the pointer.
+
+            Whatever is mounted inside starts from the plane's level and not
             from the panel's substrate: a popover in a tab keeps rising. */}
-        <SurfaceProvider value={planeLevel}>{activeTab?.content}</SurfaceProvider>
+        <SurfaceProvider value={planeLevel}>
+          {tabs.map((tab) => {
+            const oculta = tab.id !== activeTab?.id;
+            return (
+              <div
+                key={tab.id}
+                id={`${uid}-panel-${tab.id}`}
+                role="tabpanel"
+                aria-labelledby={`${uid}-tab-${tab.id}`}
+                inert={oculta}
+                className={cn("absolute inset-0 overflow-auto", oculta && "invisible")}
+              >
+                {tab.content}
+              </div>
+            );
+          })}
+        </SurfaceProvider>
       </div>
     </Root>
   );
