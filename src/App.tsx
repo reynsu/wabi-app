@@ -2,15 +2,25 @@ import { useCallback, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence } from "framer-motion";
 import {
   ChevronsLeftRight,
-  LayoutDashboard,
+  ChevronsUpDown,
+  CircleQuestionMark,
   LayoutGrid,
+  LifeBuoy,
   Moon,
-  ScrollText,
+  Plus,
+  Sparkles,
   Sun,
-  Users,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+  DropdownContent,
+  DropdownMenu,
+  DropdownSeparator,
+  DropdownTrigger,
+} from "@/components/ui/dropdown";
+import { MenuItem } from "@/components/ui/menu-item";
+import { Tooltip } from "@/components/ui/tooltip";
 import {
   Sidebar,
   SidebarContent,
@@ -19,6 +29,7 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
@@ -35,11 +46,10 @@ import {
   useWorkspace,
 } from "@/components/workspace-context";
 import type { WorkspaceTab } from "@/components/workspace-panel";
+import { useShape } from "@/lib/shape-context";
 import { cn } from "@/lib/utils";
 import { WIDGETS } from "@/widgets";
-import { Customers } from "@/pages/Customers";
-import { Overview } from "@/pages/Overview";
-import { Releases } from "@/pages/Releases";
+import { INICIO, NAV, buscarHoja, type NavLeaf } from "@/navigation";
 
 /* Los controles de la barra del panel: `Button` en su escalón compacto, con el
    ícono en gris y el plano blanco de la escalera de superficies. Se pisa
@@ -52,22 +62,18 @@ const CONTROL = [
   "[&>span:first-child]:[--btn-bg:var(--surface-3)]",
 ].join(" ");
 
-const PAGES = [
-  { id: "overview", label: "Overview", icon: LayoutDashboard, render: () => <Overview /> },
-  { id: "customers", label: "Customers", icon: Users, render: () => <Customers /> },
-  { id: "releases", label: "Releases", icon: ScrollText, render: () => <Releases /> },
-] as const;
-
-type Page = (typeof PAGES)[number];
-
 /* Cada pantalla se ocupa de su propio aire: el `ChangelogPage` es la página
    entera y un `max-w` acá se lo comería. */
-const toTab = (p: Page): WorkspaceTab => ({
-  id: p.id,
-  label: p.label,
-  icon: p.icon,
-  content: p.render(),
+const toTab = (hoja: NavLeaf): WorkspaceTab => ({
+  id: hoja.id,
+  label: hoja.label,
+  icon: hoja.icon,
+  content: hoja.render(),
 });
+
+/** La pestaña con la que abre la app: la fila que el diseño muestra
+ *  encendida. */
+const INICIAL = buscarHoja(INICIO) ?? NAV[0].items[0];
 
 /** Lo que una pestaña tiene en el riel. */
 interface BoardState {
@@ -79,14 +85,14 @@ const SIN_BOARD: BoardState = { open: false, widgets: [] };
 
 /* Qué pantallas vienen con board puesto: una decisión de la app, no del
    componente. El resto empieza sin board y lo abre desde la barra. */
-const CON_BOARD = new Set(["overview"]);
+const CON_BOARD = new Set(["chat/analytics"]);
 
 const estrena = (id: string | undefined): BoardState =>
   id && CON_BOARD.has(id) ? { open: true, widgets: WIDGETS } : SIN_BOARD;
 
 export default function App() {
   return (
-    <WorkspaceProvider defaultTabs={[toTab(PAGES[0])]}>
+    <WorkspaceProvider defaultTabs={[toTab(INICIAL)]}>
       <PreviewScope>
         <Shell />
       </PreviewScope>
@@ -108,6 +114,7 @@ function Shell() {
   const [dark, setDark] = useState(false);
   const [apuntado, setApuntado] = useState(false);
   const [redimensionando, setRedimensionando] = useState(false);
+  const shape = useShape();
   const riel = useRef<WidgetRailControl | null>(null);
 
   /* Un board por pestaña; acá sólo están las que ya se tocaron y la que falta
@@ -124,6 +131,13 @@ function Shell() {
     [activeId],
   );
 
+  /* Ir a una fila por id, para los lugares que la nombran sin tenerla a mano
+     —el dropdown del header. */
+  const irA = (id: string) => {
+    const destino = buscarHoja(id);
+    if (destino) openTab(toTab(destino));
+  };
+
   const rielVisible = board.open || preview !== null;
 
   const toggleTheme = () =>
@@ -135,32 +149,99 @@ function Shell() {
   return (
     <SidebarProvider defaultOpen className="h-screen overflow-hidden bg-surface-1">
       <Sidebar variant="inset">
+        {/* El header es un dropdown, y la marca se apila horizontal: la
+            insignia y el nombre en una fila, y el chevron al final. No lleva
+            acciones al lado —lo que el header ofrece está adentro del menú, no
+            desparramado en botones. Los tres destinos son filas del árbol: el
+            menú es un atajo, no un lugar aparte. */}
         <SidebarHeader>
-          <div className="flex items-center gap-2 px-2 py-1">
-            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-foreground text-[11px] font-semibold text-background">
-              W
-            </div>
-            <span className="text-[13px] font-medium">Wabi App</span>
-          </div>
+          <DropdownMenu size="compact">
+            <DropdownTrigger
+              render={
+                <button
+                  type="button"
+                  className={cn(
+                    "flex h-8 w-full cursor-pointer select-none items-center gap-2 px-2 text-left outline-none",
+                    "transition-colors duration-80 hover:bg-hover",
+                    "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
+                    shape.item,
+                  )}
+                />
+              }
+            >
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-foreground text-[11px] font-semibold text-background">
+                W
+              </span>
+              <span className="min-w-0 truncate text-[13px] font-medium">
+                Wabi App
+              </span>
+              <ChevronsUpDown className="ml-auto size-3.5 shrink-0 text-muted-foreground" />
+            </DropdownTrigger>
+
+            <DropdownContent align="start" side="bottom" sideOffset={6}>
+              <MenuItem
+                index={0}
+                icon={Sparkles}
+                label="What's new"
+                onSelect={() => irA("admin/whats-new")}
+              />
+              <MenuItem
+                index={1}
+                icon={CircleQuestionMark}
+                label="FAQ"
+                onSelect={() => irA("admin/faq")}
+              />
+              <DropdownSeparator />
+              <MenuItem
+                index={2}
+                icon={LifeBuoy}
+                label="Support & feedback"
+                onSelect={() => irA("support")}
+              />
+            </DropdownContent>
+          </DropdownMenu>
         </SidebarHeader>
 
+        {/* Un grupo por sección y las hojas como filas de primer nivel: el
+            árbol es el mismo, cambió quién lo contiene. El label del grupo es
+            el que colapsa —`collapsible` se lo pide— así que los grupos
+            sueltos, los que no tienen nombre, no se colapsan: no hay de dónde
+            agarrarlos, y aplanar tres filas no gana nada. */}
         <SidebarContent>
-          <SidebarGroup>
-            <SidebarGroupLabel>Product</SidebarGroupLabel>
-            <SidebarMenu>
-              {PAGES.map((p) => (
-                <SidebarMenuItem key={p.id}>
-                  <SidebarMenuButton
-                    icon={p.icon}
-                    isActive={p.id === activeId}
-                    onClick={() => openTab(toTab(p))}
-                  >
-                    {p.label}
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroup>
+          {NAV.map((grupo) => (
+            <SidebarGroup key={grupo.id} collapsible={grupo.label !== undefined}>
+              {grupo.label && <SidebarGroupLabel>{grupo.label}</SidebarGroupLabel>}
+
+              <SidebarMenu>
+                {grupo.items.map((hoja) => (
+                  <SidebarMenuItem key={hoja.id}>
+                    <SidebarMenuButton
+                      icon={hoja.icon}
+                      isActive={hoja.id === activeId}
+                      onClick={() => openTab(toTab(hoja))}
+                    >
+                      {hoja.label}
+                    </SidebarMenuButton>
+
+                    {/* La acción de la fila. Abre la pestaña sin traerla al
+                        frente —`focus: false`, que el workspace ya sabía
+                        hacer y nadie usaba—: sirve para dejar tres pantallas
+                        cargadas sin perder la que estás mirando. Aparece con
+                        el hover, y la fila le reserva el lugar sola. */}
+                    <Tooltip content="Open in the background" side="right">
+                      <SidebarMenuAction
+                        showOnHover
+                        aria-label={`Open ${hoja.label} in the background`}
+                        onClick={() => openTab(toTab(hoja), { focus: false })}
+                      >
+                        <Plus />
+                      </SidebarMenuAction>
+                    </Tooltip>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroup>
+          ))}
         </SidebarContent>
 
         <SidebarFooter>
