@@ -35,6 +35,20 @@ npm run fix:fluid
 Cuando el registry esté publicado, en `components.json` se cambia esa URL por la
 del sitio y no hace falta nada más.
 
+### `src/index.css`
+
+Es **el mismo archivo** que el del showcase (`../new-wabi-ui/src/index.css`),
+copiado tal cual. El item `@wabi/tokens` trae la escalera de superficies, las
+sombras y los tokens de interacción, pero deja afuera —a propósito— lo que es
+decisión de la app: la paleta base de shadcn (`--background`, `--foreground`,
+`--border`, `--radius`, los `--sidebar-*`…), el fondo del `<html>`, los
+scrollbars nativos y el selector `.light` que hace falta para anidar un tema.
+Sin esa mitad, `bg-background` y `text-muted-foreground` resuelven a nada: en
+claro casi no se nota y en oscuro queda texto negro sobre fondo negro.
+
+Copiarlo entero es lo que garantiza que las dos apps pinten con los mismos
+valores. Si el showcase cambia un token, se vuelve a copiar.
+
 ### `npm run fix:fluid`
 
 El registry de @fluid publica sus componentes compilados para Next.js: `card.tsx`
