@@ -51,10 +51,19 @@ valores. Si el showcase cambia un token, se vuelve a copiar.
 
 ### `npm run fix:fluid`
 
-El registry de @fluid publica sus componentes compilados para Next.js: `card.tsx`
-importa `next/link`, que acá no resuelve. El script lo cambia por un `<a>`.
-**Hay que correrlo después de cada `shadcn add --overwrite`**, porque el CLI
-vuelve a bajar el archivo original.
+Las dos desviaciones locales sobre lo que publica @fluid, en un script porque
+`shadcn add --overwrite` vuelve a bajar el archivo original y se las lleva
+puestas. **Hay que correrlo después de cada instalación.**
+
+| archivo | qué |
+|---|---|
+| `components/ui/card.tsx` | viene compilado para Next e importa `next/link`, que en Vite no resuelve: se cambia por un `<a>` |
+| `lib/font-weight.ts` | el semibold viene en `opsz 18`; acá va en **20**, que es el tamaño óptico con el que está ajustada la tipografía |
+
+Es idempotente, y **falla con código 1 si un parche no encaja** — si el archivo
+del registry cambió de forma, es mejor enterarse que perder la desviación en
+silencio. El mismo script está en el showcase, con los mismos dos parches: las
+dos apps tienen que verse igual.
 
 ## Cómo está armado
 
