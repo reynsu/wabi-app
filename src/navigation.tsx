@@ -12,12 +12,12 @@ import {
   Search,
   ShieldCheck,
   Sparkles,
-  Users,
+  Users as UsersIcon,
   Wrench,
 } from "lucide-react";
 
 import type { IconComponent } from "@/lib/icon-context";
-import { Customers } from "@/pages/Customers";
+import { Users } from "@/pages/Users";
 import { Placeholder } from "@/pages/Placeholder";
 import { Releases } from "@/pages/Releases";
 
@@ -73,7 +73,7 @@ export const NAV: NavGroup[] = [
     id: "chat",
     label: "Chat",
     items: [
-      hoja("chat/accounts", "Accounts", Users, "Chat", () => <Customers />),
+      hoja("chat/accounts", "Accounts", UsersIcon, "Chat", () => <Users />),
       hoja("chat/search", "Search", Search, "Chat"),
       hoja("chat/analytics", "Analytics", ChartColumn, "Chat"),
     ],

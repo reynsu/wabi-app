@@ -28,9 +28,21 @@ cd ../new-wabi-ui && npm run build:registry && npm run serve:registry
 y con eso corriendo, desde acá:
 
 ```bash
-npx shadcn@latest add @wabi/pagination --yes --overwrite
+yes n | npx shadcn add @wabi/pagination -y
 npm run fix:fluid
 ```
+
+Dos cosas de ese comando, las dos aprendidas a los golpes:
+
+**Sin `--overwrite`, y contestando que no a cada archivo que ya existe.** Con
+`--overwrite` el CLI pisa las dependencias transitivas con su última versión, y
+ahí se van por delante las desviaciones locales —`font-weight.ts` vuelve a
+perder el `opsz 20`— y, cuando @fluid publica una pieza migrada, componentes que
+estaban sobre Base UI vuelven sobre Radix sin que nadie lo pida.
+
+**Y después mirar `src/index.css`.** El item de tokens lo reescribe y le mete
+`@keyframes` adentro del `@theme inline` y bloques `:root` duplicados. Si el
+`git diff` de ese archivo tiene algo, es eso: `git checkout -- src/index.css`.
 
 Cuando el registry esté publicado, en `components.json` se cambia esa URL por la
 del sitio y no hace falta nada más.
@@ -129,10 +141,134 @@ El header es un **dropdown**: la insignia y el nombre en una fila, el chevron
 al final, y adentro los tres destinos de producto (What's new, FAQ, Support &
 feedback). Son filas del mismo árbol: el menú es un atajo, no un lugar aparte.
 
+## La pantalla de usuarios
+
+`Chat › Accounts` es la primera pantalla escrita de verdad: un header con la
+barra de búsqueda y el `FilterMenu`, y debajo la tabla con User Name,
+Communication Status, Last Activity y Date Added.
+
+**El header va a la derecha**, con el campo de búsqueda y el `FilterMenu`
+juntos contra el borde. Dos ajustes sobre lo que traen los componentes:
+
+- El campo se muestra siempre con la caja puesta. `InputField` la deja
+  invisible en reposo —es un campo de toolbar y el marco aparece al tocarlo— y
+  acá queremos lo contrario: que se vea que hay dónde escribir sin buscarlo. Se
+  pisa con un selector al contenedor que tiene el input adentro
+  (`[&>div:has(>input)]`) y no a un `:last-child`, que se rompe el día que el
+  campo muestre un error.
+- El botón de filtros va en `secondary`. Para eso `FilterMenu` estrenó una prop
+  `variant`: tenía el `tertiary` cableado adentro, y pisar por CSS el relleno de
+  una variante desde afuera es pelearse con el componente. El default no cambia,
+  así que el showcase sigue igual.
+
+**La densidad se declara una vez.** La pantalla entera va adentro de un
+`SizeProvider size="compact"` y el buscador, el panel de filtros y la tabla lo
+leen de ahí: ninguno recibe `size` por su cuenta. Es lo que pide el sistema de
+tamaños —envolver la región densa, no repetir la palabra en cada pieza—, y
+pasar la pantalla a la densidad normal es cambiar esa palabra. Lo mismo con el
+texto propio: el id debajo del nombre sale de `useTypeScale().caption`, no de
+un `text-[11px]`.
+
+**Lo único que scrollea es el cuerpo de la tabla.** La pantalla mide lo que
+mide la pestaña y no desborda, así que el panel no scrollea; adentro, una
+`ScrollArea` —el scrollbar del sistema, que en un táctil se corre sola y deja
+el overflow nativo— se queda con el alto que sobra, con `scroll-fade` en el
+viewport: la lista se disuelve contra el borde que todavía tiene contenido y se
+queda nítida en el principio y en el final de verdad.
+
+Los títulos de las columnas van **afuera del scroller, en su propia tabla**.
+Adentro no pueden: el `scroll-fade` desvanece el borde de arriba en cuanto hay
+filas por encima, y una cabecera pegada cae justo ahí — quedaría fantasma cada
+vez que scrolleás. Afuera se queda entera. Las dos tablas se alinean porque
+comparten el mismo `colgroup` y van las dos en `table-fixed`: con el ancho
+saliendo del contenido, separadas, no habría manera.
+
+**La tabla no tiene marco.** Ni radio, ni sombra, ni escalón propio: llega a
+los dos bordes del panel. Lo que la alinea con el header es el `pl-6` de su
+primera columna y el `pr-6` de la última, no un contenedor con padding — el
+aire lateral es del header, no de la pantalla.
+
+Sobre el escalón compacto, dos ajustes de aire: las filas van a 8px de padding
+vertical —el texto se queda en la densidad compacta, lo que cambia es cuánto
+respiran— y los títulos a 10px, que los deja en 36px de alto, el escalón normal
+de la escalera de tamaños.
+
+La cabecera lleva además una banda de color. No sale de la escalera de
+superficies —en el modo claro la escalera es plana en blanco de la tercera para
+arriba, así que un escalón no la separaría ni de las filas ni del header de la
+pestaña, que están sobre el mismo plano; es la misma razón por la que el plato
+del avatar tampoco es un escalón—. Es un violeta muy lavado, en el hue 292 del
+violeta de los badges para que sea el púrpura del sistema y no otro traído de
+afuera: `oklch(0.966 0.022 292)` en claro y `oklch(0.34 0.03 292)` en oscuro,
+que queda por encima del plano, porque una banda más oscura que lo que la rodea
+se lee como un hueco y no como una cabecera.
+
+Va al 70% y con `backdrop-blur-md`, y **eso es lo que decide la estructura**: un
+desenfoque necesita algo detrás que desenfocar. La cabecera no va antes del
+scroller sino flotando encima, y el scroller reserva su alto arriba —medido con
+`useMeasuredHeight`, no una constante, porque el alto sale del escalón de
+tamaños y cambia con él—. Así las filas le pasan por debajo y la banda se lee
+apoyada sobre la lista en vez de pintada al lado. De paso el `scroll-fade` cae
+justo ahí: las filas se disuelven mientras entran debajo del vidrio.
+
+Va declarado en la pantalla y no como token en `index.css`: ese archivo es copia
+byte a byte del showcase y una variable de más lo desalinea. Si el violeta le
+sirve a otra pantalla, el lugar es el registry.
+
+La columna del nombre lleva tres cosas: el avatar, el nombre, y debajo el id de
+la cuenta. El avatar es el `Avatar` de shadcn —no hay ninguno en `@wabi` ni en
+`@fluid`—, y viene del estilo `base-nova`, que está sobre Base UI: no mete una
+segunda librería de primitivas en un proyecto que sacó Radix a mano. Sin foto,
+lo que se ve es el `AvatarFallback` con las iniciales.
+
+Va en su escalón normal, 32px, que es lo que mide la celda de dos líneas que
+tiene al lado, y el radio sale del sistema de figuras en vez de ser redondo: el
+aro del componente y el plato del fallback lo heredan, así que los tres siguen
+la misma esquina que el buscador y el botón de filtros.
+
+La tabla no se pagina: **se sigue**. Un centinela al final de la lista y un
+`IntersectionObserver` que pide el próximo tramo cuando se acerca. Tres cosas
+que no son obvias y que sin ellas no anda:
+
+- **La raíz del observer es la caja que scrollea, no el viewport.** Contra el
+  viewport el `rootMargin` no sirve de nada: un ancestro que recorta deja al
+  centinela fuera de la intersección aunque caiga dentro del margen, y el tramo
+  llega recién al tocar fondo. La caja se busca subiendo desde el centinela, no
+  nombrando al panel: la pantalla no tiene por qué saber quién la contiene.
+- **El observer se rearma después de cada tramo.** Un `IntersectionObserver`
+  avisa cuando la intersección *cambia*, y al agregar filas el centinela sigue
+  visible, así que no vuelve a avisar nunca: la lista se planta a la mitad.
+- **Una pestaña que no estás mirando sigue montada**, escondida con
+  `visibility`, y un observer no mira la visibilidad. Sin el chequeo, una copia
+  de esta pantalla en segundo plano se trae la tabla entera sin que nadie
+  scrollee.
+
+Y cambiar lo filtrado vuelve arriba y reinicia la ventana, las dos cosas: si no,
+filtrar desde el fondo deja la vista a la altura de la fila 40 de un resultado
+que recién empieza, y el centinela pide tramo tras tramo hasta alcanzarla.
+
+Los tres filtran lo mismo y la tabla se recalcula con lo que quede: la búsqueda
+por nombre **y por id** —si el id está a la vista, alguien lo va a pegar ahí—,
+el panel por atributo —entre atributos, Y; entre los valores de un
+mismo atributo, O—, y la página se acota al derivar, porque filtrar puede dejar
+menos páginas que la que estabas mirando.
+
+Las fechas se guardan una sola vez y en ISO. La etiqueta que se ve —"3 h ago",
+"Yesterday", "Aug 12"— y el tramo con el que filtra el panel salen las dos de
+ahí, así que no pueden contradecirse: no hay manera de que una fila diga
+"yesterday" y el filtro de "Last 7 days" la deje afuera. `HOY` es un valor fijo
+y no `new Date()`: con un hoy que se mueve solo, la fila de "hace dos horas"
+pasaría a decir "hace tres meses" sin que nadie toque nada. Cuando los usuarios
+salgan de una API, eso se va con ellos.
+
+Y los estados de comunicación viven en una sola constante: la etiqueta que se
+lee en la tabla, el color del punto en el panel de filtros y el color del badge
+son tres vistas del mismo dato, no tres listas que se contradicen.
+
 ## Lo que falta
 
-Las pantallas son un andamio. Tres están escritas —`Accounts` con `Pagination`,
-`What's New` con `ChangelogPage`, y el board de `Analytics`— y el resto usa
+Las pantallas son un andamio. Tres están escritas —`Accounts`, `What's New` con
+`ChangelogPage`, y el board de `Analytics`— y el resto usa
 `src/pages/Placeholder.tsx`, que dice que la pantalla no está en vez de
 inventarla. Escribir una es cambiarle el `render` a su hoja en
 `navigation.tsx`; el shell no cambia.
