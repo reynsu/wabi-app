@@ -59,7 +59,18 @@ Sin esa mitad, `bg-background` y `text-muted-foreground` resuelven a nada: en
 claro casi no se nota y en oscuro queda texto negro sobre fondo negro.
 
 Copiarlo entero es lo que garantiza que las dos apps pinten con los mismos
-valores. Si el showcase cambia un token, se vuelve a copiar.
+valores. Si el showcase cambia un token, se vuelve a copiar — con una salvedad,
+que es la única línea en la que los dos archivos difieren:
+
+```css
+--radius: 0.5rem;   /* el showcase trae el 0.625rem de shadcn */
+```
+
+A 10px un control de 28px se lee casi como una píldora. Y 8px es, además, el
+número que el sistema de figuras ya da por sentado: `shape-context` tiene
+`bgRadius: 8` para el fondo que viaja y un anillo de foco de 10 que se describe
+a sí mismo como "item + 2". Bajarlo alinea el CSS con lo que el propio sistema
+asume. Al volver a copiar el archivo, hay que volver a bajarlo.
 
 ### `npm run fix:fluid`
 
