@@ -6,6 +6,7 @@ import {
   ChevronDown,
   Contact,
   Loader,
+  MailPlus,
   MailX,
   Search,
   UserPen,
@@ -29,6 +30,7 @@ import { Pagination } from "@/components/pagination";
 import { Rango } from "@/components/pager-range";
 import { useWorkspace } from "@/components/workspace-context";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   DropdownContent,
   DropdownMenu,
@@ -482,6 +484,18 @@ function Pantalla() {
             value={filtros}
             onValueChange={setFiltros}
           />
+
+          {/* La acción de la pantalla, y la única: dar de alta un buzón es lo
+              que "provisioning" quiere decir. Va `primary` —el resto de la
+              barra busca y filtra, que es mirar; esto es lo único que crea
+              algo— y última, contra el borde: es donde este sistema deja la
+              acción, después de los controles que la preceden.
+
+              El glifo es el mismo con el que la fila del sidebar nombra la
+              sección: el botón hace lo que el lugar dice que se hace acá. */}
+          <Button variant="primary" leadingIcon={MailPlus}>
+            New mailbox
+          </Button>
         </div>
       </motion.header>
 
