@@ -977,10 +977,9 @@ filtrar desde el fondo deja la vista a la altura de la fila 40 de un resultado
 que recién empieza, y el centinela pide tramo tras tramo hasta alcanzarla.
 
 Los tres filtran lo mismo y la tabla se recalcula con lo que quede: la búsqueda
-por nombre **y por id** —si el id está a la vista, alguien lo va a pegar ahí—,
-el panel por atributo —entre atributos, Y; entre los valores de un
-mismo atributo, O—, y la página se acota al derivar, porque filtrar puede dejar
-menos páginas que la que estabas mirando.
+por nombre **y por id** —si el id está a la vista, alguien lo va a pegar ahí—, y
+el panel por atributo —entre atributos, Y; entre los valores de un mismo
+atributo, O—.
 
 Las fechas se guardan una sola vez y en ISO. La etiqueta que se ve —"3 h ago",
 "Yesterday", "Aug 12"— y el tramo con el que filtra el panel salen las dos de
@@ -994,10 +993,167 @@ Y los estados de comunicación viven en una sola constante: la etiqueta que se
 lee en la tabla, el color del punto en el panel de filtros y el color del badge
 son tres vistas del mismo dato, no tres listas que se contradicen.
 
+## La pantalla de Email Search
+
+`Email › Search` son **los correos de toda la casa**, no los de una cuenta. Es
+el mismo mueble que Accounts Search —header con la búsqueda y el `FilterMenu`,
+la tabla debajo, la densidad declarada una vez con un `SizeProvider compact`,
+la cabecera flotando sobre el scroller con su banda de vidrio— porque son dos
+maneras de buscar en la misma consola, y cambiar de fila del sidebar no debería
+cambiar de mueble. Lo que cambia es lo que hay adentro, que es lo único que
+tiene por qué cambiar.
+
+**Tres columnas y no seis.** El autor, el asunto, y cuándo salió.
+
+- **Autor**: la dirección y nada más. Sin avatar, sin nombre y sin el buzón de
+  la cuenta debajo. Una dirección es lo que se busca y lo que se pega en la
+  barra de arriba; todo lo demás alrededor la haría más difícil de encontrar, no
+  más fácil. De quién es la dirección se deriva de la carpeta: si el correo
+  salió de la cuenta, el autor es la cuenta.
+- **Asunto**: se lleva la mitad del ancho, porque es lo único que se lee para
+  decidir. Las marcas van en su misma línea y pegadas a él —el clip con el
+  número de adjuntos, `Legal`, `Rejected`—, no estiradas contra el borde
+  derecho: ahí dejarían de leerse como parte del asunto. Y se pintan sólo
+  cuando dicen algo: un badge `Standard` en cada fila de una tabla de sesenta es
+  ruido con forma de dato.
+- **Date Sent**: hace cuánto, en relativo, en un solo renglón. Es lo que uno
+  quiere saber de un correo —cuán reciente es— y la fecha exacta casi nunca:
+  "Apr 9" obliga a restar mentalmente para llegar a lo que "4 mo ago" ya dice.
+  La fecha entera no se pierde, va en el `title`. La escalera se aprieta a
+  medida que se aleja —horas, días, semanas, meses, años— porque a nadie le
+  sirve "hace 47 días", y los meses se cuentan por calendario y no dividiendo
+  días: un mes no mide 30.
+
+### Dos hechos nuevos en el modelo
+
+Un correo ganó **de qué es** —`standard` o `legal`— y **si la moderación lo
+frenó**. Van separados a propósito: un legal puede rebotar y uno cualquiera
+también, así que meterlos en un campo sería inventar que son excluyentes. El
+tipo viaja con su etiqueta y su color en `TIPOS_EMAIL`, por lo mismo que los
+estados de una cuenta viven en `ESTADOS`: la etiqueta que se lee, el color del
+badge y el punto del panel de filtros son tres vistas del mismo dato.
+
+`ENTREGAS` es la lectura del booleano —dos palabras para `rechazado`— y vive
+al lado, para que la tabla y el panel digan lo mismo. Y la dirección de quien
+escribió no se guarda: `autorDe` la deriva de la carpeta y del dueño del buzón.
+Guardarla además sería el mismo hecho dos veces, y el primer correo que cambie
+de carpeta los deja peleados.
+
+`todosLosEmails` junta los de todas las cuentas ordenados por fecha, **sin
+tienda** —a diferencia de los tickets—: un correo no cambia desde la consola,
+así que `emailsDe` devuelve siempre la misma lista y alcanza con memorizar
+contra los usuarios.
+
+### La tarjeta del autor es la de Accounts
+
+Pasarle por encima a la dirección abre **el mismo `PeekCard` que abre el nombre
+en Accounts Search**: Details, Analytics, Timeline, y el pie con Reset Password
+y Block. La cuenta es la misma cosa se la mire desde donde se la mire, así que
+la ficha que la cuenta también; dos copias serían dos fichas del mismo hecho
+que un día dicen cosas distintas. Para eso `TarjetaUsuario` se exporta y recibe
+su disparador como `children` —allá el nombre, acá la dirección—, y las
+acciones escriben en la misma tienda: bloquear desde acá se ve en Accounts.
+
+Una cosa que conviene saber: la tarjeta es **la del dueño del buzón**, que en un
+correo que entró no es el de la dirección que se ve. La fila es de una cuenta,
+y los remitentes de afuera no están en el padrón.
+
+### El correo se abre en el riel
+
+La fila entera abre el correo en un `LateralPreview`, que es el lugar del riel
+para mirar **una** cosa: el board dice cómo va todo, el preview dice qué es
+esto. El asunto y la carpeta suben a su header en vez de repetirse adentro,
+porque acá el correo tiene una columna y no media pantalla.
+
+El cuerpo es el mismo que muestra la sección Emails del perfil —avatar con las
+iniciales del remitente, su dirección, a quién fue, la fecha entera con año, los
+párrafos, y los adjuntos como chips con nombre y peso—. Un correo leído desde la
+búsqueda y el mismo correo leído desde la cuenta no son dos cosas. Los chips no
+son botones: no hay de dónde bajarlos, y un botón que no descarga es peor que
+ninguno.
+
+**Los legales no muestran su contenido.** Aparecen enteros como registro —de
+quién, para quién, cuándo, en qué carpeta— porque eso es lo que hay que poder
+auditar; lo que no se abre es lo que dicen. En lugar del cuerpo va un
+`AnimatedEmpty` con marco punteado —el que este sistema usa para el hueco que
+espera algo— diciendo por qué. Los adjuntos tampoco se listan: un adjunto
+también es contenido.
+
+El preview es **de la pestaña que lo abrió**: el `PreviewProvider` guarda uno por
+scope, así que dos copias de esta pantalla no se pisan el vistazo.
+
+El pie lleva a **este mismo correo adentro de la cuenta**. `tabDePerfil` toma la
+sección y el id del correo, el perfil los pasa a la sección y `UserEmails` abre
+en ese. Las dos cosas son sólo estado inicial: a partir de ahí lo que se mira es
+de quien está mirando. Nada de eso va en el id de la pestaña —el id es la
+identidad, y `profile/USR-1042#emails` al lado de `profile/USR-1042` serían dos
+pestañas para la misma cuenta—, y la contracara es que pedir un perfil que ya
+está abierto lo trae donde estaba.
+
+La dirección del autor sigue llevando a la cuenta y le corta la propagación al
+clic, así que no dispara además el riel. La caja que lo frena llega hasta donde
+llega el texto: el resto de esa celda abre el correo como cualquier otra parte
+de la fila.
+
+### Se pagina, no se sigue
+
+De a 40, con el `Pagination` del registry. El pie va afuera del scroller y
+pegado abajo —es del mueble, no de la lista—, así que se pagina desde donde
+estés. A la izquierda el rango y el total, que el pager no dice.
+
+Ese rango **rueda con la página**, en el mismo idioma que el número del pager
+que tiene al lado: el que se va sale hacia donde va la página, el que llega
+entra desde el otro lado, y los dos cruzan desenfocados. La dirección viene del
+número y no del botón —la misma decisión que toma `Pagination` por dentro—, así
+que volver a la primera al filtrar rueda para el lado correcto. Dos textos que
+cambian por lo mismo y se mueven distinto se leen como dos cosas que no tienen
+que ver.
+
+Cambiar de filtro vuelve a la primera página, al derivar y no en un efecto, y la
+página se acota contra el total: si estabas en la 7 y el filtro deja 4, caés en
+la última que existe en vez de mirar una tabla vacía sobre un pager que dice
+"7 of 4". Cambiar de página vuelve arriba: una página que empieza a la altura de
+la fila veinte parece cortada.
+
+### El movimiento
+
+**No hay cascada.** Una cascada cuenta un orden —"esto llegó primero, después
+esto"— y en una tabla de búsqueda ese orden es mentira: los resultados no
+llegaron en fila india, estaban todos ahí. Lo que entra es **el texto de cada
+celda**, desenfocado y enfocándose, todas al mismo tiempo. Es el gesto de algo
+que termina de resolverse.
+
+Va en el texto y no en la fila: la fila es también su borde de un píxel y el
+fondo del hover, y desenfocar un borde de un píxel lo hace desaparecer. Las
+marcas del asunto llegan con un zoom más marcado —son insignias, y algo que
+aparece creciendo se lee como algo que se le puso encima a la fila—.
+
+El correo del riel sí entra por bloques, con medio suspiro entre uno y otro: es
+el mismo reparto que usa el correo abierto del perfil, porque un correo es una
+cosa sola y escalonarlo renglón por renglón diría algo falso sobre lo que es. Y
+lleva el id del correo como `key`: abrir otro es cambiar de contenido, no
+actualizarlo, y sin eso ni la entrada ni el scroll del riel se enterarían.
+
+Todo sale de `lib/springs` —esto es una reacción, alguien tocó algo— y se apaga
+solo con `prefers-reduced-motion`, salvo donde hay desenfoque: `reducedMotion`
+saca el `transform`, no el filtro, así que el rango del pie elige sus variantes
+a mano, igual que el pager.
+
+### Dos cosas que sólo se ven probando
+
+- **A un `span` inline no le aplica el `max-w-full` que lo recortaría.** El
+  disparador de la tarjeta es un span, y suelto en la celda no se cortaba: con
+  el panel angosto la dirección se metía en la columna del asunto. Adentro de
+  una caja flex se convierte en ítem y ahí sí se recorta — es la misma caja que
+  usa Accounts alrededor del nombre.
+- **Un `svg` es un bloque**, se lo deja así el preflight de Tailwind, y el badge
+  mete todo lo que le pasan en un solo span de texto: el clip y el número
+  quedaban apilados uno arriba del otro. Van juntos adentro de su propia caja.
+
 ## Lo que falta
 
-Las pantallas son un andamio. Tres están escritas —`Accounts`, `What's New` con
-`ChangelogPage`, y el board de `Analytics`— y el resto usa
-`src/pages/Placeholder.tsx`, que dice que la pantalla no está en vez de
-inventarla. Escribir una es cambiarle el `render` a su hoja en
-`navigation.tsx`; el shell no cambia.
+Las pantallas son un andamio. Cinco están escritas —`Accounts`, `Email › Search`,
+`Tickets`, `What's New` con `ChangelogPage`, y el board de `Analytics`— y el resto
+usa `src/pages/Placeholder.tsx`, que dice que la pantalla no está en vez de
+inventarla. Escribir una es cambiarle el `render` a su hoja en `navigation.tsx`;
+el shell no cambia.
