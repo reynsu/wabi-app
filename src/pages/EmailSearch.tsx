@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { useCallback, useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import {
   AtSign,
   CalendarClock,
@@ -23,6 +23,7 @@ import {
 import { punto } from "@/components/color-dot";
 import { LateralPreview } from "@/components/lateral-preview";
 import { Pagination } from "@/components/pagination";
+import { Rango } from "@/components/pager-range";
 import { usePreview } from "@/components/preview-context";
 import {
   FilterMenu,
@@ -45,6 +46,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useMeasuredHeight } from "@/hooks/use-measured-height";
+import { usePaginacion } from "@/hooks/use-paginacion";
 import { useShape } from "@/lib/shape-context";
 import { SizeProvider, useTypeScale } from "@/lib/size-context";
 import { spring } from "@/lib/springs";
@@ -78,9 +80,10 @@ import {
    cuenta.
 
    Es el mismo mueble que Accounts Search —un header con la búsqueda y el
-   `FilterMenu`, y la tabla debajo, que se sigue en vez de paginarse— porque son
-   dos maneras de buscar en la misma consola y cambiar de fila del sidebar no
-   debería cambiar de mueble. Lo que cambia es qué hay adentro, que es lo único
+   `FilterMenu`, y la tabla debajo— porque son dos maneras de buscar en la misma
+   consola y cambiar de fila del sidebar no debería cambiar de mueble. Lo que no
+   comparte con Accounts es cómo se recorre: allá la lista se sigue, y acá se
+   pagina —igual que en Provisioning, con el mismo `usePaginacion`—. Lo que cambia es qué hay adentro, que es lo único
    que tiene por qué cambiar.
 
    Tres columnas y no seis: quién lo escribió, de qué es, y cuándo salió. El
@@ -342,97 +345,6 @@ function CorreoEnElRiel({
   );
 }
 
-/* ─────────────────────────── El rango ─────────────────────────── */
-
-/* Cuánto se está viendo de cuánto. Cambia en el mismo clic que el número del
-   pager que tiene al lado, así que se mueve como él: el que se va sale hacia
-   donde va la página, el que llega entra desde el otro lado, y los dos cruzan
-   apenas desenfocados. Dos textos que cambian por lo mismo y se mueven distinto
-   se leen como dos cosas que no tienen que ver.
-
-   La dirección viene del número y no del botón —la misma decisión que toma
-   `Pagination` por dentro—: volver a la primera página al filtrar no se hizo
-   con la flecha, y aun así tiene que rodar para el lado que corresponde.
-
-   El viaje es de ocho píxeles y la caja lo recorta: el corte contra el borde es
-   lo que hace que se lea como un odómetro y no como un texto que se desvanece.
-
-   Con `prefers-reduced-motion` el texto igual cambia —es el contenido— pero se
-   enciende en vez de viajar. Va explícito y no confiado al `MotionConfig`:
-   `reducedMotion` le saca el `transform`, no el desenfoque. */
-
-const VIAJE = 8;
-const BORRON = "blur(2px)";
-
-const rueda = {
-  entra: (dir: number) => ({
-    y: dir >= 0 ? VIAJE : -VIAJE,
-    opacity: 0,
-    filter: BORRON,
-  }),
-  quieto: { y: 0, opacity: 1, filter: "blur(0px)", transition: spring.slow },
-  sale: (dir: number) => ({
-    y: dir >= 0 ? -VIAJE : VIAJE,
-    opacity: 0,
-    filter: BORRON,
-    transition: spring.slow.exit,
-  }),
-} as const;
-
-const enciende = {
-  entra: { opacity: 0 },
-  quieto: { opacity: 1, transition: spring.slow },
-  sale: { opacity: 0, transition: spring.slow.exit },
-} as const;
-
-function Rango({
-  desde,
-  hasta,
-  total,
-  dir,
-}: {
-  desde: number;
-  hasta: number;
-  total: number;
-  /** 1 si la página avanzó, -1 si volvió. */
-  dir: number;
-}) {
-  const escala = useTypeScale();
-  const reducido = useReducedMotion() ?? false;
-  const texto = `${desde}\u2013${hasta} of ${total.toLocaleString("en-US")}`;
-
-  return (
-    <span
-      className="relative inline-flex overflow-hidden text-muted-foreground tabular-nums"
-      style={{ fontSize: escala.caption }}
-    >
-      {/* Lo que se anuncia es la línea entera, una sola vez. Los dos textos
-          conviven un cuarto de segundo mientras uno sale y el otro entra, y un
-          lector de pantalla no tiene por qué leer los dos. */}
-      <span className="sr-only" aria-live="polite">
-        {texto}
-      </span>
-
-      {/* `popLayout` saca al que se va del flujo, así que el que llega ocupa su
-          lugar en vez de empujarlo: los dos viajan sobre la misma línea. */}
-      <AnimatePresence initial={false} mode="popLayout" custom={dir}>
-        <motion.span
-          key={texto}
-          aria-hidden
-          custom={dir}
-          variants={reducido ? enciende : rueda}
-          initial="entra"
-          animate="quieto"
-          exit="sale"
-          className="whitespace-nowrap"
-        >
-          {texto}
-        </motion.span>
-      </AnimatePresence>
-    </span>
-  );
-}
-
 /* ─────────────────────────── Las marcas ─────────────────────────── */
 
 /* Los badges del asunto, en la misma línea y a su derecha. Van los tres en el
@@ -686,18 +598,6 @@ const BANDA_TITULOS = [
 /** Cuántos correos entran en una página. */
 const POR_PAGINA = 40;
 
-
-/* La caja que scrollea, buscada subiendo desde adentro: esta pantalla no tiene
-   por qué saber quién la está conteniendo, y así funciona igual el día que la
-   metan en un diálogo o en el riel del costado. */
-function scrollerDe(el: HTMLElement | null) {
-  for (let padre = el?.parentElement; padre; padre = padre.parentElement) {
-    const desborde = getComputedStyle(padre).overflowY;
-    if (desborde === "auto" || desborde === "scroll") return padre;
-  }
-  return null;
-}
-
 export function EmailSearch() {
   return (
     /* Una región densa entera, como la tabla de Accounts: el buscador, el panel
@@ -766,39 +666,16 @@ function Pantalla() {
     [show, close, openTab],
   );
 
-  const paginas = Math.max(1, Math.ceil(encontrados.length / POR_PAGINA));
-
   /* En qué página estamos, con la clave de lo que estaba filtrado cuando se
-     eligió: cambiar el filtro vuelve a la primera en el mismo render, y no
-     después de pintar la página siete de un resultado que ahora tiene dos. El
-     ajuste se hace al derivar y no en un efecto, que es el mismo patrón que usa
-     `Pagination` por dentro para saber desde qué dígito rueda.
-
-     El `min` contra `paginas` es lo que sostiene el caso de al lado: quedarse
-     en la siete y que el filtro deje cuatro páginas. Sin él, la tabla quedaría
-     vacía sobre un pager que dice "7 of 4". */
+     eligió: cambiar el filtro vuelve a la primera, la página se acota contra el
+     total, y cambiar de página vuelve arriba. Las tres decisiones viven en el
+     hook —lo mismo hace Provisioning, que es la otra tabla que se pagina—. */
   const clave = `${busqueda}|${JSON.stringify(filtros)}`;
-  /* La dirección se guarda con la página y no se deduce al pintar: el render en
-     el que la página cambia es también el que monta el texto nuevo, y para
-     entonces el anterior ya se perdió. Guardarla en el mismo lugar la deja
-     disponible para el que sale y para el que entra. */
-  const [elegida, setElegida] = useState({ clave, pagina: 1, dir: 1 });
-  const pagina =
-    elegida.clave === clave ? Math.min(elegida.pagina, paginas) : 1;
-  if (elegida.clave !== clave) setElegida({ clave, pagina: 1, dir: 1 });
-
-  const desde = (pagina - 1) * POR_PAGINA;
-  const filas = encontrados.slice(desde, desde + POR_PAGINA);
-
-  /* Un ancla adentro de la caja que scrollea, para poder subirla desde acá. */
-  const ancla = useRef<HTMLDivElement>(null);
-
-  /* Cambiar de página —o de filtro— vuelve arriba. Una página nueva que
-     empieza a la altura de la fila veinte es una página que parece cortada, y
-     el que la pidió ya está mirando el principio. */
-  useEffect(() => {
-    scrollerDe(ancla.current)?.scrollTo({ top: 0 });
-  }, [clave, pagina]);
+  const { pagina, paginas, desde, filas, dir, ancla, irA } = usePaginacion(
+    encontrados,
+    clave,
+    POR_PAGINA,
+  );
 
   return (
     /* La pantalla reparte los turnos y sus piezas los toman: el header, la
@@ -1037,20 +914,10 @@ function Pantalla() {
             desde={desde + 1}
             hasta={desde + filas.length}
             total={encontrados.length}
-            dir={elegida.dir}
+            dir={dir}
           />
 
-          <Pagination
-            total={paginas}
-            value={pagina}
-            onValueChange={(proxima) =>
-              setElegida({
-                clave,
-                pagina: proxima,
-                dir: proxima >= pagina ? 1 : -1,
-              })
-            }
-          />
+          <Pagination total={paginas} value={pagina} onValueChange={irA} />
         </motion.footer>
       )}
     </motion.div>
