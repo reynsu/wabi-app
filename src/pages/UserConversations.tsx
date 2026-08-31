@@ -227,8 +227,13 @@ function Lista({
 
   return (
     <ListPane id="conversations">
+      {/* El campo se lleva el ancho del panel. `InputGroup` trae un `w-72`
+          fijo —el ancho de un formulario suelto— y este panel es
+          redimensionable: con el ancho fijo, arrastrarlo para ver los nombres
+          enteros deja el buscador parado donde estaba y un hueco a su derecha.
+          Es lo mismo que ya hacía Tickets con su `flex-1`. */}
       <div className="shrink-0 p-3">
-        <InputGroup>
+        <InputGroup className="w-full">
           <InputField
             index={0}
             label="Search conversations"
