@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   AtSign,
   CalendarPlus,
@@ -20,6 +20,11 @@ import {
   AnimatedEmptyTitle,
 } from "@/components/animated-empty";
 import { punto } from "@/components/color-dot";
+import {
+  BarraDeAlta,
+  FilasBorrador,
+  useAltaDeBuzones,
+} from "@/pages/AltaDeBuzones";
 import {
   FilterMenu,
   type FilterGroup,
@@ -412,6 +417,12 @@ function Pantalla() {
 
   const GRUPOS = useMemo(() => grupos(todos), [todos]);
 
+  /* El alta: qué se está por dar de alta en *esta* pestaña. Es estado de la
+     vista —como el filtro y la página—, así que vive acá y no en la tienda de
+     buzones: dos copias de esta pantalla tienen que poder estar escribiendo
+     cosas distintas. */
+  const alta = useAltaDeBuzones();
+
   const { openTab } = useWorkspace();
 
   const abrirCuenta = useCallback(
@@ -493,11 +504,31 @@ function Pantalla() {
 
               El glifo es el mismo con el que la fila del sidebar nombra la
               sección: el botón hace lo que el lugar dice que se hace acá. */}
-          <Button variant="primary" leadingIcon={MailPlus}>
+          <Button
+            variant="primary"
+            leadingIcon={MailPlus}
+            onClick={alta.abrir}
+          >
             New mailbox
           </Button>
         </div>
       </motion.header>
+
+      {/* El renglón donde se escribe, entre el header y la tabla. Va afuera del
+          scroller —se lo usa todo el tiempo y con el scroll se iría— y adentro
+          de un `AnimatePresence`, que es lo que le da su salida: sin él,
+          descartar lo haría desaparecer de un cuadro al otro. */}
+      <AnimatePresence initial={false}>
+        {alta.abierto && (
+          <BarraDeAlta
+            alta={alta}
+            /* Todavía no escribe: no hay `crearBuzon` en `buzones.ts`, y ese es
+               el próximo paso. Lo que ya está resuelto es qué mandarle —ver
+               `buzonesABodegar`—; cuando exista, esta línea es la que cambia. */
+            onCrear={alta.cerrar}
+          />
+        )}
+      </AnimatePresence>
 
       {filas.length === 0 ? (
         <AnimatedEmpty>
@@ -540,6 +571,11 @@ function Pantalla() {
                 lo que el hook de la paginación usa para encontrar la caja que
                 scrollea y subirla cuando cambia de página. */}
             <div ref={ancla} style={{ paddingTop: altoCabecera ?? 0 }} />
+
+            {/* Lo que se está por crear, debajo de los títulos y arriba de la
+                primera fila real: ahí es donde van a estar cuando existan. */}
+            {alta.abierto && <FilasBorrador alta={alta} />}
+
             <Table className={cn("table-fixed", SANGRIA, AIRE_FILA)}>
               <Columnas />
               <TableBody>

@@ -1231,6 +1231,55 @@ despegaría de ellos el día que se dé de baja a alguien. `cambiarEstadoBuzon` 
 la fila y no la dirección sola porque también necesita el estado que tiene ahora:
 pedir el que ya tiene no es un cambio.
 
+### El alta pasa adentro de la tabla
+
+Tocar **New mailbox** no abre nada: la tabla crece. Arriba aparece un renglón
+para escribir —con las cuentas colgando mientras se escribe— y cada una que se
+elige cae como una **fila borrador**, con la forma exacta que va a tener cuando
+exista: su dirección derivada, quién la crea, la fecha de hoy, y el estado con el
+que nace. Eso es lo que decidió esta forma y no un panel al costado: lo que se
+está creando y lo que ya existe se leen en la misma grilla, una arriba de la
+otra, sin cambiar de lugar en la ventana. Lo que hay que sostener a cambio es que
+la tabla deja de ser sólo la lista de lo que hay —de ahí el punteado, el tinte y
+el badge `Draft`: lo que todavía no es tiene que decirse a simple vista—.
+
+Va en **dos piezas porque van en dos lugares**. El renglón para escribir se queda
+quieto arriba de la tabla, afuera del scroller: se lo usa todo el tiempo y con el
+scroll se iría. Las filas van adentro del scroller, debajo de los títulos y
+arriba de la primera fila real, que es donde van a estar cuando existan. Las dos
+leen el mismo estado, que lo tiene la pantalla —no la tienda de buzones—: qué se
+está por dar de alta es de la vista, como el filtro y la página, y dos copias de
+Provisioning tienen que poder estar escribiendo cosas distintas.
+
+Las filas borrador no son de la `Table` del registry sino una grilla con los
+mismos anchos. Una fila de tabla no se puede abrir de alto —las celdas no
+colapsan con ella— y lo que esta pieza tiene que hacer es justamente crecer.
+
+**Entrar y salir es lo mismo acá: la tabla se abre y se cierra.** La banda y las
+filas crecen desde cero hasta lo que miden y se van encogiéndose; nada entra
+desde un costado ni se acerca desde el fondo, porque nada viene de otro lado —
+aparece lugar donde no había. `moderate` para la banda, que es el escalón que
+este sistema usa para lo que tiene que asentarse exacto (una banda que rebota
+deja la tabla temblando debajo), y `slow` para las filas, que son lo que uno está
+mirando cuando las agrega. Las sugerencias no: cuelgan de un campo, así que se
+comportan como cualquier popup —se encienden y se acercan—.
+
+Las filas **no entran en cascada**: se agregan de a una, con un clic cada una, así
+que cada una es su propio evento. Cuando se van, en cambio, se van todas juntas
+—se creó el lote, o se descartó— y son una cosa sola. Un escalonado ahí contaría
+un orden que no existe. Con `prefers-reduced-motion` no crecen: aparecen. Va
+explícito, porque el `MotionConfig` de `main.tsx` le saca el `transform` a una
+animación y no el alto, y un alto que se anima es movimiento igual.
+
+Lo único que falta es guardar: no hay `crearBuzon` en `buzones.ts` todavía.
+`buzonesABodegar` ya arma exactamente lo que hay que mandarle, así que cuando
+exista, lo que cambia es una línea.
+
+Las otras cinco maneras que se probaron —un panel en el riel, mosaicos en el
+board, una pestaña propia, una barra de comandos, y la tabla dada vuelta en
+selector de cuentas— viven en la rama `prototipo-alta`, con lo que cada una
+enseñó.
+
 ### Un buzón no es una cuenta
 
 `buzones.ts` es un modelo aparte y no dos campos colgados del usuario. La cuenta
