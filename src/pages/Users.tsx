@@ -1,8 +1,20 @@
-import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  Ban,
   CalendarPlus,
+  ChartColumn,
+  CircleCheck,
   Contact,
   History,
+  IdCard,
+  KeyRound,
   Loader,
   Search,
   SearchX,
@@ -21,7 +33,12 @@ import {
   type FilterOption,
   type FilterSelection,
 } from "@/components/filter-menu";
-import { Badge, type BadgeColor } from "@/components/ui/badge";
+import { punto } from "@/components/color-dot";
+import { Datos } from "@/components/data-rows";
+import { PeekCard } from "@/components/peek-card";
+import { useWorkspace } from "@/components/workspace-context";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { InputField, InputGroup } from "@/components/ui/input-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -34,126 +51,288 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { IconComponent } from "@/lib/icon-context";
 import { useShape } from "@/lib/shape-context";
 import { SizeProvider, useTypeScale } from "@/lib/size-context";
 import { cn } from "@/lib/utils";
+import { tabDePerfil } from "@/pages/perfil-tab";
+import {
+  DIA,
+  ESTADOS,
+  HOY,
+  TIPOS,
+  UBICACION_POR_DEFECTO,
+  cambiarEstado,
+  iniciales,
+  useUsuarios,
+  type Estado,
+  type Tipo,
+  type Usuario,
+} from "@/pages/usuarios";
+import { conversacionesDe } from "@/pages/conversaciones";
 
 /* La pantalla de usuarios: un header con la búsqueda y el `FilterMenu`, y la
    tabla debajo. Los tres filtran lo mismo —la búsqueda por nombre, el panel
    por atributo— y la tabla se recalcula con lo que quede. */
 
-/* Hoy es un valor fijo y no `new Date()`: las fechas de estas filas son de
-   mentira, y con un hoy que se mueve solo la fila de "hace 2 horas" pasa a
-   decir "hace tres meses" sin que nadie toque nada. Cuando los usuarios salgan
-   de una API, esto se va con ellos. */
-const HOY = new Date("2026-08-28T12:00:00Z");
+/* Una métrica: la etiqueta chica arriba, el número grande, y la lectura debajo
+   —qué es ese número, no cómo se llama—. Los tres tamaños salen de la escala de
+   tipos, así que la tarjeta sigue el escalón de la región como el resto. */
+function Metrica({
+  etiqueta,
+  valor,
+  nota,
+}: {
+  etiqueta: string;
+  valor: ReactNode;
+  nota?: string;
+}) {
+  const escala = useTypeScale();
 
-const DIA = 24 * 60 * 60 * 1000;
+  return (
+    <div className="flex min-w-0 flex-col gap-0.5">
+      <span
+        className="truncate text-muted-foreground"
+        style={{ fontSize: escala.caption }}
+      >
+        {etiqueta}
+      </span>
+      <span
+        className="font-medium tabular-nums"
+        style={{ fontSize: escala.title }}
+      >
+        {valor}
+      </span>
+      {nota && (
+        <span
+          className="text-muted-foreground"
+          style={{ fontSize: escala.caption }}
+        >
+          {nota}
+        </span>
+      )}
+    </div>
+  );
+}
 
-/* Un punto de color como ícono de un valor: `FilterOption.icon` es un
-   componente y no un color justamente para esto — el atributo decide con qué
-   se distingue cada valor. */
-const punto =
-  (color: string): IconComponent =>
-  ({ size = 16, className }) => (
-    <span
-      className={cn("inline-flex items-center justify-center", className)}
-      style={{ width: size, height: size }}
+function Analiticas({ usuario }: { usuario: Usuario }) {
+  const escala = useTypeScale();
+  const cambio = variacion(usuario.last30, usuario.prev30);
+
+  return (
+    <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+      {/* Las conversaciones se cuentan sobre la lista que existe —la misma que
+          abre el perfil— y no sobre un número guardado al lado: dos fuentes
+          para el mismo hecho terminan diciendo cosas distintas. */}
+      <Metrica
+        etiqueta="Conversations"
+        valor={conversacionesDe(usuario).length}
+        nota="all time"
+      />
+      <Metrica
+        etiqueta="Messages"
+        valor={usuario.messages.toLocaleString("en-US")}
+        nota="all time"
+      />
+      <Metrica
+        etiqueta="Reply rate"
+        valor={`${Math.round(usuario.replyRate * 100)}%`}
+        nota="of messages get an answer"
+      />
+      <Metrica
+        etiqueta="Avg. response"
+        valor={duracion(usuario.avgResponseMin)}
+        nota="average across replies"
+      />
+
+      {/* La única fila que compara: el resto son totales. Va entera y abajo
+          porque el número solo no dice nada sin contra qué. El signo va en un
+          badge, que es donde este sistema gasta el color. */}
+      <div className="col-span-2 flex items-center justify-between gap-3 border-t border-border pt-3">
+        <span className="flex min-w-0 flex-col gap-0.5">
+          <span
+            className="text-muted-foreground"
+            style={{ fontSize: escala.caption }}
+          >
+            Last 30 days
+          </span>
+          <span className="tabular-nums" style={{ fontSize: escala.body }}>
+            {usuario.last30.toLocaleString("en-US")} messages
+          </span>
+        </span>
+        {cambio !== null && (
+          <Badge size="compact" color={cambio < 0 ? "rose" : "green"}>
+            {cambio > 0 ? "+" : ""}
+            {cambio}%
+          </Badge>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* El vistazo a un usuario, con lo que la fila muestre de él como disparador. Se
+   abre con el hover porque no es un destino: es mirar sin irse de la lista.
+
+   Las tres pestañas no parten un dato en tres, muestran cosas distintas: quién
+   es la cuenta, cómo se mueve y cuándo pasaron sus cosas —con las fechas
+   enteras que la tabla abrevia—. El pie lleva las dos acciones, que son las
+   mismas del menú del perfil: acá se las tiene a mano sin irse de la lista, y
+   allá son las de la pantalla de la cuenta.
+
+   Se exporta porque la abren dos tablas: acá desde el nombre, y en Email Search
+   desde la dirección del autor. Es la misma cuenta y por lo tanto la misma
+   tarjeta —dos copias serían dos fichas de lo mismo que un día dicen cosas
+   distintas—; lo único que cambia es qué texto la dispara, que es `children`. */
+export function TarjetaUsuario({
+  usuario,
+  onEstado,
+  onPerfil,
+  children,
+}: {
+  usuario: Usuario;
+  onEstado: (id: string, status: Estado) => void;
+  onPerfil: (usuario: Usuario) => void;
+  /** El disparador. Sin esto, el nombre de la cuenta: es lo que muestra la
+   *  tabla que la abría primero. */
+  children?: ReactNode;
+}) {
+  const estado = ESTADOS[usuario.status];
+  const bloqueado = usuario.status === "blocked";
+  const shape = useShape();
+  const escala = useTypeScale();
+  /* La apertura se controla desde acá para poder cerrarla en el clic. Con
+     `openOn="hover"` el clic también abre —es lo único que le queda a un
+     táctil—, y sin esto la tarjeta se quedaba flotando sobre la pestaña recién
+     abierta: el popup va portalado al body, así que esconder el panel de
+     Accounts no lo esconde a él.
+
+     Cerrarla dentro del `onClick` no alcanza: el handler de Base UI corre en
+     el mismo evento y pide abrir, y el último que escribe gana. El cierre va
+     en un `setTimeout(0)`, que corre cuando el evento ya terminó y los dos
+     pedidos ya se escribieron. Con el puntero quieto Base UI no vuelve a
+     abrirla: su hover ya disparó. */
+  const [abierta, setAbierta] = useState(false);
+
+  return (
+    <PeekCard
+      openOn="hover"
+      open={abierta}
+      onOpenChange={setAbierta}
+      side="right"
+      title={usuario.name}
+      /* El mismo avatar de la fila y no un glifo genérico: la tarjeta se abre
+         desde ahí, y repetir la cara es lo que la ata a la fila que la disparó.
+         Un escalón más chico que en la tabla, para no pesar más que el nombre
+         que tiene al lado. */
+      media={
+        <Avatar
+          size="sm"
+          className={cn("shrink-0", shape.item, "after:rounded-[inherit]")}
+        >
+          <AvatarFallback
+            className="rounded-[inherit]"
+            style={{ fontSize: escala.caption }}
+          >
+            {iniciales(usuario.name)}
+          </AvatarFallback>
+        </Avatar>
+      }
+      /* Las acciones van al pie y no al header: ahí entra un botón corto, y
+         acá son dos. Bloquear y desbloquear son la misma fila —una cuenta está
+         de un lado o del otro, nunca de los dos—, así que el botón cambia de
+         etiqueta y de ícono en vez de aparecer al lado de su contrario. */
+      footer={
+        <>
+          <Button
+            variant="secondary"
+            leadingIcon={KeyRound}
+            className="flex-1"
+          >
+            Reset Password
+          </Button>
+          <Button
+            variant="secondary"
+            leadingIcon={bloqueado ? CircleCheck : Ban}
+            className="flex-1"
+            onClick={() =>
+              onEstado(usuario.id, bloqueado ? "active" : "blocked")
+            }
+          >
+            {bloqueado ? "Unblock" : "Block"}
+          </Button>
+        </>
+      }
+      tabs={[
+        {
+          label: "Details",
+          icon: IdCard,
+          content: (
+            <Datos
+              filas={[
+                { k: "Account type", v: TIPOS[usuario.accountType] },
+                /* La ubicación es de los residentes y de nadie más: a alguien
+                   de afuera no se lo ubica adentro, y una fila que dijera
+                   "Facility Base" para un familiar sería falsa. */
+                ...(usuario.accountType === "resident"
+                  ? [
+                      {
+                        k: "Location",
+                        v: usuario.location ?? UBICACION_POR_DEFECTO,
+                      },
+                    ]
+                  : []),
+                { k: "Account ID", v: usuario.id },
+                {
+                  k: "Communication",
+                  v: (
+                    <Badge variant="dot" color={estado.color}>
+                      {estado.label}
+                    </Badge>
+                  ),
+                },
+              ]}
+            />
+          ),
+        },
+        {
+          label: "Analytics",
+          icon: ChartColumn,
+          content: <Analiticas usuario={usuario} />,
+        },
+        {
+          label: "Timeline",
+          icon: History,
+          content: (
+            <Datos
+              filas={[
+                {
+                  k: "Last activity",
+                  v: FECHA_HORA.format(new Date(usuario.lastActivity)),
+                  nota: cuandoFue(usuario.lastActivity),
+                },
+                {
+                  k: "Date added",
+                  v: FECHA.format(new Date(`${usuario.addedAt}T12:00:00Z`)),
+                  nota: `${diasDesde(`${usuario.addedAt}T12:00:00Z`)} days ago`,
+                },
+              ]}
+            />
+          ),
+        },
+      ]}
     >
       <span
-        className="h-2 w-2 rounded-full"
-        style={{ background: color }}
-        aria-hidden
-      />
-    </span>
+        className="w-fit max-w-full cursor-pointer truncate decoration-dotted decoration-muted-foreground underline-offset-2 hover:underline aria-expanded:underline"
+        onClick={() => {
+          onPerfil(usuario);
+          setTimeout(() => setAbierta(false), 0);
+        }}
+      >
+        {children ?? usuario.name}
+      </span>
+    </PeekCard>
   );
-
-/** Los estados de comunicación, en un solo lugar: la etiqueta que ve el que
- *  lee la tabla, el color con el que se lo distingue en el panel de filtros y
- *  el color del badge. Tres vistas de un mismo dato, y por eso no viven en
- *  tres constantes distintas que se contradicen. */
-const ESTADOS = {
-  active: { label: "Active", tinte: "#22c55e", color: "green" },
-  deactivated: { label: "Deactivated", tinte: "#a3a3a3", color: "gray" },
-  blocked: { label: "Blocked", tinte: "#f43f5e", color: "rose" },
-} as const satisfies Record<string, { label: string; tinte: string; color: BadgeColor }>;
-
-type Estado = keyof typeof ESTADOS;
-
-/* Las iniciales para el `AvatarFallback`: primera del nombre, primera del
-   apellido. Sin foto no hay nada más que mostrar, y dos letras es lo que
-   entra en un círculo de 24px. */
-function iniciales(nombre: string) {
-  const partes = nombre.split(" ").filter(Boolean);
-  const primera = partes[0]?.[0] ?? "";
-  const ultima = partes.length > 1 ? partes[partes.length - 1][0] : "";
-  return (primera + ultima).toUpperCase();
 }
-
-interface Usuario {
-  /** El id que se ve: va debajo del nombre, así que es el de la cuenta y no un
-   *  número de fila. También es por donde busca la barra de arriba: si está a
-   *  la vista, alguien lo va a pegar ahí. */
-  id: string;
-  name: string;
-  status: Estado;
-  /** Cuándo se lo vio por última vez, con hora: la columna dice "3 h ago". */
-  lastActivity: string;
-  /** Cuándo entró. Sin hora: nadie pregunta a qué hora se dio de alta. */
-  addedAt: string;
-}
-
-const USUARIOS: Usuario[] = [
-  { id: "USR-1042", name: "Camila Ferreyra", status: "active", lastActivity: "2026-08-28T09:10:00Z", addedAt: "2026-03-04" },
-  { id: "USR-1088", name: "Bruno Salas", status: "active", lastActivity: "2026-08-28T07:45:00Z", addedAt: "2026-05-19" },
-  { id: "USR-1153", name: "Lucía Otero", status: "active", lastActivity: "2026-08-27T16:20:00Z", addedAt: "2025-11-02" },
-  { id: "USR-1207", name: "Martín Quiroga", status: "deactivated", lastActivity: "2026-08-24T11:00:00Z", addedAt: "2026-08-12" },
-  { id: "USR-1264", name: "Sofía Bermúdez", status: "active", lastActivity: "2026-08-26T18:05:00Z", addedAt: "2026-01-28" },
-  { id: "USR-1319", name: "Iván Palacios", status: "blocked", lastActivity: "2026-07-30T09:00:00Z", addedAt: "2025-09-15" },
-  { id: "USR-1372", name: "Renata Bianchi", status: "active", lastActivity: "2026-08-28T11:30:00Z", addedAt: "2026-06-30" },
-  { id: "USR-1428", name: "Diego Miralles", status: "active", lastActivity: "2026-08-25T14:10:00Z", addedAt: "2026-04-08" },
-  { id: "USR-1490", name: "Paula Genovese", status: "deactivated", lastActivity: "2026-08-14T10:00:00Z", addedAt: "2026-02-11" },
-  { id: "USR-1533", name: "Andrés Lupo", status: "active", lastActivity: "2026-08-27T20:40:00Z", addedAt: "2026-08-20" },
-  { id: "USR-1586", name: "Valentina Roldán", status: "deactivated", lastActivity: "2026-06-02T08:30:00Z", addedAt: "2025-07-21" },
-  { id: "USR-1641", name: "Tomás Iriarte", status: "active", lastActivity: "2026-08-23T09:15:00Z", addedAt: "2026-08-01" },
-  { id: "USR-1705", name: "Milena Costas", status: "active", lastActivity: "2026-08-28T06:05:00Z", addedAt: "2026-07-14" },
-  { id: "USR-1768", name: "Facundo Arrieta", status: "deactivated", lastActivity: "2026-08-18T17:50:00Z", addedAt: "2026-03-27" },
-  { id: "USR-1822", name: "Julieta Ponce", status: "blocked", lastActivity: "2026-08-09T12:00:00Z", addedAt: "2025-12-09" },
-  { id: "USR-1899", name: "Nahuel Vidal", status: "active", lastActivity: "2026-08-26T09:35:00Z", addedAt: "2026-08-26" },
-  { id: "USR-1955", name: "Agustín Ferrari", status: "active", lastActivity: "2026-08-28T05:20:00Z", addedAt: "2026-08-24" },
-  { id: "USR-2018", name: "Delfina Sosa", status: "active", lastActivity: "2026-08-28T02:10:00Z", addedAt: "2026-08-18" },
-  { id: "USR-2074", name: "Emilia Navarro", status: "active", lastActivity: "2026-08-27T22:45:00Z", addedAt: "2026-08-05" },
-  { id: "USR-2131", name: "Joaquín Peralta", status: "deactivated", lastActivity: "2026-08-27T13:05:00Z", addedAt: "2026-07-29" },
-  { id: "USR-2196", name: "Micaela Duarte", status: "active", lastActivity: "2026-08-26T21:30:00Z", addedAt: "2026-07-19" },
-  { id: "USR-2240", name: "Santiago Aguirre", status: "blocked", lastActivity: "2026-08-26T08:15:00Z", addedAt: "2026-07-02" },
-  { id: "USR-2307", name: "Carla Benítez", status: "active", lastActivity: "2026-08-25T19:40:00Z", addedAt: "2026-06-21" },
-  { id: "USR-2365", name: "Federico Ocampo", status: "active", lastActivity: "2026-08-25T07:55:00Z", addedAt: "2026-06-09" },
-  { id: "USR-2418", name: "Rocío Maldonado", status: "active", lastActivity: "2026-08-24T16:25:00Z", addedAt: "2026-05-27" },
-  { id: "USR-2473", name: "Lautaro Vega", status: "deactivated", lastActivity: "2026-08-23T18:35:00Z", addedAt: "2026-05-14" },
-  { id: "USR-2529", name: "Antonella Ríos", status: "active", lastActivity: "2026-08-22T09:50:00Z", addedAt: "2026-04-30" },
-  { id: "USR-2588", name: "Gonzalo Cabrera", status: "deactivated", lastActivity: "2026-08-21T14:05:00Z", addedAt: "2026-04-16" },
-  { id: "USR-2641", name: "Belén Ibarra", status: "active", lastActivity: "2026-08-20T11:20:00Z", addedAt: "2026-04-02" },
-  { id: "USR-2705", name: "Mateo Sandoval", status: "active", lastActivity: "2026-08-19T15:45:00Z", addedAt: "2026-03-19" },
-  { id: "USR-2764", name: "Florencia Acuña", status: "active", lastActivity: "2026-08-17T08:30:00Z", addedAt: "2026-03-05" },
-  { id: "USR-2812", name: "Ezequiel Moyano", status: "deactivated", lastActivity: "2026-08-15T12:10:00Z", addedAt: "2026-02-20" },
-  { id: "USR-2879", name: "Guadalupe Cáceres", status: "active", lastActivity: "2026-08-13T17:00:00Z", addedAt: "2026-02-06" },
-  { id: "USR-2933", name: "Rodrigo Ledesma", status: "blocked", lastActivity: "2026-08-11T10:40:00Z", addedAt: "2026-01-22" },
-  { id: "USR-2990", name: "Malena Ferreyra", status: "active", lastActivity: "2026-08-08T13:25:00Z", addedAt: "2026-01-08" },
-  { id: "USR-3046", name: "Nicolás Bustos", status: "active", lastActivity: "2026-08-05T09:05:00Z", addedAt: "2025-12-27" },
-  { id: "USR-3108", name: "Ariana Godoy", status: "active", lastActivity: "2026-08-02T16:50:00Z", addedAt: "2025-12-15" },
-  { id: "USR-3167", name: "Franco Villalba", status: "deactivated", lastActivity: "2026-07-28T11:15:00Z", addedAt: "2025-11-28" },
-  { id: "USR-3221", name: "Pilar Escobar", status: "active", lastActivity: "2026-07-22T14:35:00Z", addedAt: "2025-11-14" },
-  { id: "USR-3284", name: "Bautista Ramos", status: "deactivated", lastActivity: "2026-07-15T08:45:00Z", addedAt: "2025-10-30" },
-  { id: "USR-3340", name: "Sol Medina", status: "active", lastActivity: "2026-07-06T19:20:00Z", addedAt: "2025-10-16" },
-  { id: "USR-3399", name: "Ignacio Farías", status: "active", lastActivity: "2026-06-27T10:10:00Z", addedAt: "2025-10-01" },
-  { id: "USR-3452", name: "Abril Rivero", status: "active", lastActivity: "2026-06-18T15:30:00Z", addedAt: "2025-09-18" },
-  { id: "USR-3518", name: "Thiago Cortés", status: "deactivated", lastActivity: "2026-06-04T12:55:00Z", addedAt: "2025-09-03" },
-  { id: "USR-3575", name: "Catalina Núñez", status: "active", lastActivity: "2026-05-21T09:40:00Z", addedAt: "2025-08-20" },
-  { id: "USR-3630", name: "Emanuel Paz", status: "blocked", lastActivity: "2026-05-08T17:15:00Z", addedAt: "2025-08-06" },
-  { id: "USR-3694", name: "Zoe Barrios", status: "active", lastActivity: "2026-04-24T11:05:00Z", addedAt: "2025-07-15" },
-  { id: "USR-3751", name: "Lucas Herrera", status: "active", lastActivity: "2026-04-09T14:20:00Z", addedAt: "2025-06-24" },
-];
 
 /* Las fechas se guardan una sola vez y en ISO. La etiqueta que se ve y el
    tramo con el que filtra el panel salen las dos de ahí, así que no pueden
@@ -172,6 +351,39 @@ const DIA_Y_MES = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
   timeZone: "UTC",
 });
+
+/* La fecha entera, con hora: es lo que la tabla abrevia en "2 h ago" y lo que
+   se va a ver a buscar cuando se abre la tarjeta. */
+const FECHA_HORA = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  timeZone: "UTC",
+});
+
+/* Minutos a algo que se lea de un vistazo: "40m", "2h 40m", "1d 3h". Nadie
+   compara tiempos de respuesta en minutos cuando pasan de una hora. */
+function duracion(minutos: number) {
+  if (minutos < 60) return `${minutos}m`;
+  const horas = Math.floor(minutos / 60);
+  const resto = minutos % 60;
+  if (horas < 24) return resto ? `${horas}h ${resto}m` : `${horas}h`;
+  const dias = Math.floor(horas / 24);
+  const sobran = horas % 24;
+  return sobran ? `${dias}d ${sobran}h` : `${dias}d`;
+}
+
+/** La variación de los últimos 30 días contra los 30 anteriores, en porcentaje.
+ *  `null` cuando no hay contra qué comparar: sin base, un "+100%" es ruido. */
+function variacion(last30: number, prev30: number) {
+  if (prev30 === 0) return null;
+  return Math.round(((last30 - prev30) / prev30) * 100);
+}
+
+const diasDesde = (iso: string) =>
+  Math.round((HOY.getTime() - new Date(iso).getTime()) / DIA);
 
 function cuandoFue(iso: string) {
   const pasado = HOY.getTime() - new Date(iso).getTime();
@@ -200,14 +412,29 @@ const tramoAlta = (iso: string) => {
   return "older";
 };
 
-const OPCIONES_ESTADO: FilterOption[] = (
-  Object.entries(ESTADOS) as [Estado, (typeof ESTADOS)[Estado]][]
-).map(([value, e]) => ({
-  value,
-  label: e.label,
-  icon: punto(e.tinte),
-  hint: String(USUARIOS.filter((u) => u.status === value).length),
-}));
+/* Los conteos del panel salen de la lista viva y no de la constante: bloquear
+   a alguien mueve dos números, y un panel que sigue diciendo los de antes
+   miente sobre lo que va a devolver. */
+const opcionesEstado = (usuarios: Usuario[]): FilterOption[] =>
+  (Object.entries(ESTADOS) as [Estado, (typeof ESTADOS)[Estado]][]).map(
+    ([value, e]) => ({
+      value,
+      label: e.label,
+      icon: punto(e.tinte),
+      hint: String(usuarios.filter((u) => u.status === value).length),
+    }),
+  );
+
+/* Los tipos también cuentan sobre la lista viva. Hoy nada cambia de tipo, así
+   que estos dos números no se mueven; que salgan de la misma fuente que los
+   del estado es lo que evita que un día uno cuente el fixture y el otro la
+   lista, y el panel diga dos totales distintos. */
+const opcionesTipo = (usuarios: Usuario[]): FilterOption[] =>
+  (Object.entries(TIPOS) as [Tipo, string][]).map(([value, label]) => ({
+    value,
+    label,
+    hint: String(usuarios.filter((u) => u.accountType === value).length),
+  }));
 
 const OPCIONES_ACTIVIDAD: FilterOption[] = [
   { value: "today", label: "Today" },
@@ -223,16 +450,24 @@ const OPCIONES_ALTA: FilterOption[] = [
   { value: "older", label: "Before this year" },
 ];
 
-const GRUPOS: FilterGroup[] = [
+const grupos = (usuarios: Usuario[]): FilterGroup[] => [
   {
     label: "The user",
     attributes: [
       { id: "name", label: "User name", icon: Contact, type: "text" },
+      /* Sin `single`: marcar los dos tipos es no filtrar por tipo, que es
+         exactamente lo que uno espera al destildar. Igual que el estado. */
+      {
+        id: "type",
+        label: "Account type",
+        icon: IdCard,
+        options: opcionesTipo(usuarios),
+      },
       {
         id: "status",
         label: "Communication status",
         icon: Loader,
-        options: OPCIONES_ESTADO,
+        options: opcionesEstado(usuarios),
       },
     ],
   },
@@ -264,6 +499,7 @@ const GRUPOS: FilterGroup[] = [
  *  cualquiera lee un filtro: "activo **o** esperando respuesta", pero "activo
  *  **y** de esta semana". */
 const CAMPOS: Record<string, (u: Usuario) => string[]> = {
+  type: (u) => [u.accountType],
   status: (u) => [u.status],
   activity: (u) => [tramoActividad(u.lastActivity)],
   added: (u) => [tramoAlta(u.addedAt)],
@@ -387,6 +623,10 @@ export function Users() {
 function Pantalla() {
   const [busqueda, setBusqueda] = useState("");
   const [filtros, setFiltros] = useState<FilterSelection>({});
+  /* La lista viva, de la tienda del módulo y no de un `useState` de acá: el
+     perfil que abre esta pantalla es una pestaña hermana y no un hijo, así que
+     un estado local no le llegaría —ver `usuarios.ts`—. */
+  const usuarios = useUsuarios();
   const escala = useTypeScale();
   const shape = useShape();
   /* Lo que mide la cabecera, para que el scroller reserve ese alto arriba: la
@@ -396,8 +636,17 @@ function Pantalla() {
   const [medirCabecera, altoCabecera] = useMeasuredHeight<HTMLDivElement>();
 
   const encontrados = useMemo(
-    () => USUARIOS.filter((u) => pasa(u, busqueda, filtros)),
-    [busqueda, filtros],
+    () => usuarios.filter((u) => pasa(u, busqueda, filtros)),
+    [usuarios, busqueda, filtros],
+  );
+
+  const GRUPOS = useMemo(() => grupos(usuarios), [usuarios]);
+
+  const { openTab } = useWorkspace();
+
+  const abrirPerfil = useCallback(
+    (usuario: Usuario) => openTab(tabDePerfil(usuario)),
+    [openTab],
   );
 
   /* La ventana lleva puesta la clave de lo que estaba filtrado cuando creció.
@@ -471,23 +720,24 @@ function Pantalla() {
       {/* El aire lateral es del header, no de la pantalla: así la tabla llega
           a los dos bordes y son sus celdas las que se alinean con él. */}
       <header className="flex shrink-0 flex-wrap items-center justify-between gap-4 px-6 py-4">
-        {/* De qué es esta pantalla. El título repite la etiqueta de la fila del
-            sidebar a propósito: la pestaña la nombra de paso, arriba de todo y
-            entre otras; acá es el encabezado de lo que estás mirando. Los dos
-            tamaños salen de la escala de tipos —`title` y `caption`—, así que
-            siguen el escalón de la región como todo lo demás. */}
+        {/* De qué es esta pantalla. El título no repite la etiqueta de la fila
+            del sidebar: la fila nombra el lugar —Accounts— y acá se dice qué
+            se hace ahí. Los dos tamaños salen de la escala de tipos —`title` y
+            `caption`—, así que siguen el escalón de la región como todo lo
+            demás. */}
         <div className="flex min-w-0 flex-col gap-0.5">
           <h1
             className="font-medium tracking-tight"
             style={{ fontSize: escala.title }}
           >
-            Accounts
+            Accounts Search
           </h1>
           <p
             className="text-muted-foreground"
             style={{ fontSize: escala.caption }}
           >
-            Everyone with an account, and the state of their communication.
+            Search across every account, and see where each one&rsquo;s
+            communication stands.
           </p>
         </div>
 
@@ -602,7 +852,18 @@ function Pantalla() {
                           </AvatarFallback>
                         </Avatar>
                         <span className="flex min-w-0 flex-col leading-tight">
-                          <span className="truncate">{usuario.name}</span>
+                          {/* El nombre hace las dos cosas: el hover lo mira,
+                              el clic lo abre. El subrayado aparece con el
+                              hover y se queda mientras la tarjeta está abierta
+                              —de ahí el `aria-expanded`, que es lo que el
+                              disparador de Base UI marca—. En reposo es texto:
+                              una lista de 48 filas subrayadas es una lista de
+                              48 enlaces que no lo son. */}
+                          <TarjetaUsuario
+                            usuario={usuario}
+                            onEstado={cambiarEstado}
+                            onPerfil={abrirPerfil}
+                          />
                           <span
                             className="truncate text-muted-foreground"
                             style={{ fontSize: escala.caption }}

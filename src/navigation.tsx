@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 
 import type { IconComponent } from "@/lib/icon-context";
+import { EmailSearch } from "@/pages/EmailSearch";
+import { SupportTickets } from "@/pages/SupportTickets";
 import { Users } from "@/pages/Users";
 import { Placeholder } from "@/pages/Placeholder";
 import { Releases } from "@/pages/Releases";
@@ -39,7 +41,11 @@ export interface NavLeaf {
   id: string;
   label: string;
   icon: IconComponent;
-  render: () => ReactNode;
+  /** Recibe el id de la pestaña que la está montando. La mayoría de las
+   *  pantallas lo ignoran; lo necesitan las que ponen algo en el board, que se
+   *  pone en el board *de esa* pestaña. No es el id de la hoja: una copia
+   *  —`tickets#2`— es otra pestaña con otro board. */
+  render: (tabId: string) => ReactNode;
 }
 
 /** Un grupo de filas. Con label es una sección colapsable —el label es el
@@ -59,7 +65,7 @@ const hoja = (
   label: string,
   icon: IconComponent,
   section?: string,
-  render?: () => ReactNode,
+  render?: (tabId: string) => ReactNode,
 ): NavLeaf => ({
   id,
   label,
@@ -83,7 +89,9 @@ export const NAV: NavGroup[] = [
     label: "Email",
     items: [
       hoja("email/provisioning", "Provisioning", MailPlus, "Email"),
-      hoja("email/search", "Search", MailSearch, "Email"),
+      hoja("email/search", "Search", MailSearch, "Email", () => (
+        <EmailSearch />
+      )),
       hoja("email/policies", "Policies", ShieldCheck, "Email"),
       hoja("email/reports", "Reports", FileChartColumn, "Email"),
     ],
@@ -92,7 +100,9 @@ export const NAV: NavGroup[] = [
     id: "sueltas",
     items: [
       hoja("announcements", "Announcements", Megaphone),
-      hoja("tickets", "Tickets", Wrench),
+      hoja("tickets", "Tickets", Wrench, undefined, (tabId) => (
+        <SupportTickets tabId={tabId} />
+      )),
     ],
   },
   {

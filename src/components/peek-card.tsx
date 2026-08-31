@@ -65,6 +65,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { TabItem, Tabs, TabsList } from "@/components/ui/tabs";
 import { useMeasuredHeight } from "@/hooks/use-measured-height";
 import { Elevated } from "@/lib/elevated";
@@ -110,6 +111,11 @@ interface PeekCardProps {
   children: ReactElement;
   title: string;
   icon?: IconComponent;
+  /** A leading element that takes the icon's place: an avatar, a thumbnail, a
+   *  colour swatch. `icon` is the shorthand for the usual case — a glyph at the
+   *  title's size; this is the way out when what goes there isn't one. Given
+   *  both, this wins. */
+  media?: ReactNode;
   /** The header's action, at the top right. A short button: what the card
    *  invites you to do with what it's showing. */
   action?: ReactNode;
@@ -171,6 +177,7 @@ function PeekCard({
   children,
   title,
   icon: Icon,
+  media,
   action,
   tabs,
   footer,
@@ -391,13 +398,14 @@ function PeekCard({
                       the screen reader announces it by name and not as an
                       unlabelled box. */}
                   <div className="flex min-w-0 items-center gap-2">
-                    {Icon && (
-                      <Icon
-                        size={typeScale.subtitle}
-                        strokeWidth={1.75}
-                        className="shrink-0 text-foreground"
-                      />
-                    )}
+                    {media ??
+                      (Icon && (
+                        <Icon
+                          size={typeScale.subtitle}
+                          strokeWidth={1.75}
+                          className="shrink-0 text-foreground"
+                        />
+                      ))}
                     <Popover.Title
                       render={<CardTitle className="min-w-0 truncate" />}
                     >
@@ -457,51 +465,68 @@ function PeekCard({
 
                   {/* The body. Without `initial={false}` the first opening
                       would animate the height from zero, which looks like a card
-                      unfolding instead of one appearing whole. `min-h-0` and its
-                      own scroll are what make the body pay for the popup's
-                      ceiling: the animated height is the measure it asks for,
-                      and flexbox trims it when it doesn't fit. The x axis stays
-                      clipped —the outgoing panel leaves sideways— and only y
-                      scrolls. */}
+                      unfolding instead of one appearing whole. `min-h-0` is what
+                      makes the body pay for the popup's ceiling: the animated
+                      height is the measure it asks for, and flexbox trims it
+                      when it doesn't fit.
+
+                      This layer only animates and clips; the scrolling is the
+                      ScrollArea's inside it, so a body that outgrows the ceiling
+                      gets the system's scrollbar and not the browser's, and on a
+                      touch device it hands back to native overflow on its own.
+                      Clipping goes on both axes here: `overflow-x-hidden` alone
+                      would turn the y axis into `auto` and leave two scrollers,
+                      one inside the other. */}
                   <motion.div
-                    className="relative min-h-0 overflow-x-hidden overflow-y-auto"
+                    className="relative min-h-0 overflow-hidden"
                     initial={false}
                     animate={{ height: contentHeight ?? "auto" }}
                     transition={travel}
                   >
-                    <AnimatePresence
-                      initial={false}
-                      mode="popLayout"
-                      custom={direction}
+                    {/* A shorter fade than the default 48px: on a body that
+                        rarely passes 200px, a quarter of it dissolved is the
+                        edge treatment eating the content. Marked important
+                        because `.scroll-fade` is a plain rule outside Tailwind's
+                        layers, and an unlayered rule beats a layered utility of
+                        the same specificity whatever the order. */}
+                    <ScrollArea
+                      className="h-full"
+                      viewportClassName="scroll-fade [--scroll-fade-size:24px]!"
                     >
-                      <motion.div
-                        key={selected}
+                      <AnimatePresence
+                        initial={false}
+                        mode="popLayout"
                         custom={direction}
-                        variants={panelVariants}
-                        initial="enter"
-                        animate="center"
-                        exit="exit"
                       >
-                        {/* The panel is built by hand instead of with
-                            `TabPanel`: that one hides whichever isn't selected,
-                            and here both have to stay mounted and visible for as
-                            long as the crossover lasts. The ids are the ones we
-                            gave the tabs above, so each tab's `aria-controls`
-                            keeps pointing at its panel. The padding is the
-                            `CardContent`'s that wraps it: the body rests on the
-                            same plane as the title. */}
-                        <div
-                          ref={measureRef}
-                          id={`${idPrefix}-panel-${selected}`}
-                          role="tabpanel"
-                          aria-labelledby={`${idPrefix}-tab-${selected}`}
-                          tabIndex={-1}
-                          className="outline-none"
+                        <motion.div
+                          key={selected}
+                          custom={direction}
+                          variants={panelVariants}
+                          initial="enter"
+                          animate="center"
+                          exit="exit"
                         >
-                          {current?.content}
-                        </div>
-                      </motion.div>
-                    </AnimatePresence>
+                          {/* The panel is built by hand instead of with
+                              `TabPanel`: that one hides whichever isn't selected,
+                              and here both have to stay mounted and visible for as
+                              long as the crossover lasts. The ids are the ones we
+                              gave the tabs above, so each tab's `aria-controls`
+                              keeps pointing at its panel. The padding is the
+                              `CardContent`'s that wraps it: the body rests on the
+                              same plane as the title. */}
+                          <div
+                            ref={measureRef}
+                            id={`${idPrefix}-panel-${selected}`}
+                            role="tabpanel"
+                            aria-labelledby={`${idPrefix}-tab-${selected}`}
+                            tabIndex={-1}
+                            className="outline-none"
+                          >
+                            {current?.content}
+                          </div>
+                        </motion.div>
+                      </AnimatePresence>
+                    </ScrollArea>
                   </motion.div>
                 </CardContent>
 
