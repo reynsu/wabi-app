@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { CornerDownLeft, MailPlus, Search, X } from "lucide-react";
+import { sileo } from "sileo";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { InputField, InputGroup } from "@/components/ui/input-group";
+import { Elevated } from "@/lib/elevated";
 import { useShape } from "@/lib/shape-context";
 import { useTypeScale } from "@/lib/size-context";
 import { spring } from "@/lib/springs";
@@ -75,9 +77,10 @@ export function useAltaDeBuzones() {
   const [abierto, setAbierto] = useState(false);
   const [ids, setIds] = useState<string[]>([]);
   /* Lo que pasa mientras. `enviando` lo leen las dos piezas —el botón y las
-     filas—, así que vive acá y no adentro del renglón. */
+     filas—, así que vive acá y no adentro del renglón. Lo que salió mal no se
+     guarda acá: lo cuenta el toast, y tenerlo en los dos lugares sería el mismo
+     hecho dicho dos veces. */
   const [enviando, setEnviando] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   /* Las direcciones que se acaban de crear, para que la tabla pueda señalarlas
      cuando aparecen. Se limpian solas: es un destello, no un estado. */
   const [recienCreados, setRecienCreados] = useState<string[]>([]);
@@ -93,10 +96,7 @@ export function useAltaDeBuzones() {
     [ids, usuarios],
   );
 
-  const abrir = useCallback(() => {
-    setError(null);
-    setAbierto(true);
-  }, []);
+  const abrir = useCallback(() => setAbierto(true), []);
 
   /* Cerrar es descartar: un borrador que sobrevive escondido vuelve a aparecer
      media hora después con gente que ya nadie se acuerda de haber elegido. */
@@ -138,21 +138,56 @@ export function useAltaDeBuzones() {
       cuenta: u.id,
     }));
 
+    const cuantos = pedidos.length;
+    const nombre = pedidos[0]?.nombre ?? "";
+
     setEnviando(true);
-    setError(null);
     try {
-      const creados = await crearBuzon(pedidos);
+      /* El toast se cuelga de la promesa y cuenta los tres momentos en un solo
+         aviso: se está creando, se creó, no se pudo. Es lo que hace `sileo` con
+         `promise`, y es donde va este relato —la pantalla ya está ocupada
+         mostrando el borrador, y un cartel más adentro de la banda competiría
+         con las filas que justamente hay que mirar—.
+         Devuelve la misma promesa, así que lo que sigue se encadena igual. */
+      const creados = await sileo.promise(crearBuzon(pedidos), {
+        loading: {
+          title:
+            cuantos > 1
+              ? `Creating ${cuantos} mailboxes…`
+              : "Creating the mailbox…",
+        },
+        success: (hechos) => ({
+          title:
+            hechos.length > 1
+              ? `${hechos.length} mailboxes created`
+              : "Mailbox created",
+          /* Quién, y no cuántos otra vez: el título ya dijo el número. Lo que
+             falta saber es de quién es lo que acaba de existir. */
+          description:
+            hechos.length > 1
+              ? `${nombre} and ${hechos.length - 1} more can now receive email.`
+              : `${nombre} can now receive email.`,
+        }),
+        error: (falla) => ({
+          title: "Nothing was created",
+          /* El alta falla entera, así que el aviso lo dice así: no hay que ir a
+             mirar la tabla para saber qué quedó a medias. */
+          description:
+            falla instanceof Error
+              ? falla.message
+              : "The mailboxes couldn't be created — try again.",
+        }),
+      });
+
       setAbierto(false);
       setIds([]);
       setRecienCreados(creados.map((b) => b.direccion));
       if (reloj.current) clearTimeout(reloj.current);
       reloj.current = setTimeout(() => setRecienCreados([]), DESTELLO_MS);
-    } catch (falla) {
-      setError(
-        falla instanceof Error
-          ? falla.message
-          : "The mailboxes couldn't be created.",
-      );
+    } catch {
+      /* El toast ya lo contó. Lo que importa acá es lo que **no** pasa: el
+         borrador no se toca. Volver a elegir a diez personas porque el servidor
+         dijo que no es el peor final posible para esta pantalla. */
     } finally {
       setEnviando(false);
     }
@@ -164,7 +199,6 @@ export function useAltaDeBuzones() {
     ids,
     elegidos,
     enviando,
-    error,
     recienCreados,
     abrir,
     cerrar,
@@ -212,6 +246,12 @@ const enciende = {
   oculto: { opacity: 0, transition: spring.moderate.exit },
   visible: { opacity: 1, transition: spring.moderate },
 } as const;
+
+/* La capa del sistema de superficies, animada. Se envuelve `Elevated` en vez de
+   escribirle el fondo y la sombra a un `motion.div`: es el que sabe en qué
+   escalón está parado —lo lee del contexto— y cuánto sube desde ahí, que es
+   justamente lo que un panel flotante no puede tener escrito a mano. */
+const MotionElevated = motion.create(Elevated);
 
 /** El renglón que se turna entre el conteo y el error: sale hacia arriba y el
  *  que llega entra desde abajo, apenas desenfocados. Es el mismo idioma del
@@ -272,17 +312,28 @@ export function BarraDeAlta({ alta }: { alta: Alta }) {
   };
 
   return (
-    <motion.div
-      variants={reducido ? enciende : abre}
-      initial="oculto"
-      animate="visible"
-      exit="oculto"
-      /* El recorte es lo que hace que el alto animado se lea como un hueco que
-         se abre: sin esto el contenido asoma entero desde el primer cuadro. */
-      className="shrink-0 overflow-hidden border-b border-dashed border-border bg-accent/30"
-    >
+    /* Dos cajas y no una, y es por el panel de sugerencias.
+     *
+     * La de adentro es la que crece: anima el alto y **recorta**, que es lo que
+     * hace que se lea como un hueco que se abre en vez de contenido que asoma
+     * entero desde el primer cuadro. Pero un panel que cuelga por debajo del
+     * campo cae fuera de esa caja, y una caja que recorta lo recorta: el
+     * desplegable desaparecía y lo que se veía debajo del campo era la tabla.
+     *
+     * Así que el panel se cuelga de la de afuera, que no recorta nada y mide lo
+     * que mide la de adentro —de ahí que el `top-full` siga a la animación—. Se
+     * lo saca del recorte en vez de sacarle el recorte a la banda: el recorte es
+     * la animación. */
+    <div className="relative shrink-0">
+      <motion.div
+        variants={reducido ? enciende : abre}
+        initial="oculto"
+        animate="visible"
+        exit="oculto"
+        className="overflow-hidden border-b border-dashed border-border bg-accent/30"
+      >
       <div className="flex flex-wrap items-center gap-3 px-6 py-2.5">
-        <div className="relative w-72">
+        <div className="w-72">
           <InputGroup>
             <InputField
               index={0}
@@ -304,86 +355,30 @@ export function BarraDeAlta({ alta }: { alta: Alta }) {
             />
           </InputGroup>
 
-          {/* Las cuentas, sólo mientras se escribe. Una lista siempre abierta
-              arriba de la tabla la empuja media pantalla para abajo y tapa
-              justamente contra lo que uno quiere comparar. */}
-          <AnimatePresence>
-            {texto.trim() !== "" && (
-              <motion.div
-                variants={entraPanel}
-                initial="oculto"
-                animate="visible"
-                exit="oculto"
-                className={cn(
-                  "absolute inset-x-0 top-full z-20 mt-1 max-h-64 overflow-y-auto border border-border bg-card p-1 shadow-lg",
-                  shape.container,
-                )}
-              >
-                {candidatos.length === 0 ? (
-                  <p
-                    className="px-2 py-3 text-center text-muted-foreground"
-                    style={{ fontSize: escala.caption }}
-                  >
-                    No accounts left matching &ldquo;{texto}&rdquo;.
-                  </p>
-                ) : (
-                  candidatos.slice(0, 8).map((u) => (
-                    <button
-                      key={u.id}
-                      type="button"
-                      onClick={() => elegir(u.id)}
-                      className={cn(
-                        "flex w-full cursor-pointer items-center gap-2 px-2 py-1.5 text-left hover:bg-hover",
-                        shape.item,
-                      )}
-                    >
-                      <span
-                        className="min-w-0 flex-1 truncate"
-                        style={{ fontSize: escala.body }}
-                      >
-                        {u.name}
-                      </span>
-                      <span
-                        className="shrink-0 truncate text-muted-foreground"
-                        style={{ fontSize: escala.caption }}
-                      >
-                        {direccionDe(u)}
-                      </span>
-                      <CornerDownLeft
-                        size={12}
-                        strokeWidth={1.5}
-                        className="shrink-0 text-muted-foreground"
-                      />
-                    </button>
-                  ))
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
 
-        {/* Un renglón que dice una cosa por vez: cuántas van, o qué salió mal.
-            Los dos hablan de lo mismo —el lote que se está por crear— así que
-            ocupan el mismo lugar y se turnan, en vez de que el error aparezca en
-            otro lado y empuje al resto. */}
-        <span className="relative flex min-w-0 items-center">
+        {/* Cuántas van. Cambia por un clic —una fila más, una menos— así que
+            cambia como el rango del paginador: el que se va sale hacia arriba y
+            el que llega entra desde abajo, apenas desenfocados. Lo que salió
+            mal no está acá: lo cuenta el toast. */}
+        <span className="relative flex min-w-0 items-center overflow-hidden">
           <AnimatePresence mode="popLayout" initial={false}>
             <motion.span
-              key={alta.error ?? "cuenta"}
+              key={
+                alta.elegidos.length === 0
+                  ? "vacio"
+                  : String(alta.elegidos.length)
+              }
               variants={cambiaTexto}
               initial="oculto"
               animate="visible"
               exit="oculto"
-              className={cn(
-                "truncate tabular-nums",
-                alta.error ? "text-[#f43f5e]" : "text-muted-foreground",
-              )}
+              className="truncate whitespace-nowrap text-muted-foreground tabular-nums"
               style={{ fontSize: escala.caption }}
             >
-              {alta.error ??
-                (alta.elegidos.length === 0
-                  ? "Nothing drafted yet"
-                  : `${alta.elegidos.length} drafted`)}
+              {alta.elegidos.length === 0
+                ? "Nothing drafted yet"
+                : `${alta.elegidos.length} drafted`}
             </motion.span>
           </AnimatePresence>
         </span>
@@ -414,7 +409,78 @@ export function BarraDeAlta({ alta }: { alta: Alta }) {
           </Button>
         </span>
       </div>
-    </motion.div>
+      </motion.div>
+
+      {/* Las cuentas, sólo mientras se escribe: una lista siempre abierta arriba
+          de la tabla la empuja media pantalla para abajo y tapa justamente
+          contra lo que uno quiere comparar.
+
+          Cuelga del ancla y no del campo, así que hay que decirle dónde cae: el
+          `left-6` es el `px-6` del renglón y el `w-72` es el ancho del campo. Es
+          el precio de estar afuera de la caja que recorta, y es barato al lado
+          de no verse.
+
+          `Elevated` y no un fondo a mano: el panel es una capa que se apoya
+          sobre lo que tapa, y el sistema de superficies es el que sabe cuánto
+          tiene que subir desde donde esté —dos escalones, los de cualquier cosa
+          que flota— para seguir siendo legible. Escrito con `bg-card` a mano
+          sería el mismo blanco en un panel que en un diálogo, y ahí dejaría de
+          leerse. */}
+      <AnimatePresence>
+        {texto.trim() !== "" && (
+          <MotionElevated
+            offset={2}
+            variants={entraPanel}
+            initial="oculto"
+            animate="visible"
+            exit="oculto"
+            className={cn(
+              "absolute top-full left-6 z-20 mt-1 max-h-64 w-72 overflow-y-auto p-1",
+              shape.container,
+            )}
+          >
+            {candidatos.length === 0 ? (
+              <p
+                className="px-2 py-3 text-center text-muted-foreground"
+                style={{ fontSize: escala.caption }}
+              >
+                No accounts left matching &ldquo;{texto}&rdquo;.
+              </p>
+            ) : (
+              candidatos.slice(0, 8).map((u) => (
+                <button
+                  key={u.id}
+                  type="button"
+                  onClick={() => elegir(u.id)}
+                  className={cn(
+                    "flex w-full cursor-pointer items-center gap-2 px-2 py-1.5 text-left hover:bg-hover",
+                    shape.item,
+                  )}
+                >
+                  <span
+                    className="min-w-0 flex-1 truncate"
+                    style={{ fontSize: escala.body }}
+                  >
+                    {u.name}
+                  </span>
+                  <span
+                    className="shrink-0 truncate text-muted-foreground"
+                    style={{ fontSize: escala.caption }}
+                  >
+                    {direccionDe(u)}
+                  </span>
+                  <CornerDownLeft
+                    size={12}
+                    strokeWidth={1.5}
+                    className="shrink-0 text-muted-foreground"
+                  />
+                </button>
+              ))
+            )}
+          </MotionElevated>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 

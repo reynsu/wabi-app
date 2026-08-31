@@ -1255,6 +1255,23 @@ Las filas borrador no son de la `Table` del registry sino una grilla con los
 mismos anchos. Una fila de tabla no se puede abrir de alto —las celdas no
 colapsan con ella— y lo que esta pieza tiene que hacer es justamente crecer.
 
+**Y el desplegable de cuentas cuelga por afuera de la caja que crece.** La caja
+que anima el alto recorta —eso es lo que hace que se lea como un hueco que se
+abre y no como contenido que asoma entero—, y un panel que cae por debajo del
+campo cae fuera de ella: recortado, lo que se veía debajo del campo era la tabla.
+Así que la banda son dos cajas, una adentro de la otra: la de adentro crece y
+recorta, la de afuera no recorta nada y mide lo que mide la de adentro, y de ella
+cuelga el panel. Se lo saca del recorte en vez de sacarle el recorte a la banda,
+porque el recorte **es** la animación. El precio es que el panel tiene que saber
+dónde cae —`left-6` es el `px-6` del renglón, `w-72` el ancho del campo—, y es
+barato al lado de no verse.
+
+El panel se apoya en el **sistema de superficies**: `Elevated` con dos escalones
+sobre el sustrato, que es lo que sube cualquier cosa que flota. Escrito con un
+`bg-card` a mano sería el mismo blanco adentro de un panel que adentro de un
+diálogo, y ahí dejaría de leerse; el sistema es el que sabe desde qué escalón
+está subiendo.
+
 **Entrar y salir es lo mismo acá: la tabla se abre y se cierra.** La banda y las
 filas crecen desde cero hasta lo que miden y se van encogiéndose; nada entra
 desde un costado ni se acerca desde el fondo, porque nada viene de otro lado —
@@ -1294,20 +1311,29 @@ comparación va contra la lista de después de la espera, no la de antes: ahí e
 donde estaría el que se coló mientras tanto. La dirección es la identidad de un
 buzón, así que dos con la misma no son dos buzones, son un bug con dos filas.
 
-**Lo que pasa mientras se crea** lo muestran las tres piezas a la vez, porque las
-tres están mirando el mismo momento: el botón se pone en curso —el `loading` del
-registry deja la etiqueta de fondo invisible, así que no cambia de ancho y no se
-lo toca dos veces—, el campo deja de ofrecer cuentas —el lote ya está decidido— y
-las filas borrador se apagan a la mitad: dejaron de ser algo que se puede editar
-y todavía no son filas de la tabla. `Discard` también se apaga: lo que
-descartaría ya está del otro lado.
+**Lo que pasa mientras se crea** lo cuenta un toast de [Sileo](https://sileo.aaryan.design),
+colgado de la promesa: `sileo.promise` encadena los tres momentos —se está
+creando, se creó, no se pudo— en un solo aviso, y devuelve la misma promesa así
+que lo que sigue se encadena igual. El relato va ahí y no adentro de la banda
+porque la banda está ocupada mostrando el borrador: un cartel más ahí competiría
+con las filas que justamente hay que mirar. El `Toaster` se monta una sola vez en
+el shell —son de la ventana, como el riel y las pestañas— con el tema atado al
+toggle de la cabecera, porque el modo `"system"` de Sileo sigue al sistema
+operativo y acá el tema lo decide la clase `.dark`.
 
-El conteo y el error **se turnan en el mismo renglón**: los dos hablan del mismo
-lote, así que uno sale hacia arriba y el otro entra desde abajo, apenas
-desenfocados —el idioma del rango del paginador—, en vez de que el error aparezca
-en otro lado y empuje al resto. Y si falla, lo elegido **se queda**: volver a
-elegir a diez personas porque el servidor dijo que no es el peor final posible
-para esta pantalla.
+La pantalla igual muestra lo suyo, que es otra cosa: el botón se pone en curso
+—el `loading` del registry deja la etiqueta de fondo invisible, así que no cambia
+de ancho y no se lo toca dos veces—, el campo deja de ofrecer cuentas —el lote ya
+está decidido— y las filas borrador se apagan a la mitad: dejaron de ser algo que
+se puede editar y todavía no son filas de la tabla. `Discard` también se apaga: lo
+que descartaría ya está del otro lado. Y si falla, lo elegido **se queda**:
+volver a elegir a diez personas porque el servidor dijo que no es el peor final
+posible para esta pantalla.
+
+Sileo trae `motion` v12 como dependencia, un segundo motor de animación al lado
+del `framer-motion` v13 del registry. Conviven sin chocar y el bundle sube ~50 kB
+gzip; si algún día eso pesa más que los toasts, sacarlo es `npm rm sileo` y
+devolverle el relato a la banda.
 
 **Lo que llega, destella.** El renglón se cerró, la lista se reacomodó y lo
 recién creado cayó arriba de todo —es de hoy—: sin una marca hay que ir a buscar

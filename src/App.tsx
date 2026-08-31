@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence } from "framer-motion";
+import { Toaster } from "sileo";
 import {
   ChevronsLeftRight,
   ChevronsUpDown,
@@ -436,6 +437,19 @@ function Shell() {
             )}
           </AnimatePresence>
         </WidgetDragProvider>
+
+        {/* Los toasts, montados una sola vez para toda la app: son del shell,
+            como el riel y las pestañas, y una pantalla que montara el suyo
+            tendría dos pilas de avisos apiladas en la misma esquina.
+
+            El tema va explícito y atado al toggle de la cabecera: el modo
+            `"system"` de Sileo sigue al sistema operativo, y acá el tema lo
+            decide la clase `.dark` en `<html>` —quedarían desincronizados—. */}
+        <Toaster
+          position="bottom-right"
+          offset={16}
+          theme={dark ? "dark" : "light"}
+        />
       </SidebarProvider>
     </BoardProvider>
   );
