@@ -18,6 +18,7 @@ import {
 
 import type { IconComponent } from "@/lib/icon-context";
 import { EmailSearch } from "@/pages/EmailSearch";
+import { MessageSearch } from "@/pages/MessageSearch";
 import { SupportTickets } from "@/pages/SupportTickets";
 import { Users } from "@/pages/Users";
 import { Placeholder } from "@/pages/Placeholder";
@@ -81,7 +82,7 @@ export const NAV: NavGroup[] = [
     label: "Chat",
     items: [
       hoja("chat/accounts", "Accounts", UsersIcon, "Chat", () => <Users />),
-      hoja("chat/search", "Search", Search, "Chat"),
+      hoja("chat/search", "Search", Search, "Chat", () => <MessageSearch />),
       hoja("chat/analytics", "Analytics", ChartColumn, "Chat"),
     ],
   },

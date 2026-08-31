@@ -1,9 +1,10 @@
 "use client";
 
-import { Fragment, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Lock, MessageSquareOff, Search } from "lucide-react";
+import { Image as ImageIcon, Lock, MessageSquareOff, Mic, Search } from "lucide-react";
 
+import { MessageThread } from "@/components/message-thread";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { InputField, InputGroup } from "@/components/ui/input-group";
@@ -18,9 +19,8 @@ import {
   conversacionesDe,
   ultimo,
   type Conversacion,
-  type Mensaje,
 } from "@/pages/conversaciones";
-import { cuandoCorto, diaLargo, hora } from "@/pages/tiempo";
+import { cuandoCorto } from "@/pages/tiempo";
 import { iniciales, type Usuario } from "@/pages/usuarios";
 
 /* La sección Conversations del perfil: la lista a la izquierda, el hilo
@@ -46,18 +46,12 @@ import { iniciales, type Usuario } from "@/pages/usuarios";
    archivo está. No es el caso de `AnimatedEmpty`, que es una presentación y
    por eso tuvo que traerse pasos propios más lentos.
 
-   Lo único que se agrega es el reparto de turnos. `staggerChildren` chico a
-   propósito: con seis burbujas, 35ms por una da menos de un cuarto de segundo
-   de cascada — se ve que el hilo se arma de arriba abajo, y no se espera.
+   Lo único que se agrega es el reparto de turnos. Lo de las burbujas se lo
+   lleva `MessageThread`, que es el que las pinta; acá queda lo de la lista.
 
    La animación entera se apaga sola con `prefers-reduced-motion`: `main.tsx`
    monta `MotionConfig reducedMotion="user"`, que le saca a estas variantes lo
    que se mueve y le deja lo que se enciende. */
-
-const cascada = {
-  oculto: {},
-  visible: { transition: { delayChildren: 0.02, staggerChildren: 0.035 } },
-} as const;
 
 /* La lista arranca un poco más suelta que el hilo: son cuatro o cinco filas y
    no diez burbujas, así que el turno puede ser más largo sin que se note la
@@ -72,22 +66,6 @@ const entraFila = {
   oculto: { opacity: 0, x: -8 },
   visible: { opacity: 1, x: 0, transition: spring.moderate },
 } as const;
-
-/** El separador de día: no es de ninguno de los dos lados, así que sólo sube. */
-const entraDia = {
-  oculto: { opacity: 0, y: 6 },
-  visible: { opacity: 1, y: 0, transition: spring.moderate },
-} as const;
-
-/* Una burbuja entra desde su propio lado. Es la parte que hace que la cascada
-   diga algo además de "esto es nuevo": las de la cuenta llegan desde la derecha
-   y las del contacto desde la izquierda, así que el hilo se arma alternando y
-   se lee de quién es cada una antes de leerla. */
-const entraBurbuja = (propio: boolean) =>
-  ({
-    oculto: { opacity: 0, y: 6, x: propio ? 10 : -10 },
-    visible: { opacity: 1, y: 0, x: 0, transition: spring.moderate },
-  }) as const;
 
 /* ─────────────────────────── La lista ─────────────────────────── */
 
@@ -168,6 +146,26 @@ function Fila({
                 would be lovely" parece dicho por el contacto. */}
             {final.de === "cuenta" && (
               <span className="text-muted-foreground/70">You: </span>
+            )}
+            {/* Si lo último no fue texto, su glifo delante. El texto se sigue
+                mostrando —la transcripción de la nota, el pie de la foto: es lo
+                que hace elegible la fila— pero solo diría que alguien escribió
+                eso, y lo que hizo fue decirlo o mandarlo. */}
+            {final.voz && (
+              <Mic
+                size={11}
+                strokeWidth={1.5}
+                className="mr-1 inline-block shrink-0 align-[-1px]"
+                aria-label="Voice note"
+              />
+            )}
+            {final.foto && (
+              <ImageIcon
+                size={11}
+                strokeWidth={1.5}
+                className="mr-1 inline-block shrink-0 align-[-1px]"
+                aria-label="Photo"
+              />
             )}
             {final.texto}
           </span>
@@ -334,71 +332,12 @@ function Lista({
 
 /* ─────────────────────────── El hilo ─────────────────────────── */
 
-function Burbuja({ mensaje }: { mensaje: Mensaje }) {
-  const escala = useTypeScale();
-  const propio = mensaje.de === "cuenta";
-
-  return (
-    <motion.div
-      variants={entraBurbuja(propio)}
-      className={cn("flex", propio ? "justify-end" : "justify-start")}
-    >
-      <div
-        className={cn(
-          "flex max-w-[min(28rem,78%)] flex-col gap-1 rounded-xl px-3 py-2",
-          /* La burbuja de la cuenta va en el violeta del sistema —el mismo
-             tono 292 de la banda de títulos de la tabla y de los badges— y no
-             en un verde traído de un chat ajeno: es el único acento que esta
-             app tiene, y el que hace falta acá es "estas son suyas", no un
-             color de marca. La del contacto se queda en el gris del sistema.
-
-             El valor va escrito acá y no como token en `index.css` por lo
-             mismo que la banda de la tabla: ese archivo es copia byte a byte
-             del showcase y una variable de más lo desalinea. */
-          propio
-            ? "bg-[oklch(0.938_0.035_292)] dark:bg-[oklch(0.395_0.045_292)]"
-            : "bg-muted",
-          /* La esquina del lado del que habla se achica: es lo que apunta la
-             burbuja hacia su lado sin dibujar una colita. */
-          propio ? "rounded-br-sm" : "rounded-bl-sm",
-        )}
-      >
-        <span
-          className="whitespace-pre-wrap break-words"
-          style={{ fontSize: escala.body }}
-        >
-          {mensaje.texto}
-        </span>
-        {/* La hora adentro y alineada al final: afuera sumaría un renglón por
-            mensaje y la conversación se leería como una lista de fechas. */}
-        <span
-          className="self-end tabular-nums text-muted-foreground"
-          style={{ fontSize: escala.caption }}
-        >
-          {hora(mensaje.cuando)}
-        </span>
-      </div>
-    </motion.div>
-  );
-}
-
+/* El mueble del hilo: la cabecera de con quién es, la caja que scrollea y el
+   pie de sólo lectura. Las burbujas las pone `MessageThread`, que es el mismo
+   que usa el vistazo del riel en Messages Search. */
 function Hilo({ conversacion }: { conversacion: Conversacion }) {
   const escala = useTypeScale();
   const shape = useShape();
-
-  /* Los mensajes agrupados por día. El separador se calcula acá y no en el
-     `map` porque hace falta comparar con el anterior, y una fecha por burbuja
-     sería la misma fecha repetida cinco veces. */
-  const porDia = useMemo(() => {
-    const grupos: { dia: string; mensajes: Mensaje[] }[] = [];
-    for (const m of conversacion.mensajes) {
-      const dia = diaLargo(m.cuando);
-      const ultimoGrupo = grupos[grupos.length - 1];
-      if (ultimoGrupo?.dia === dia) ultimoGrupo.mensajes.push(m);
-      else grupos.push({ dia, mensajes: [m] });
-    }
-    return grupos;
-  }, [conversacion]);
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -442,41 +381,7 @@ function Hilo({ conversacion }: { conversacion: Conversacion }) {
         className="min-h-0 flex-1"
         viewportClassName="scroll-fade [&>div]:min-w-0!"
       >
-        {/* Los días van en fragmentos y no en un `div` por grupo: así la
-            pastilla y las burbujas son todas hijas del mismo contenedor y la
-            cascada es una sola, de arriba abajo. Con un `div` en el medio
-            habría que repartir turnos en dos niveles y el orden se cruza. */}
-        <motion.div
-          variants={cascada}
-          initial="oculto"
-          animate="visible"
-          className="flex flex-col gap-2 px-4 py-4"
-        >
-          {porDia.map((grupo) => (
-            <Fragment key={grupo.dia}>
-              {/* El día, centrado y en su propia cápsula. Es lo único de esta
-                  columna que no es de nadie de los dos lados, y por eso va al
-                  medio y no alineado a un margen. */}
-              <motion.div
-                variants={entraDia}
-                className="flex justify-center py-2"
-              >
-                <span
-                  className={cn(
-                    "bg-muted px-2.5 py-1 text-muted-foreground",
-                    shape.item,
-                  )}
-                  style={{ fontSize: escala.caption }}
-                >
-                  {grupo.dia}
-                </span>
-              </motion.div>
-              {grupo.mensajes.map((m) => (
-                <Burbuja key={m.id} mensaje={m} />
-              ))}
-            </Fragment>
-          ))}
-        </motion.div>
+        <MessageThread mensajes={conversacion.mensajes} />
       </ScrollArea>
 
       {/* Donde iría la caja de texto. Decirlo cuesta un renglón y evita que
@@ -494,12 +399,22 @@ function Hilo({ conversacion }: { conversacion: Conversacion }) {
 
 /* ─────────────────────────── La sección ─────────────────────────── */
 
-export function UserConversations({ usuario }: { usuario: Usuario }) {
+export function UserConversations({
+  usuario,
+  foco,
+}: {
+  usuario: Usuario;
+  /** Qué hilo venía a ver el que abrió el perfil. Lo manda Messages Search,
+   *  que llega desde un mensaje suelto: la conversación de la que salió es la
+   *  respuesta, y la primera del listado no. Sin par en la lista se ignora
+   *  —abre la primera—, que es lo mismo que hace la sección Emails. */
+  foco?: string;
+}) {
   const escala = useTypeScale();
   const conversaciones = conversacionesDe(usuario);
   /* La primera abierta de entrada: un panel derecho vacío al lado de una lista
      llena es medio segundo de preguntarse si hay que hacer algo. */
-  const [elegida, setElegida] = useState(conversaciones[0]?.id ?? "");
+  const [elegida, setElegida] = useState(foco ?? conversaciones[0]?.id ?? "");
   const abierta =
     conversaciones.find((c) => c.id === elegida) ?? conversaciones[0];
 

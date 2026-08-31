@@ -1,3 +1,4 @@
+import { formaDe, type Foto } from "@/pages/foto";
 import { type Usuario } from "@/pages/usuarios";
 
 /* Las conversaciones de una cuenta: el fixture del que sale la sección
@@ -15,10 +16,39 @@ export type Lado = "cuenta" | "contacto";
 export interface Mensaje {
   id: string;
   de: Lado;
+  /** Lo que dice. En una nota de voz es su transcripción, y no un renglón de
+   *  relleno: esta consola existe para poder buscar qué se dijo, y una nota
+   *  que la búsqueda no encuentra es un agujero del tamaño de todo lo que se
+   *  dijo hablando. La transcripción es la que se busca; la onda es la que se
+   *  escucha. */
   texto: string;
   /** ISO con hora: la burbuja muestra la hora y la lista, cuándo fue. */
   cuando: string;
+  /** Presente sólo si el mensaje es una nota de voz. Que exista es lo que lo
+   *  distingue de uno de texto —no hay un campo `tipo` al lado que pueda
+   *  quedar diciendo otra cosa—, y lo que trae es lo que hace falta para
+   *  dibujarla antes de escucharla. */
+  voz?: NotaDeVoz;
+  /** Presente sólo si el mensaje lleva una foto. Nunca junto con `voz`: un
+   *  mensaje es una cosa, y el reparto de más abajo los hace excluyentes por
+   *  construcción. Cuando está, `texto` es el pie de la foto. */
+  foto?: Foto;
 }
+
+/** Una nota de voz. Por ahora sólo cuánto dura: el audio lo fabrica el
+ *  fixture a partir del id del mensaje —ver `nota-de-voz.ts`—. El día que
+ *  venga de una API, acá se agrega su URL y esa es toda la diferencia. */
+export interface NotaDeVoz {
+  segundos: number;
+}
+
+/** Si el mensaje es una nota de voz, y si lleva una foto. Se preguntan acá y no
+ *  con un `!== undefined` repartido por tres pantallas: el día que una nota o
+ *  una foto traigan algo más, la pregunta sigue siendo una sola. */
+export const esNota = (m: Mensaje) => m.voz !== undefined;
+
+/** Si el mensaje lleva una foto. */
+export const esFoto = (m: Mensaje) => m.foto !== undefined;
 
 export interface Conversacion {
   id: string;
@@ -171,6 +201,54 @@ const PASO_ENTRE_HILOS = 19 * 60 * 60 * 1000;
 
 const MINUTO = 60 * 1000;
 
+/* ─────────────────────────── Las notas de voz ───────────────────────────
+
+   Cuáles de los mensajes se mandaron hablando. Como todo el reparto de este
+   archivo, sale de los números que ya hay —el de la cuenta, el de la
+   conversación, el del mensaje— y no de un `Math.random()`: la misma nota tiene
+   que ser una nota en cada recarga, porque su audio se fabrica a partir de su
+   id y una nota que aparece y desaparece se llevaría su onda con ella.
+
+   El largo del mensaje decide de qué puede ser, y eso es lo que hace que el
+   reparto no se sienta sorteado:
+
+   - **Los largos pueden ser notas de voz.** Nadie manda un audio para decir
+     "Now I'm curious", y una nota de dos segundos con tres barras se ve como un
+     error de datos. Sobre un mensaje largo es exactamente lo que uno haría:
+     hablar sale más barato que escribirlo.
+   - **Los cortos pueden llevar foto.** Un pie de foto es corto —"grandma look
+     🐶"— porque la foto ya dijo el resto. Un párrafo de cinco renglones debajo
+     de una imagen es un mensaje que no necesitaba la imagen.
+
+   Los dos tramos son disjuntos, así que ningún mensaje puede ser las dos cosas
+   y no hay que acordarse de chequearlo en ningún lado. */
+const LARGO_MINIMO = 34;
+
+const esHablado = (texto: string, cuenta: number, hilo: number, i: number) =>
+  texto.length >= LARGO_MINIMO && (cuenta + hilo * 3 + i * 7) % 4 === 0;
+
+const esFotografiado = (
+  texto: string,
+  cuenta: number,
+  hilo: number,
+  i: number,
+) => texto.length < LARGO_MINIMO && (cuenta + hilo * 3 + i * 7) % 3 === 0;
+
+/** Cuánto dura decir eso en voz alta. Sale de las palabras del texto, que es la
+ *  transcripción de la nota: así una frase corta da una nota corta y la píldora
+ *  que la muestra queda angosta, que es lo que uno espera ver.
+ *
+ *  Dos palabras y media por segundo es el ritmo de alguien hablando tranquilo,
+ *  y el segundo que se suma es el que se va en arrancar y en cortar. */
+const PALABRAS_POR_SEGUNDO = 2.5;
+
+const duracionDe = (texto: string, jitter: number) =>
+  Math.max(
+    3,
+    Math.round(texto.trim().split(/\s+/).length / PALABRAS_POR_SEGUNDO + 1) +
+      (jitter % 3),
+  );
+
 function construir(usuario: Usuario): Conversacion[] {
   const n = numeroDe(usuario.id);
   const cuantas = 2 + (n % 4);
@@ -202,6 +280,16 @@ function construir(usuario: Usuario): Conversacion[] {
         de: m.de,
         texto: m.texto,
         cuando: new Date(finDelHilo - (largo - m.min) * MINUTO).toISOString(),
+        /* La duración y la forma se calculan acá, una vez, y viajan en el
+           modelo: si las sacara cada pantalla por su cuenta, dos de ellas
+           terminarían mostrando dos duraciones para la misma nota, o
+           reservando dos huecos distintos para la misma foto. */
+        ...(esHablado(m.texto, n, k, i)
+          ? { voz: { segundos: duracionDe(m.texto, n + i) } }
+          : {}),
+        ...(esFotografiado(m.texto, n, k, i)
+          ? { foto: formaDe(`${usuario.id}/c${k}/m${i}`) }
+          : {}),
       })),
     };
   });

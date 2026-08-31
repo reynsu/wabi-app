@@ -140,7 +140,9 @@ const SECCIONES: Seccion[] = [
     label: "Conversations",
     icon: MessagesSquare,
     cuantos: (u) => conversacionesDe(u).length,
-    contenido: (u) => <UserConversations usuario={u} />,
+    contenido: (u, _tabId, foco) => (
+      <UserConversations usuario={u} foco={foco} />
+    ),
     promesa: "every thread this account has taken part in",
   },
   {

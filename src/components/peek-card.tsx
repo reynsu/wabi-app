@@ -304,6 +304,9 @@ function PeekCard({
 
   const current = tabs[selected] ?? tabs[0];
 
+  /** Whether the rail is needed at all — see where it's painted. */
+  const hasRail = tabs.length > 1;
+
   // An HTML element that isn't a `button` can't take the native button props;
   // a component might well end up rendering one, so it's assumed to do so
   // unless told otherwise.
@@ -416,6 +419,16 @@ function PeekCard({
                 </CardHeader>
 
                 <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
+                  {/* One tab, no rail. A segmented control with a single
+                      segment can't segment anything: it reads as a label the
+                      card already has in its title, and it eats a row of the
+                      body to say it twice. So a one-tab card is just a card,
+                      and the tab is only what holds its content.
+
+                      It isn't a prop because it isn't a choice: two or more
+                      tabs need somewhere to switch, one never does. */}
+                  {hasRail && (
+                  <>
                   {/* The rail paints itself against the substrate it reads: its
                       active segment lands three steps higher. Read from inside
                       the popup —which already climbed two— it lands, in dark, on
@@ -462,6 +475,8 @@ function PeekCard({
                       ))}
                     </TabsList>
                   </SurfaceProvider>
+                  </>
+                  )}
 
                   {/* The body. Without `initial={false}` the first opening
                       would animate the height from zero, which looks like a card
@@ -513,12 +528,19 @@ function PeekCard({
                               gave the tabs above, so each tab's `aria-controls`
                               keeps pointing at its panel. The padding is the
                               `CardContent`'s that wraps it: the body rests on the
-                              same plane as the title. */}
+                              same plane as the title.
+
+                              With no rail there are no tabs, so the panel drops
+                              the roles too: a `tabpanel` labelled by an id that
+                              was never rendered sends the screen reader nowhere.
+                              What names it then is the popup's own title. */}
                           <div
                             ref={measureRef}
-                            id={`${idPrefix}-panel-${selected}`}
-                            role="tabpanel"
-                            aria-labelledby={`${idPrefix}-tab-${selected}`}
+                            id={hasRail ? `${idPrefix}-panel-${selected}` : undefined}
+                            role={hasRail ? "tabpanel" : undefined}
+                            aria-labelledby={
+                              hasRail ? `${idPrefix}-tab-${selected}` : undefined
+                            }
                             tabIndex={-1}
                             className="outline-none"
                           >
