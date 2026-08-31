@@ -1271,9 +1271,50 @@ un orden que no existe. Con `prefers-reduced-motion` no crecen: aparecen. Va
 explícito, porque el `MotionConfig` de `main.tsx` le saca el `transform` a una
 animación y no el alto, y un alto que se anima es movimiento igual.
 
-Lo único que falta es guardar: no hay `crearBuzon` en `buzones.ts` todavía.
-`buzonesABodegar` ya arma exactamente lo que hay que mandarle, así que cuando
-exista, lo que cambia es una línea.
+**A quién se le puede dar uno.** Los candidatos son las cuentas **sin** buzón, y
+eso obligó a cambiar el fixture: antes `buzones.ts` le armaba uno a cada cuenta,
+así que la sección no habría tenido a quién darle nada. Ahora una de cada cuatro
+no lo tiene —el resto de dividir su número por cuatro—, y son ésas las que
+aparecen al escribir. La lista se achica sola en el mismo render en que el alta
+termina, porque sale de los buzones que hay y no de la regla: nadie tiene que
+acordarse de sacar a los que acaba de crear.
+
+**`crearBuzon` es una promesa.** No porque haya servidor —no lo hay— sino porque
+va a haberlo: quien la llama tiene que poder esperarla, mostrar que está en curso
+y enterarse si falla, y eso es lo que decide cómo se ve la pantalla. Tiene una
+demora de 900ms puesta a mano, y no es decoración: sin ella el alta sería
+instantánea, y una pantalla diseñada contra un alta instantánea no tiene dónde
+poner lo que pasa mientras —que es la mitad de lo que hay que mostrar—. Cuando
+haya API, se va la demora y queda el `await`.
+
+Falla **entera y no a medias**: si una de las direcciones ya existe, no se crea
+ninguna. Un alta de a diez que crea seis y se cae deja al que la pidió sin saber
+cuáles, y sin poder repetirla porque repetirla duplicaría esas seis. La
+comparación va contra la lista de después de la espera, no la de antes: ahí es
+donde estaría el que se coló mientras tanto. La dirección es la identidad de un
+buzón, así que dos con la misma no son dos buzones, son un bug con dos filas.
+
+**Lo que pasa mientras se crea** lo muestran las tres piezas a la vez, porque las
+tres están mirando el mismo momento: el botón se pone en curso —el `loading` del
+registry deja la etiqueta de fondo invisible, así que no cambia de ancho y no se
+lo toca dos veces—, el campo deja de ofrecer cuentas —el lote ya está decidido— y
+las filas borrador se apagan a la mitad: dejaron de ser algo que se puede editar
+y todavía no son filas de la tabla. `Discard` también se apaga: lo que
+descartaría ya está del otro lado.
+
+El conteo y el error **se turnan en el mismo renglón**: los dos hablan del mismo
+lote, así que uno sale hacia arriba y el otro entra desde abajo, apenas
+desenfocados —el idioma del rango del paginador—, en vez de que el error aparezca
+en otro lado y empuje al resto. Y si falla, lo elegido **se queda**: volver a
+elegir a diez personas porque el servidor dijo que no es el peor final posible
+para esta pantalla.
+
+**Lo que llega, destella.** El renglón se cerró, la lista se reacomodó y lo
+recién creado cayó arriba de todo —es de hoy—: sin una marca hay que ir a buscar
+con la vista cuál de las cuarenta filas es la que uno pidió. Llega encendida en
+el violeta lavado del sistema y se apaga sola en poco más de un segundo. Es color
+y no movimiento a propósito: la fila ya está en su lugar, y moverla otra vez
+diría que todavía está llegando.
 
 Las otras cinco maneras que se probaron —un panel en el riel, mosaicos en el
 board, una pestaña propia, una barra de comandos, y la tabla dada vuelta en

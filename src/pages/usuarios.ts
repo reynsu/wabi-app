@@ -337,6 +337,11 @@ export function useUsuarios() {
   return useSyncExternalStore(suscribir, () => vivos);
 }
 
+/** La lista, para el que no está pintando. `useUsuarios` es para un componente;
+ *  esto es para decidir fuera de un render —validar un alta, por ejemplo—, donde
+ *  no hay hooks y lo que hace falta es la lista de este instante. */
+export const usuariosDeAhora = () => vivos;
+
 /** Un usuario por id. `undefined` si no está: un perfil abierto sobre una
  *  cuenta que ya no existe tiene que poder decirlo en vez de romperse. */
 export function useUsuario(id: string) {

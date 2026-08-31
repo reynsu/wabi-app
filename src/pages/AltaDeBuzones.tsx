@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { CornerDownLeft, MailPlus, Search, X } from "lucide-react";
 
@@ -9,10 +9,16 @@ import { useShape } from "@/lib/shape-context";
 import { useTypeScale } from "@/lib/size-context";
 import { spring } from "@/lib/springs";
 import { cn } from "@/lib/utils";
-import { ESTADOS_BUZON, type EstadoBuzon } from "@/pages/buzones";
+import {
+  ESTADOS_BUZON,
+  crearBuzon,
+  useCuentasSinBuzon,
+  type EstadoBuzon,
+  type PedidoDeAlta,
+} from "@/pages/buzones";
 import { direccionDe } from "@/pages/emails";
 import { fechaDia } from "@/pages/tiempo";
-import { HOY, useUsuarios, type Usuario } from "@/pages/usuarios";
+import { HOY, type Usuario } from "@/pages/usuarios";
 
 /* El alta de buzones, adentro de la tabla que los lista.
  *
@@ -44,6 +50,12 @@ const CREADOR = "You";
 
 const HOY_DIA = HOY.toISOString().slice(0, 10);
 
+/** Cuánto dura el destello de lo recién creado. Lo suficiente para encontrarlo
+ *  con la vista después de que la lista se reacomodó, y no tanto como para que
+ *  quede pintado: lo que se busca es que la fila diga "acá estoy", no que se
+ *  quede distinta del resto. */
+const DESTELLO_MS = 2400;
+
 /** El borrador vive en la pantalla y no en el módulo de buzones, a diferencia
  *  del estado de un buzón: esto es de la vista —lo que *esta* pestaña está
  *  escribiendo—, y dos copias de Provisioning tienen que poder estar dando de
@@ -55,9 +67,23 @@ const HOY_DIA = HOY.toISOString().slice(0, 10);
    decisión que toman los contextos del registry. */
 // oxlint-disable-next-line react/only-export-components
 export function useAltaDeBuzones() {
-  const usuarios = useUsuarios();
+  /* Los candidatos son las cuentas **sin** buzón: dar de alta uno es dárselo a
+     quien no lo tiene. La lista se achica sola en el mismo render en que el alta
+     termina —la cuenta ya tiene buzón—, así que nadie tiene que acordarse de
+     sacar de la lista a los que acaba de crear. */
+  const usuarios = useCuentasSinBuzon();
   const [abierto, setAbierto] = useState(false);
   const [ids, setIds] = useState<string[]>([]);
+  /* Lo que pasa mientras. `enviando` lo leen las dos piezas —el botón y las
+     filas—, así que vive acá y no adentro del renglón. */
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  /* Las direcciones que se acaban de crear, para que la tabla pueda señalarlas
+     cuando aparecen. Se limpian solas: es un destello, no un estado. */
+  const [recienCreados, setRecienCreados] = useState<string[]>([]);
+  const reloj = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => { if (reloj.current) clearTimeout(reloj.current); }, []);
 
   const elegidos = useMemo(
     () =>
@@ -67,7 +93,10 @@ export function useAltaDeBuzones() {
     [ids, usuarios],
   );
 
-  const abrir = useCallback(() => setAbierto(true), []);
+  const abrir = useCallback(() => {
+    setError(null);
+    setAbierto(true);
+  }, []);
 
   /* Cerrar es descartar: un borrador que sobrevive escondido vuelve a aparecer
      media hora después con gente que ya nadie se acuerda de haber elegido. */
@@ -91,22 +120,61 @@ export function useAltaDeBuzones() {
     [],
   );
 
-  return { usuarios, abierto, ids, elegidos, abrir, cerrar, alternar, quitar };
+  /* El alta, de punta a punta: junta el pedido, espera, y decide qué pasa
+     después. Vive en el hook y no en el botón porque no es del botón: mientras
+     dura, las filas se apagan; cuando termina, el renglón se cierra y la tabla
+     señala lo que llegó. Tres piezas de la pantalla mirando el mismo momento.
+
+     La lista no se cierra antes de tiempo: se cierra cuando el alta salió bien.
+     Si falla, lo elegido sigue ahí —volver a elegir a diez personas porque el
+     servidor dijo que no es el peor final posible para esta pantalla—. */
+  const crear = useCallback(async () => {
+    const pedidos: PedidoDeAlta[] = elegidos.map((u) => ({
+      nombre: u.name,
+      direccion: direccionDe(u),
+      creador: CREADOR,
+      creadoEl: HOY_DIA,
+      estado: ESTADO_INICIAL,
+      cuenta: u.id,
+    }));
+
+    setEnviando(true);
+    setError(null);
+    try {
+      const creados = await crearBuzon(pedidos);
+      setAbierto(false);
+      setIds([]);
+      setRecienCreados(creados.map((b) => b.direccion));
+      if (reloj.current) clearTimeout(reloj.current);
+      reloj.current = setTimeout(() => setRecienCreados([]), DESTELLO_MS);
+    } catch (falla) {
+      setError(
+        falla instanceof Error
+          ? falla.message
+          : "The mailboxes couldn't be created.",
+      );
+    } finally {
+      setEnviando(false);
+    }
+  }, [elegidos]);
+
+  return {
+    usuarios,
+    abierto,
+    ids,
+    elegidos,
+    enviando,
+    error,
+    recienCreados,
+    abrir,
+    cerrar,
+    alternar,
+    quitar,
+    crear,
+  };
 }
 
 export type Alta = ReturnType<typeof useAltaDeBuzones>;
-
-/** Lo que se daría de alta: es lo que la fila borrador muestra, y lo que el día
- *  que exista `crearBuzon` hay que mandarle. */
-// oxlint-disable-next-line react/only-export-components
-export const buzonesABodegar = (alta: Alta) =>
-  alta.elegidos.map((u) => ({
-    nombre: u.name,
-    direccion: direccionDe(u),
-    creador: CREADOR,
-    creadoEl: HOY_DIA,
-    estado: ESTADO_INICIAL,
-  }));
 
 /* ─────────────────────────── El movimiento ───────────────────────────
 
@@ -145,6 +213,15 @@ const enciende = {
   visible: { opacity: 1, transition: spring.moderate },
 } as const;
 
+/** El renglón que se turna entre el conteo y el error: sale hacia arriba y el
+ *  que llega entra desde abajo, apenas desenfocados. Es el mismo idioma del
+ *  rango del paginador —dos textos que cambian por lo mismo tienen que moverse
+ *  igual— y `popLayout` los deja cruzarse sobre la misma línea. */
+const cambiaTexto = {
+  oculto: { opacity: 0, y: 4, filter: "blur(2px)", transition: spring.moderate.exit },
+  visible: { opacity: 1, y: 0, filter: "blur(0px)", transition: spring.moderate },
+} as const;
+
 /** Las sugerencias: son un panel que cuelga de un campo, así que se comportan
  *  como cualquier popup del sistema —se encienden y se acercan— y no como la
  *  banda, que abre un hueco. */
@@ -172,14 +249,7 @@ const CELDA = "min-w-0 truncate px-2.5 py-2";
 
 /** La barra: dónde se escribe, cuántas van, y las dos salidas. Se queda quieta
  *  arriba de la tabla —se la usa todo el tiempo, y con el scroll se iría—. */
-export function BarraDeAlta({
-  alta,
-  onCrear,
-}: {
-  alta: Alta;
-  /** Qué hacer con lo que se dio de alta. La barra no lo guarda: junta y avisa. */
-  onCrear: () => void;
-}) {
+export function BarraDeAlta({ alta }: { alta: Alta }) {
   const escala = useTypeScale();
   const shape = useShape();
   const reducido = useReducedMotion() ?? false;
@@ -219,9 +289,17 @@ export function BarraDeAlta({
               label="Search accounts to provision"
               labelHidden
               icon={Search}
-              placeholder="Add an account…"
+              placeholder={
+                alta.usuarios.length === 0
+                  ? "Every account already has one"
+                  : "Add an account…"
+              }
               value={texto}
               onChange={setTexto}
+              /* Mientras el alta está en vuelo el lote ya está decidido: agregar
+                 a alguien más ahí no lo mete en lo que se está creando, así que
+                 el campo no lo ofrece. */
+              disabled={alta.enviando || alta.usuarios.length === 0}
               className="[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border"
             />
           </InputGroup>
@@ -284,23 +362,51 @@ export function BarraDeAlta({
           </AnimatePresence>
         </div>
 
-        <span
-          className="text-muted-foreground tabular-nums"
-          style={{ fontSize: escala.caption }}
-        >
-          {alta.elegidos.length === 0
-            ? "Nothing drafted yet"
-            : `${alta.elegidos.length} drafted`}
+        {/* Un renglón que dice una cosa por vez: cuántas van, o qué salió mal.
+            Los dos hablan de lo mismo —el lote que se está por crear— así que
+            ocupan el mismo lugar y se turnan, en vez de que el error aparezca en
+            otro lado y empuje al resto. */}
+        <span className="relative flex min-w-0 items-center">
+          <AnimatePresence mode="popLayout" initial={false}>
+            <motion.span
+              key={alta.error ?? "cuenta"}
+              variants={cambiaTexto}
+              initial="oculto"
+              animate="visible"
+              exit="oculto"
+              className={cn(
+                "truncate tabular-nums",
+                alta.error ? "text-[#f43f5e]" : "text-muted-foreground",
+              )}
+              style={{ fontSize: escala.caption }}
+            >
+              {alta.error ??
+                (alta.elegidos.length === 0
+                  ? "Nothing drafted yet"
+                  : `${alta.elegidos.length} drafted`)}
+            </motion.span>
+          </AnimatePresence>
         </span>
 
         <span className="ml-auto flex items-center gap-2">
-          <Button variant="ghost" onClick={alta.cerrar}>
+          <Button
+            variant="ghost"
+            onClick={alta.cerrar}
+            /* Mientras el alta está en vuelo no hay nada que descartar: lo que
+               se descartaría ya está del otro lado. */
+            disabled={alta.enviando}
+          >
             Discard
           </Button>
           <Button
             leadingIcon={MailPlus}
             disabled={alta.elegidos.length === 0}
-            onClick={onCrear}
+            /* El `loading` del registry deja la etiqueta de fondo invisible y
+               pone el spinner encima, así que el botón no cambia de ancho al
+               salir: una barra que se reacomoda cuando la tocás es una barra que
+               se toca dos veces. */
+            loading={alta.enviando}
+            onClick={alta.crear}
           >
             {alta.elegidos.length > 1
               ? `Create ${alta.elegidos.length} mailboxes`
@@ -334,9 +440,15 @@ export function FilasBorrador({ alta }: { alta: Alta }) {
           className="overflow-hidden border-b border-dashed border-border bg-accent/30 text-muted-foreground"
           style={{ fontSize: escala.body }}
         >
-          <div
+          {/* En vuelo, la fila se apaga: dejó de ser algo que se puede editar y
+              todavía no es una fila de la tabla. Es el mismo gesto con el que
+              este sistema apaga un control deshabilitado, y dura lo que dura la
+              espera. */}
+          <motion.div
             className="grid items-center"
             style={{ gridTemplateColumns: REJILLA }}
+            animate={{ opacity: alta.enviando ? 0.45 : 1 }}
+            transition={spring.moderate}
           >
             <span className={cn(CELDA, "pl-6 text-foreground")}>{u.name}</span>
             <span className={CELDA}>{direccionDe(u)}</span>
@@ -352,16 +464,18 @@ export function FilasBorrador({ alta }: { alta: Alta }) {
                   sugieren; la palabra lo dice, que es lo que hace falta cuando
                   la fila de abajo se ve igual salvo por eso. */}
               <Badge color="gray">Draft</Badge>
-              <button
-                type="button"
-                aria-label={`Drop ${u.name}`}
-                onClick={() => alta.quitar(u.id)}
-                className="ml-auto shrink-0 cursor-pointer text-muted-foreground hover:text-foreground"
-              >
-                <X size={12} strokeWidth={1.5} />
-              </button>
+              {!alta.enviando && (
+                <button
+                  type="button"
+                  aria-label={`Drop ${u.name}`}
+                  onClick={() => alta.quitar(u.id)}
+                  className="ml-auto shrink-0 cursor-pointer text-muted-foreground hover:text-foreground"
+                >
+                  <X size={12} strokeWidth={1.5} />
+                </button>
+              )}
             </span>
-          </div>
+          </motion.div>
         </motion.div>
       ))}
     </AnimatePresence>

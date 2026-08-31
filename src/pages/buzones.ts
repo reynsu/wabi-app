@@ -2,7 +2,11 @@ import { useMemo, useSyncExternalStore } from "react";
 
 import type { BadgeColor } from "@/components/ui/badge";
 import { DOMINIO_CASA, direccionDe } from "@/pages/emails";
-import { useUsuarios, type Usuario } from "@/pages/usuarios";
+import {
+  useUsuarios,
+  usuariosDeAhora,
+  type Usuario,
+} from "@/pages/usuarios";
 
 /* Los buzones de la casa: el fixture de la sección Email › Provisioning.
 
@@ -94,6 +98,15 @@ const RUEDA_ESTADOS: EstadoBuzon[] = [
 
 const numeroDe = (id: string) => Number(id.replace(/\D/g, "")) || 0;
 
+/** Si esa cuenta ya tiene su buzón. Una de cada cuatro no lo tiene —el resto de
+ *  dividir su número por cuatro—, y eso no es un detalle del fixture: dar de
+ *  alta un buzón es dárselo a una cuenta que no lo tiene, así que con el padrón
+ *  entero servido la sección no tendría a quién darle nada.
+ *
+ *  Cuando esto salga de una API, lo que hay del otro lado es la misma pregunta:
+ *  qué cuentas tienen buzón. La regla se va con el fixture. */
+const tieneBuzon = (usuario: Usuario) => numeroDe(usuario.id) % 4 !== 0;
+
 /* Los buzones de la casa: los que no son de nadie. Son los mismos desde los que
    la casa escribe en `emails.ts` —facturación, recepción, el equipo de cuidados,
    mantenimiento, actividades, la farmacia—, así que la consola muestra el mismo
@@ -180,8 +193,10 @@ const DE_LA_CASA: BuzonDeLaCasa[] = [
    sobre el estado con el que el buzón nace, y no en la pantalla que lo pinta.
    Puesto allá, el badge de la fila diría una cosa y los conteos del panel de
    filtros otra. */
-function armar(usuarios: Usuario[], tocados: Cambios): Buzon[] {
-  const propios: Buzon[] = usuarios.map((usuario) => {
+function armar(usuarios: Usuario[], tienda: Tienda): Buzon[] {
+  const { tocados, creados } = tienda;
+
+  const propios: Buzon[] = usuarios.filter(tieneBuzon).map((usuario) => {
     const direccion = direccionDe(usuario);
     return {
       direccion,
@@ -198,6 +213,18 @@ function armar(usuarios: Usuario[], tocados: Cambios): Buzon[] {
     };
   });
 
+  /* Los que se dieron de alta desde la consola. La cuenta se vuelve a buscar
+     acá y no se guarda con el pedido: la cuenta cambia —se la bloquea, se la da
+     de baja— y lo que la fila tiene que mostrar es la de ahora. */
+  const nuevos: Buzon[] = creados.map((c) => ({
+    direccion: c.direccion,
+    nombre: c.nombre,
+    creador: c.creador,
+    creadoEl: c.creadoEl,
+    estado: tocados[c.direccion] ?? c.estado,
+    usuario: usuarios.find((u) => u.id === c.cuenta),
+  }));
+
   const casa: Buzon[] = DE_LA_CASA.map((b) => {
     const direccion = `${b.buzon}@${DOMINIO_CASA}`;
     return {
@@ -210,8 +237,10 @@ function armar(usuarios: Usuario[], tocados: Cambios): Buzon[] {
   });
 
   /* Los días sueltos se comparan como texto: en ISO el orden alfabético es el
-     cronológico, y no hay `Date` que construir para ordenar cincuenta filas. */
-  return [...casa, ...propios].sort((a, b) =>
+     cronológico, y no hay `Date` que construir para ordenar cincuenta filas.
+     Lo que se acaba de dar de alta es de hoy, así que cae primero: se lo ve sin
+     ir a buscarlo. */
+  return [...casa, ...propios, ...nuevos].sort((a, b) =>
     b.creadoEl.localeCompare(a.creadoEl),
   );
 }
@@ -228,16 +257,45 @@ function armar(usuarios: Usuario[], tocados: Cambios): Buzon[] {
    Suspender un buzón no es una decisión de la vista.
 
    Es la misma tienda mínima de `usuarios.ts` —una variable, un `Set` de oyentes
-   y `useSyncExternalStore`—, pero guarda **sólo lo que se cambió** y no la lista
-   entera: la lista se arma de los usuarios vivos, y una copia acá se despegaría
-   de ellos el día que se dé de baja a alguien. La clave es la dirección, que es
-   la identidad del buzón. */
+   y `useSyncExternalStore`—, pero guarda **sólo lo que la consola hizo** y no la
+   lista entera: los buzones de las cuentas se arman de los usuarios vivos, y una
+   copia acá se despegaría de ellos el día que se dé de baja a alguien.
+
+   Dos cosas guarda, y son de naturaleza distinta: `tocados` son estados que se
+   cambiaron —una corrección sobre algo que ya existía— y `creados` son buzones
+   que antes no estaban. Van juntas en un mismo objeto para que la suscripción
+   sea una sola: `useSyncExternalStore` compara la instantánea por identidad, y
+   con dos variables sueltas habría que devolver un objeto nuevo en cada lectura
+   —que es un bucle de renders—. La clave de las dos es la dirección, que es la
+   identidad del buzón. */
 
 type Cambios = Record<string, EstadoBuzon>;
 
-let tocados: Cambios = {};
+/** Un buzón dado de alta desde la consola. Es lo que la pantalla manda y lo
+ *  único que hay que guardar de él: el resto de la fila se deriva. */
+export interface PedidoDeAlta {
+  direccion: string;
+  nombre: string;
+  creador: string;
+  creadoEl: string;
+  estado: EstadoBuzon;
+  /** De qué cuenta es. El id y no la cuenta: ver `armar`. */
+  cuenta: string;
+}
+
+interface Tienda {
+  tocados: Cambios;
+  creados: PedidoDeAlta[];
+}
+
+let tienda: Tienda = { tocados: {}, creados: [] };
 
 const oyentes = new Set<() => void>();
+
+function escribir(proxima: Tienda) {
+  tienda = proxima;
+  for (const avisar of oyentes) avisar();
+}
 
 function suscribir(avisar: () => void) {
   oyentes.add(avisar);
@@ -253,14 +311,79 @@ function suscribir(avisar: () => void) {
     clic en la opción marcada volvería a pintar la tabla para nada. */
 export function cambiarEstadoBuzon(buzon: Buzon, estado: EstadoBuzon) {
   if (buzon.estado === estado) return;
-  tocados = { ...tocados, [buzon.direccion]: estado };
-  for (const avisar of oyentes) avisar();
+  escribir({
+    ...tienda,
+    tocados: { ...tienda.tocados, [buzon.direccion]: estado },
+  });
+}
+
+/* ─────────────────────────── El alta ─────────────────────────── */
+
+/** Cuánto tarda en crearse un buzón.
+ *
+ *  No hay servidor detrás, y sin demora el alta sería instantánea: se toca el
+ *  botón y las filas ya están. Eso no es lo que va a pasar el día que haya una
+ *  API, y una pantalla que se diseñó contra un alta instantánea no tiene dónde
+ *  poner lo que pasa mientras —que es la mitad de lo que hay que mostrar—. La
+ *  demora está para que ese "mientras" exista y se pueda mirar; cuando haya API,
+ *  esto se va y lo que queda es el `await`. */
+const DEMORA_MS = 900;
+
+const demora = () => new Promise((listo) => setTimeout(listo, DEMORA_MS));
+
+/**
+ * Dar de alta buzones. Devuelve los que quedaron creados.
+ *
+ * Es `async` y no una escritura a secas porque del otro lado va a haber una
+ * red: quien la llama tiene que poder esperarla, mostrar que está en curso y
+ * enterarse si falla. Lo único que cambia el día que exista la API es de dónde
+ * sale la respuesta.
+ *
+ * Falla entera y no a medias: si una de las direcciones ya existe, no se crea
+ * ninguna. Un alta de a diez que crea seis y se cae deja al que la pidió sin
+ * saber cuáles —y sin poder repetirla, porque repetirla duplicaría las seis—.
+ */
+export async function crearBuzon(pedidos: PedidoDeAlta[]): Promise<Buzon[]> {
+  if (pedidos.length === 0) return [];
+
+  await demora();
+
+  /* La dirección es la identidad, así que dos buzones con la misma no son dos
+     buzones: son un bug con dos filas. Se chequea contra la lista de ahora
+     —después de la espera, no antes—, que es donde estaría el que se coló
+     mientras tanto. */
+  const usuarios = usuariosDeAhora();
+  const yaHay = new Set(armar(usuarios, tienda).map((b) => b.direccion));
+  const repetido = pedidos.find((p) => yaHay.has(p.direccion));
+  if (repetido) {
+    throw new Error(`${repetido.direccion} already has a mailbox.`);
+  }
+
+  escribir({ ...tienda, creados: [...tienda.creados, ...pedidos] });
+
+  const creadas = new Set(pedidos.map((p) => p.direccion));
+  return armar(usuarios, tienda).filter((b) => creadas.has(b.direccion));
 }
 
 /** La lista viva. Todo lo que la lee se vuelve a pintar cuando cambia —porque
  *  cambió un buzón, o porque cambió la lista de cuentas de la que sale. */
 export function useBuzones(): Buzon[] {
   const usuarios = useUsuarios();
-  const cambios = useSyncExternalStore(suscribir, () => tocados);
-  return useMemo(() => armar(usuarios, cambios), [usuarios, cambios]);
+  const hecho = useSyncExternalStore(suscribir, () => tienda);
+  return useMemo(() => armar(usuarios, hecho), [usuarios, hecho]);
+}
+
+/** Las cuentas que todavía no tienen buzón: a quiénes se les puede dar uno.
+ *
+ *  Sale de la lista viva y no de `tieneBuzon`, que es sólo la regla del fixture:
+ *  una cuenta a la que se le acaba de dar de alta el buzón tiene que salir de
+ *  acá en el mismo render, sin que nadie se acuerde de sacarla. */
+export function useCuentasSinBuzon(): Usuario[] {
+  const usuarios = useUsuarios();
+  const buzones = useBuzones();
+
+  return useMemo(() => {
+    const ocupadas = new Set(buzones.map((b) => b.direccion));
+    return usuarios.filter((u) => !ocupadas.has(direccionDe(u)));
+  }, [usuarios, buzones]);
 }

@@ -124,6 +124,35 @@ const entraMarca = {
    ganar una animación sería cambiar una cosa por otra. */
 const MarcaAnimada = motion.create(Badge);
 
+/* La fila, animada. Se envuelve la del registry por lo mismo que el badge: es la
+   que trae el borde, la banda del hover y el registro en la grilla de
+   proximidad, y perder eso para ganar una animación sería cambiar una cosa por
+   otra.
+
+   Sólo la usa lo que se acaba de crear —ver `DESTELLO`—; el resto de las filas
+   no necesitan ser componentes de movimiento, y hacerlas todas motion es pagar
+   un envoltorio por fila para animar tres. */
+const FilaAnimada = motion.create(TableRow);
+
+/* El destello: la fila que acaba de existir llega encendida y se apaga sola.
+   Es lo que cierra el alta —el renglón de arriba se cerró, la lista se
+   reacomodó, y sin esto hay que ir a buscar con la vista cuál de las cincuenta
+   filas es la que uno pidió—.
+
+   Se apaga y no se queda: lo que se busca es que la fila diga "acá estoy", no
+   que quede distinta del resto. Y es color y no movimiento: la fila ya está en
+   su lugar, moverla otra vez sería decir que todavía está llegando.
+
+   `oklch(... 292)` es el mismo violeta lavado de la banda de los títulos: es el
+   color con el que este sistema marca lo suyo. */
+const DESTELLO = {
+  encendida: { backgroundColor: "oklch(0.966 0.022 292)" },
+  apagada: {
+    backgroundColor: "oklch(0.966 0.022 292 / 0)",
+    transition: { duration: 1.1, delay: 0.35 },
+  },
+} as const;
+
 /* ─────────────────────────── El estado ─────────────────────────── */
 
 /* La celda de estado no muestra el estado: lo edita. Suspender un buzón es lo
@@ -519,15 +548,7 @@ function Pantalla() {
           de un `AnimatePresence`, que es lo que le da su salida: sin él,
           descartar lo haría desaparecer de un cuadro al otro. */}
       <AnimatePresence initial={false}>
-        {alta.abierto && (
-          <BarraDeAlta
-            alta={alta}
-            /* Todavía no escribe: no hay `crearBuzon` en `buzones.ts`, y ese es
-               el próximo paso. Lo que ya está resuelto es qué mandarle —ver
-               `buzonesABodegar`—; cuando exista, esta línea es la que cambia. */
-            onCrear={alta.cerrar}
-          />
-        )}
+        {alta.abierto && <BarraDeAlta alta={alta} />}
       </AnimatePresence>
 
       {filas.length === 0 ? (
@@ -579,8 +600,19 @@ function Pantalla() {
             <Table className={cn("table-fixed", SANGRIA, AIRE_FILA)}>
               <Columnas />
               <TableBody>
-                {filas.map((buzon, i) => (
-                  <TableRow key={buzon.direccion} index={i}>
+                {filas.map((buzon, i) => {
+                  const recien = alta.recienCreados.includes(buzon.direccion);
+
+                  return (
+                  <FilaAnimada
+                    key={buzon.direccion}
+                    index={i}
+                    /* Sin destello, `initial`/`animate` en el mismo valor: la
+                       fila no anima nada y el envoltorio no cuesta nada. */
+                    initial={recien ? "encendida" : false}
+                    animate={recien ? "apagada" : undefined}
+                    variants={DESTELLO}
+                  >
                     {/* El nombre. Cuando el buzón es de alguien, es también el
                         disparador de la ficha de esa cuenta —la misma que abre
                         el nombre en Accounts y la dirección en Email Search—:
@@ -671,8 +703,9 @@ function Pantalla() {
                     <TableCell>
                       <EstadoDelBuzon buzon={buzon} />
                     </TableCell>
-                  </TableRow>
-                ))}
+                  </FilaAnimada>
+                  );
+                })}
               </TableBody>
             </Table>
           </ScrollArea>
