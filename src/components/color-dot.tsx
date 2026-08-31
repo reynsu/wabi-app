@@ -13,12 +13,21 @@ import { cn } from "@/lib/utils";
  *
  * Vive acá y no adentro de una pantalla porque lo usan dos —Accounts y
  * Tickets— y va a usarlo la próxima que filtre por un estado.
+ *
+ * La caja es `flex` y no `inline-flex`, que es lo que la alinea con la etiqueta
+ * que tiene al lado. Siendo inline se alineaba por la línea de base del renglón
+ * —y no por el medio de la fila—, así que el punto caía dos píxeles abajo del
+ * texto en el panel de filtros y cinco arriba adentro de un `MenuItem`, que lo
+ * mete en una celda de grilla. Un ícono de este sistema es un bloque —así deja
+ * el preflight de Tailwind a un `svg`, y por eso los de lucide sí caen
+ * centrados—, y esto es un ícono: que se comporte como los otros es lo que hace
+ * que se alinee con ellos.
  */
 export const punto =
   (color: string): IconComponent =>
   ({ size = 16, className }) => (
     <span
-      className={cn("inline-flex items-center justify-center", className)}
+      className={cn("flex shrink-0 items-center justify-center", className)}
       style={{ width: size, height: size }}
     >
       <span
