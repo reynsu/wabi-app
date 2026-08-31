@@ -1150,10 +1150,132 @@ a mano, igual que el pager.
   mete todo lo que le pasan en un solo span de texto: el clip y el número
   quedaban apilados uno arriba del otro. Van juntos adentro de su propia caja.
 
+## La pantalla de Provisioning
+
+`Email › Provisioning` son **los buzones que la casa dio de alta**. Es el mismo
+mueble que Email Search —header con la búsqueda y el `FilterMenu`, la tabla
+debajo, la densidad declarada una vez con un `SizeProvider compact`, la cabecera
+flotando sobre el scroller con su banda de vidrio, y el pie con el rango y el
+pager— porque son dos maneras de mirar el correo de la misma consola. Lo que
+cambia es qué hay adentro, que es lo único que tiene por qué cambiar.
+
+**Cinco columnas**, y ninguna es el asunto de nada: acá no hay mensajes. Un buzón
+es una dirección, de quién es, quién se la dio, cuándo, y si anda.
+
+- **Name**: el nombre de la persona, o el del área. Cuando el buzón es de
+  alguien, el nombre es también el disparador de **la misma ficha que abre el
+  nombre en Accounts y la dirección en Email Search**: la cuenta es la misma cosa
+  se la mire desde donde se la mire. Los buzones de la casa no son de nadie, así
+  que ahí el nombre es texto y no hay ficha que abrir. No se inventa un residente
+  detrás de `reception@` para que las filas se vean todas iguales: se ven
+  distintas porque no son lo mismo.
+- **Email**: la dirección entera, sin adornos. Es lo que se busca y lo que se
+  pega en la barra de arriba.
+- **Creator**: quién lo dio de alta. Un nombre y no un id —el que lee esta tabla
+  conoce a las cuatro personas que provisionan buzones acá— y en el gris de la
+  fila: es del registro, no del buzón, y compite con el nombre de la izquierda si
+  se lo pinta igual.
+- **Created At**: el día entero, no en relativo. Un alta no se lee como un
+  correo: lo que se pregunta no es cuán reciente es —casi ninguno lo es— sino de
+  cuándo data, y "hace 11 meses" no ubica a nadie en un calendario. Es la misma
+  fecha, escrita igual, que la columna Date Added de Accounts, y por eso el
+  formato se mudó a `tiempo.ts`: dos maneras de escribir el mismo día, en dos
+  pantallas hermanas, se leen como dos hechos distintos.
+- **Status**: `Active`, `Suspended` o `Inactive`, en badge con punto —y se
+  **edita ahí mismo**, ver abajo—. Es la columna que uno barre buscando el que no
+  dice "Active", y el color es lo que la hace barrible. Acá sí se pinta el estado
+  normal, a diferencia del tipo de un correo: son tres estados y ninguno es el
+  silencio.
+
+### El estado se cambia en la celda
+
+Suspender un buzón es lo que se viene a hacer a esta pantalla —dar de alta es lo
+otro—, así que la celda de estado no lo muestra: lo edita. Mandar a alguien a
+abrir una ficha para cambiar una palabra que ya está en la fila es hacerle dar
+una vuelta alrededor de la mesa.
+
+**El disparador es el badge mismo**, sin caja ni control alrededor: en reposo la
+columna se sigue leyendo como una columna. Lo que dice que se puede tocar es un
+chevron que aparece con el hover de la fila y se queda mientras el menú está
+abierto —el mismo trato que la fila del sidebar le da a su `+`—. Pintado en las
+cincuenta filas sería ruido; sin él, un secreto. El menú ofrece **los tres
+estados con el actual marcado** (`menuitemradio`, no acciones sueltas): es un
+estado de tres valores y no un interruptor, así que no hay una acción que lo dé
+vuelta, hay adónde llevarlo. Los puntos de color son los mismos del badge y los
+del panel de filtros, porque son el mismo dato.
+
+Elegir uno le da un beat al cambio: el estado va como `key` del badge, así que
+volver a montarlo lo hace entrar con el mismo zoom con el que llegó la primera
+vez.
+
+Los puntos del menú están alineados con su etiqueta, y hubo que ir a buscarlo a
+`color-dot.tsx`: `punto` se dibujaba como caja **inline**, así que se alineaba
+por la línea de base del renglón y no por el medio de la fila —dos píxeles abajo
+del texto en el panel de filtros, cinco arriba adentro de un `MenuItem`, que lo
+mete en una celda de grilla—. Un ícono de este sistema es un bloque —así deja el
+preflight de Tailwind a un `svg`, y por eso los de lucide sí caían centrados—,
+así que el punto pasó a `flex`. Estaba torcido desde antes en los cuatro paneles
+de filtros; se enderezaron todos con eso. Y como todo sale de la misma lista, el badge, los conteos del panel de
+filtros y el rango del pie cambian juntos —si estabas filtrando por `Suspended`,
+la fila que dejaste en `Active` se va de la tabla, que es lo que el filtro
+promete—.
+
+Eso obliga a una tienda, y es la diferencia con los correos, que no la tienen: un
+correo no cambia desde la consola y un buzón sí. Suspender un buzón no es una
+decisión de la vista, así que no puede vivir en un `useState` de la pantalla —dos
+copias de la pestaña dirían cosas distintas del mismo buzón—. Es la tienda mínima
+de `usuarios.ts` —una variable, un `Set` de oyentes, `useSyncExternalStore`— con
+una diferencia: guarda **sólo lo que se cambió**, contra la dirección, y no la
+lista entera. La lista se arma de los usuarios vivos, y una copia acá se
+despegaría de ellos el día que se dé de baja a alguien. `cambiarEstadoBuzon` toma
+la fila y no la dirección sola porque también necesita el estado que tiene ahora:
+pedir el que ya tiene no es un cambio.
+
+### Un buzón no es una cuenta
+
+`buzones.ts` es un modelo aparte y no dos campos colgados del usuario. La cuenta
+es con quién se habla —la que se bloquea desde Accounts—; el buzón es una
+dirección que la casa dio de alta, y **hay buzones que no son de nadie**: el de
+facturación, el de la recepción, el de mantenimiento. Son los mismos desde los
+que la casa escribe en `emails.ts`, así que la consola muestra el buzón del que
+después se ve salir un correo; por eso `DOMINIO_CASA` se exporta y la dirección
+de un residente sale de `direccionDe` en vez de volver a armarse acá.
+
+**El estado del buzón no se deriva del estado de la cuenta.** Bloquear el chat de
+alguien no le apaga el correo: son dos actos distintos, hechos desde dos lugares
+distintos de la consola, y derivar uno del otro sería inventar que son el mismo
+—además de que los buzones de la casa no tienen cuenta detrás de la que
+derivarlo—. Lo que sí se deriva es la fecha: el buzón se da de alta con la
+cuenta, así que `creadoEl` es su `addedAt` y no una segunda fecha que va a
+discrepar la primera vez que alguien corrija una.
+
+Lo demás es lo de siempre: `useBuzones` sale de la lista viva de usuarios
+—dar de baja a alguien se lleva su buzón, y la ficha que abre su nombre muestra
+el estado de comunicación de ahora—, la identidad de una fila es su dirección
+—no hay dos iguales, y un id al lado sería un segundo nombre para lo mismo—, y
+los estados viven en `ESTADOS_BUZON` con su etiqueta, su color de badge y su
+punto del panel, que son tres vistas del mismo dato.
+
+### Lo que la paginación dejó de repetir
+
+Esta es la segunda tabla que se pagina, así que las tres decisiones que tiene
+alrededor se mudaron a `hooks/use-paginacion.ts`: cambiar el filtro vuelve a la
+primera página —al derivar, no en un efecto—, la página se acota contra el total
+—si estabas en la 7 y el filtro deja 4, caés en la última que existe—, y cambiar
+de página vuelve arriba. Copiadas, alcanza con que una de las dos se olvide de
+una para que esa tabla mienta.
+
+El rango del pie —"1–40 of 55", rodando en el mismo idioma que el número del
+pager— se fue con él a `components/pager-range.tsx`, por lo mismo que `Datos` y
+`punto` viven en `components/`: lo usan dos pantallas y va a usarlo la próxima
+que se pagine. Email Search quedó igual de afuera; lo que cambió es de dónde
+saca las dos cosas.
+
 ## Lo que falta
 
-Las pantallas son un andamio. Cinco están escritas —`Accounts`, `Email › Search`,
-`Tickets`, `What's New` con `ChangelogPage`, y el board de `Analytics`— y el resto
+Las pantallas son un andamio. Seis están escritas —`Accounts`,
+`Email › Provisioning`, `Email › Search`, `Tickets`, `What's New` con
+`ChangelogPage`, y el board de `Analytics`— y el resto
 usa `src/pages/Placeholder.tsx`, que dice que la pantalla no está en vez de
 inventarla. Escribir una es cambiarle el `render` a su hoja en `navigation.tsx`;
 el shell no cambia.
