@@ -124,7 +124,11 @@ interface Plantilla {
   adjuntos?: Adjunto[];
 }
 
-const DOMINIO_CASA = "wabihouse.example";
+/** El dominio de la casa. Se exporta porque lo necesita `buzones.ts`: los
+ *  buzones que no son de nadie —facturación, recepción— se arman con la parte
+ *  de la izquierda y este mismo dominio, y dos constantes con el nombre de la
+ *  casa se despegan la primera vez que cambie. */
+export const DOMINIO_CASA = "wabihouse.example";
 
 const PLANTILLAS: Plantilla[] = [
   {

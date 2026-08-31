@@ -21,6 +21,7 @@ import { EmailSearch } from "@/pages/EmailSearch";
 import { SupportTickets } from "@/pages/SupportTickets";
 import { Users } from "@/pages/Users";
 import { Placeholder } from "@/pages/Placeholder";
+import { Provisioning } from "@/pages/Provisioning";
 import { Releases } from "@/pages/Releases";
 
 /* La navegación, como dato y en un solo lugar.
@@ -88,7 +89,9 @@ export const NAV: NavGroup[] = [
     id: "email",
     label: "Email",
     items: [
-      hoja("email/provisioning", "Provisioning", MailPlus, "Email"),
+      hoja("email/provisioning", "Provisioning", MailPlus, "Email", () => (
+        <Provisioning />
+      )),
       hoja("email/search", "Search", MailSearch, "Email", () => (
         <EmailSearch />
       )),

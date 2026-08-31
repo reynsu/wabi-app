@@ -55,6 +55,7 @@ import { useShape } from "@/lib/shape-context";
 import { SizeProvider, useTypeScale } from "@/lib/size-context";
 import { cn } from "@/lib/utils";
 import { tabDePerfil } from "@/pages/perfil-tab";
+import { fechaDia, tramoAlta } from "@/pages/tiempo";
 import {
   DIA,
   ESTADOS,
@@ -312,7 +313,7 @@ export function TarjetaUsuario({
                 },
                 {
                   k: "Date added",
-                  v: FECHA.format(new Date(`${usuario.addedAt}T12:00:00Z`)),
+                  v: fechaDia(usuario.addedAt),
                   nota: `${diasDesde(`${usuario.addedAt}T12:00:00Z`)} days ago`,
                 },
               ]}
@@ -338,13 +339,6 @@ export function TarjetaUsuario({
    tramo con el que filtra el panel salen las dos de ahí, así que no pueden
    contradecirse: no hay manera de que la fila diga "yesterday" y el filtro de
    "Last 7 days" la deje afuera. */
-
-const FECHA = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-  timeZone: "UTC",
-});
 
 const DIA_Y_MES = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -401,14 +395,6 @@ const tramoActividad = (iso: string) => {
   if (dias < 1) return "today";
   if (dias < 7) return "week";
   if (dias < 30) return "month";
-  return "older";
-};
-
-const tramoAlta = (iso: string) => {
-  const dias = (HOY.getTime() - new Date(`${iso}T12:00:00Z`).getTime()) / DIA;
-  if (dias <= 30) return "30d";
-  if (dias <= 90) return "90d";
-  if (dias <= 365) return "year";
   return "older";
 };
 
@@ -883,7 +869,7 @@ function Pantalla() {
                     </TableCell>
                     <TableCell>{cuandoFue(usuario.lastActivity)}</TableCell>
                     <TableCell>
-                      {FECHA.format(new Date(`${usuario.addedAt}T12:00:00Z`))}
+                      {fechaDia(usuario.addedAt)}
                     </TableCell>
                   </TableRow>
                 ))}

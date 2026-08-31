@@ -112,3 +112,36 @@ const FECHA_LARGA = new Intl.DateTimeFormat("en-US", {
 });
 
 export const fechaLarga = (iso: string) => FECHA_LARGA.format(new Date(iso));
+
+/* Una fecha de alta: el día, sin hora. Con año, porque una lista de altas cruza
+   diciembre; sin hora, porque nadie pregunta a qué hora se dio de alta algo.
+
+   Toma el día suelto que guardan los modelos —`2026-03-04`— y lo lee al mediodía
+   en UTC: es lo que lo mantiene del lado correcto de la medianoche se lo mire
+   desde donde se lo mire.
+
+   Vive acá y no adentro de una pantalla porque lo usan dos —la fecha de alta de
+   una cuenta en Accounts y la de un buzón en Provisioning— y dos formatos para
+   el mismo día, uno al lado del otro, se leen como dos hechos distintos. */
+const FECHA_DIA = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+export const alMediodia = (dia: string) => new Date(`${dia}T12:00:00Z`);
+
+export const fechaDia = (dia: string) => FECHA_DIA.format(alMediodia(dia));
+
+/** En qué tramo de los que ofrece el panel de filtros cae una fecha de alta. Es
+ *  la contracara de esa lista de opciones: los dos hablan de lo mismo, así que
+ *  cambiar un corte acá y no allá es lo que hace que un filtro devuelva algo
+ *  distinto de lo que promete. */
+export function tramoAlta(dia: string) {
+  const dias = (HOY.getTime() - alMediodia(dia).getTime()) / DIA;
+  if (dias <= 30) return "30d";
+  if (dias <= 90) return "90d";
+  if (dias <= 365) return "year";
+  return "older";
+}
