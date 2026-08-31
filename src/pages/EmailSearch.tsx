@@ -146,23 +146,6 @@ const entraCelda = {
   visible: { opacity: 1, filter: "blur(0px)", transition: spring.slow },
 } as const;
 
-/* El correo del riel no entra en cascada de renglones: es una cosa sola —un
-   remitente, un cuerpo, lo que trae colgado— y escalonarlo línea por línea
-   diría algo falso sobre lo que es. Lo único que se separa son sus tres bloques,
-   medio suspiro entre uno y otro. Es el mismo reparto que usa el correo abierto
-   del perfil, y por lo mismo. */
-const cascadaCorreo = {
-  oculto: {},
-  visible: { transition: { staggerChildren: 0.05 } },
-} as const;
-
-/** Un bloque del correo: no viene de ningún lado en particular, así que sólo
- *  sube. */
-const entraDelCorreo = {
-  oculto: { opacity: 0, y: 6 },
-  visible: { opacity: 1, y: 0, transition: spring.moderate },
-} as const;
-
 /** Las marcas del asunto —los adjuntos, el tipo, el rechazo—: llegan con un
  *  zoom más marcado que el de la tabla. Son chicas y son insignias: un badge
  *  que aparece creciendo se lee como algo que se le puso encima a la fila, que
@@ -277,19 +260,10 @@ function CorreoEnElRiel({
         </Button>
       }
     >
-      {/* La entrada se reproduce cada vez que se abre otro correo porque el
-          elemento se monta de nuevo: quien lo pone en el riel lo pone con el id
-          del correo como `key` —ver `abrirCorreo`—. Sin eso, abrir otro sería
-          actualizar éste, y una actualización no se anuncia. */}
-      <motion.div
-        variants={cascadaCorreo}
-        initial="oculto"
-        animate="visible"
-        className="flex flex-col gap-4 pt-1"
-      >
+      <div className="flex flex-col gap-4 pt-1">
         {/* Quién lo escribió, con la fecha entera y con año: un correo se
             archiva, y "Aug 27" sin año deja de servir en enero. */}
-        <motion.div variants={entraDelCorreo} className="flex items-start gap-3">
+        <div className="flex items-start gap-3">
           <Avatar
             size="sm"
             className={cn("shrink-0", shape.item, "after:rounded-[inherit]")}
@@ -322,17 +296,16 @@ function CorreoEnElRiel({
               to {destinatario} · {fechaLarga(email.cuando)}
             </span>
           </div>
-        </motion.div>
+        </div>
 
         {protegido ? (
           /* El cuerpo protegido. `dashed`: el marco punteado es el que este
              sistema usa para el hueco que espera algo, y acá lo que falta no
              falta por error —falta porque no se muestra—.
 
-             Sin envolverlo en un bloque que se mueva: `AnimatedEmpty` trae su
-             propia presentación —el plato, el glifo, el título, la línea— con
-             pasos más lentos que los de una reacción, y meterlo adentro de otra
-             entrada sería animar dos veces la misma llegada. */
+             Trae su propia presentación —el plato, el glifo, el título, la
+             línea—, que es suya y no de esta pantalla: es el único de acá que
+             se anuncia al llegar. */
           <AnimatedEmpty variant="dashed" size="compact">
             <AnimatedEmptyHeader>
               <AnimatedEmptyMedia variant="icon">
@@ -349,26 +322,22 @@ function CorreoEnElRiel({
           <>
             {/* El cuerpo, párrafo por párrafo, con el mismo aire que en el
                 perfil: lo que hace legible una columna de texto es el renglón,
-                y acá el renglón lo pone el ancho del riel. Entero y no párrafo
-                por párrafo: un correo se leyó de una vez, no fue llegando. */}
-            <motion.div
-              variants={entraDelCorreo}
+                y acá el renglón lo pone el ancho del riel. */}
+            <div
               className="flex flex-col gap-3 border-t border-border pt-4 leading-relaxed"
               style={{ fontSize: escala.body }}
             >
               {email.cuerpo.map((parrafo, i) => (
                 <p key={i}>{parrafo}</p>
               ))}
-            </motion.div>
+            </div>
 
             {email.adjuntos.length > 0 && (
-              <motion.div variants={entraDelCorreo}>
-                <AdjuntosDelCorreo adjuntos={email.adjuntos} />
-              </motion.div>
+              <AdjuntosDelCorreo adjuntos={email.adjuntos} />
             )}
           </>
         )}
-      </motion.div>
+      </div>
     </LateralPreview>
   );
 }
@@ -778,9 +747,11 @@ function Pantalla() {
       show(
         <CorreoEnElRiel
           /* Abrir otro correo es cambiar de contenido, no actualizarlo: sin la
-             `key` React reusaría el que ya está, y la entrada —y el scroll del
-             riel— se quedarían como estaban. Es la misma razón por la que el
-             perfil le pone la suya a la vista del correo abierto. */
+             `key` React reusaría el que ya está y el scroll del riel se
+             quedaría donde lo dejó el anterior —un correo largo leído hasta el
+             final deja al siguiente empezando por la mitad—. Es la misma razón
+             por la que el perfil le pone la suya a la vista del correo
+             abierto. */
           key={email.id}
           email={email}
           usuario={usuario}
