@@ -115,9 +115,30 @@ function Metrica({
   );
 }
 
-function Analiticas({ usuario }: { usuario: Usuario }) {
+/* Cómo se mueve la cuenta. Se exporta porque la miran dos: la pestaña
+   Analytics de la tarjeta —el vistazo desde la tabla— y el widget que el perfil
+   pone en el board. Es el mismo hecho, así que es el mismo componente: dos
+   copias de estas cinco métricas son dos que un día dicen cosas distintas. */
+export function Analiticas({
+  usuario,
+  /** Sólo los cuatro números, sin las lecturas de abajo y sin la comparación.
+   *
+   *  Es la versión de vistazo, la del board: ahí la baldosa mide lo que mide y
+   *  el contenido entero no entra —se corta justo la fila que compara, que es
+   *  la que más falta hace—. Antes que dejar algo cortado, se muestra menos:
+   *  quien quiera el detalle abre la baldosa, y ahí está entero. Es lo mismo
+   *  que hace la historia de un ticket con su `completa`. */
+  resumida,
+}: {
+  usuario: Usuario;
+  resumida?: boolean;
+}) {
   const escala = useTypeScale();
   const cambio = variacion(usuario.last30, usuario.prev30);
+  /* Las lecturas se van con la comparación: son del mismo párrafo. Cuatro
+     números con su etiqueta se entienden solos; lo que explican las notas es
+     con qué se los está midiendo, y eso es lectura de detalle. */
+  const nota = (texto: string) => (resumida ? undefined : texto);
 
   return (
     <div className="grid grid-cols-2 gap-x-4 gap-y-4">
@@ -127,46 +148,48 @@ function Analiticas({ usuario }: { usuario: Usuario }) {
       <Metrica
         etiqueta="Conversations"
         valor={conversacionesDe(usuario).length}
-        nota="all time"
+        nota={nota("all time")}
       />
       <Metrica
         etiqueta="Messages"
         valor={usuario.messages.toLocaleString("en-US")}
-        nota="all time"
+        nota={nota("all time")}
       />
       <Metrica
         etiqueta="Reply rate"
         valor={`${Math.round(usuario.replyRate * 100)}%`}
-        nota="of messages get an answer"
+        nota={nota("of messages get an answer")}
       />
       <Metrica
         etiqueta="Avg. response"
         valor={duracion(usuario.avgResponseMin)}
-        nota="average across replies"
+        nota={nota("average across replies")}
       />
 
       {/* La única fila que compara: el resto son totales. Va entera y abajo
           porque el número solo no dice nada sin contra qué. El signo va en un
           badge, que es donde este sistema gasta el color. */}
-      <div className="col-span-2 flex items-center justify-between gap-3 border-t border-border pt-3">
-        <span className="flex min-w-0 flex-col gap-0.5">
-          <span
-            className="text-muted-foreground"
-            style={{ fontSize: escala.caption }}
-          >
-            Last 30 days
+      {!resumida && (
+        <div className="col-span-2 flex items-center justify-between gap-3 border-t border-border pt-3">
+          <span className="flex min-w-0 flex-col gap-0.5">
+            <span
+              className="text-muted-foreground"
+              style={{ fontSize: escala.caption }}
+            >
+              Last 30 days
+            </span>
+            <span className="tabular-nums" style={{ fontSize: escala.body }}>
+              {usuario.last30.toLocaleString("en-US")} messages
+            </span>
           </span>
-          <span className="tabular-nums" style={{ fontSize: escala.body }}>
-            {usuario.last30.toLocaleString("en-US")} messages
-          </span>
-        </span>
-        {cambio !== null && (
-          <Badge size="compact" color={cambio < 0 ? "rose" : "green"}>
-            {cambio > 0 ? "+" : ""}
-            {cambio}%
-          </Badge>
-        )}
-      </div>
+          {cambio !== null && (
+            <Badge size="compact" color={cambio < 0 ? "rose" : "green"}>
+              {cambio > 0 ? "+" : ""}
+              {cambio}%
+            </Badge>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -244,11 +267,7 @@ export function TarjetaUsuario({
          etiqueta y de ícono en vez de aparecer al lado de su contrario. */
       footer={
         <>
-          <Button
-            variant="secondary"
-            leadingIcon={KeyRound}
-            className="flex-1"
-          >
+          <Button variant="secondary" leadingIcon={KeyRound} className="flex-1">
             Reset Password
           </Button>
           <Button
@@ -780,12 +799,14 @@ function Pantalla() {
               lo que le da sentido al desenfoque: las filas le pasan por
               debajo. Las dos tablas se alinean porque comparten `Columnas` y
               van las dos en `table-fixed`. */}
-          <div
-            ref={medirCabecera}
-            className="absolute inset-x-0 top-0 z-10"
-          >
+          <div ref={medirCabecera} className="absolute inset-x-0 top-0 z-10">
             <Table
-              className={cn("table-fixed", BANDA_TITULOS, SANGRIA, AIRE_TITULOS)}
+              className={cn(
+                "table-fixed",
+                BANDA_TITULOS,
+                SANGRIA,
+                AIRE_TITULOS,
+              )}
             >
               <Columnas />
               <TableHeader>
@@ -868,9 +889,7 @@ function Pantalla() {
                       </Badge>
                     </TableCell>
                     <TableCell>{cuandoFue(usuario.lastActivity)}</TableCell>
-                    <TableCell>
-                      {fechaDia(usuario.addedAt)}
-                    </TableCell>
+                    <TableCell>{fechaDia(usuario.addedAt)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

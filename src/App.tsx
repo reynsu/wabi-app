@@ -164,7 +164,24 @@ function Shell() {
     [],
   );
 
-  const puerta = useMemo(() => ({ mostrarWidgets }), [mostrarWidgets]);
+  /* La otra mitad de la puerta: abrir el board de una pestaña. Va con su id
+     adentro por lo mismo que `mostrarWidgets` —una pantalla escondida que
+     abriera "el board activo" se lo abriría al que está mirando otra cosa— y
+     no toca los widgets: quien abre ya puso lo suyo antes. */
+  const abrirBoard = useCallback(
+    (tabId: string) =>
+      setBoards((bs) => {
+        const previo = bs[tabId] ?? estrena(tabId);
+        if (previo.open) return bs;
+        return { ...bs, [tabId]: { ...previo, open: true } };
+      }),
+    [],
+  );
+
+  const puerta = useMemo(
+    () => ({ mostrarWidgets, abrirBoard }),
+    [mostrarWidgets, abrirBoard],
+  );
 
   /* Ir a una fila por id, para los lugares que la nombran sin tenerla a mano
      —el dropdown del header. */

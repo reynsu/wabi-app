@@ -66,12 +66,21 @@
  * throws, same as `WorkspacePanel` without its `SidebarProvider`.
  */
 
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 
 import { X } from "lucide-react";
 
 import { PeekCard, type PeekCardTab } from "@/components/peek-card";
+import { Button } from "@/components/ui/button";
+import { OMITIR } from "@/lib/copiar-nodo";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 // The span belongs to the cell, and the cell is the card's: a widget only
 // declares how much room it asks for.
 import type { WidgetSpan } from "@/components/widget-card";
@@ -102,8 +111,22 @@ interface WidgetDefinition {
   /** The middle step, in a `PeekCard` anchored to the tile. Omitted, the tile
    *  goes straight from the glance to the full view. */
   peek?: PeekCardTab[];
-  /** The full view, the one that opens as a tab of the panel. */
+  /** The full view. Opens as a tab of the panel, or in a dialog — see `abre`. */
   full: () => ReactNode;
+  /** Where the full view opens.
+   *
+   *  `"tab"`, the default, is what a widget is for: the board is where you
+   *  watch, and what catches your eye becomes a tab you keep working next to.
+   *
+   *  `"dialog"` is for what you open to *look at* and then close — a chart. It
+   *  isn't a place you come back to, it has nothing to work alongside, and a
+   *  tab per chart fills the bar with things nobody meant to keep. It also
+   *  gets the width a chart needs without stealing the panel.
+   *  @default "tab" */
+  abre?: "tab" | "dialog";
+  /** The full view's actions, in the dialog header. Only with
+   *  `abre: "dialog"`: a tab has the panel's own chrome for this. */
+  acciones?: ReactNode;
 }
 
 /** The button that takes the widget off the board. It lives in the header, and
@@ -247,11 +270,15 @@ function WidgetTile({
   const { openTab, activeId } = useWorkspace();
   const typeScale = useTypeScale();
   const Icon = widget.icon;
+  const enDialogo = widget.abre === "dialog";
+  const [dialogoAbierto, setDialogoAbierto] = useState(false);
 
   /* The plane went off to the tab: what's left here is the cell. The comparison
      is against the **active** tab and not the open ones, because the panel only
-     mounts the active one — which is exactly when the other plane exists. */
-  const abierto = activeId === widget.id;
+     mounts the active one — which is exactly when the other plane exists.
+     A widget that opens in a dialog never leaves the board, so this is never
+     its case: the tile stays whole underneath. */
+  const abierto = !enDialogo && activeId === widget.id;
 
   if (abierto) {
     return (
@@ -319,7 +346,8 @@ function WidgetTile({
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation();
-          openTab(toWidgetTab(widget));
+          if (enDialogo) setDialogoAbierto(true);
+          else openTab(toWidgetTab(widget));
         }}
         aria-label={`Open ${widget.label}`}
         className="absolute inset-0 rounded-[inherit] outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -330,6 +358,53 @@ function WidgetTile({
   const plane = (
     <WidgetPlane id={widget.id} className={cn("group/widget h-full", className)}>
       <WidgetContent className="h-full">{tile}</WidgetContent>
+
+      {/* El diálogo cuelga del plano y no del botón: el botón es una capa
+          absoluta que cubre la baldosa, y un `DialogTrigger` ahí le sacaría el
+          `stopPropagation` que la separa del `PeekCard` de abajo. Se abre desde
+          el mismo `onClick`, controlado. */}
+      {enDialogo && (
+        <Dialog open={dialogoAbierto} onOpenChange={setDialogoAbierto}>
+          <DialogContent
+            /* Ancho de gráfico y no de formulario: los `sm:max-w-sm` del
+               registry son para un diálogo de confirmación, y un eje de
+               veinticuatro horas en 384px es una tira de rayas. */
+            className="sm:max-w-3xl"
+            showCloseButton={false}
+          >
+            <DialogHeader className="flex-row items-center justify-between gap-4 space-y-0">
+              <DialogTitle className="flex min-w-0 items-center gap-2">
+                <Icon size={16} strokeWidth={1.75} className="shrink-0" />
+                <span className="min-w-0 truncate">{widget.label}</span>
+              </DialogTitle>
+
+              {/* Las acciones y el cierre, juntos: son los dos controles del
+                  marco, y separarlos a dos esquinas obliga a cruzar el diálogo
+                  para hacer dos cosas seguidas. */}
+              <div className="flex shrink-0 items-center gap-1">
+                {widget.acciones}
+                {/* El cierre no entra en la foto: es del marco, y una × pegada
+                    en un informe no cierra nada. Lo marca `OMITIR`, que es lo
+                    que el filtro de la captura mira —ver `copiar-nodo`—. */}
+                <DialogClose
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Close"
+                      {...{ [OMITIR]: "" }}
+                    />
+                  }
+                >
+                  <X />
+                </DialogClose>
+              </div>
+            </DialogHeader>
+
+            {widget.full()}
+          </DialogContent>
+        </Dialog>
+      )}
     </WidgetPlane>
   );
 

@@ -1,14 +1,22 @@
 import { useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  Activity,
   Ban,
+  ChartColumn,
   CircleCheck,
   Contact,
   KeyRound,
   Mail,
   MessagesSquare,
   MoreHorizontal,
+  ChartSpline,
+  Clock,
+  PieChart,
   Save,
+  ShieldAlert,
+  SlidersHorizontal,
+  Waypoints,
   Wrench,
 } from "lucide-react";
 
@@ -20,6 +28,7 @@ import {
   AnimatedEmptyTitle,
 } from "@/components/animated-empty";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownContent,
@@ -28,6 +37,16 @@ import {
   DropdownTrigger,
 } from "@/components/ui/dropdown";
 import { MenuItem } from "@/components/ui/menu-item";
+import { useBoardMaybe } from "@/components/board-context";
+import {
+  ActiveHours,
+  ModeratedMessages,
+  SentimentTrend,
+} from "@/components/analytics-charts";
+import { CopiarChart } from "@/components/copy-chart";
+import { comoHora } from "@/pages/analiticas";
+import type { WidgetDefinition } from "@/components/widget";
+import { Analiticas } from "@/pages/Users";
 import { Elevated } from "@/lib/elevated";
 import { useProximityHover } from "@/hooks/use-proximity-hover";
 import type { IconComponent } from "@/lib/icon-context";
@@ -271,7 +290,9 @@ function Secciones({
     onCambio(SECCIONES[proxima].value);
     /* El foco viaja con la selección: si se quedara donde estaba, la próxima
        flecha se movería desde el lugar equivocado. */
-    fila.current?.querySelectorAll<HTMLElement>('[role="tab"]')[proxima]?.focus();
+    fila.current
+      ?.querySelectorAll<HTMLElement>('[role="tab"]')
+      [proxima]?.focus();
   };
 
   return (
@@ -408,6 +429,221 @@ function Secciones({
   );
 }
 
+/* ─────────────────────────── El board ─────────────────────────── */
+
+/* Lo que la fila Analytics manda al riel.
+ *
+ * Son las mismas métricas que muestra la tarjeta de la tabla —el componente es
+ * el mismo, importado— y no una segunda versión escrita para el board: el
+ * "reply rate" de una cuenta es uno solo, y dos lugares que lo calculan son dos
+ * que un día no coinciden.
+ *
+ * Dos piezas y no una: cómo se mueve la cuenta y qué frenó la moderación son
+ * dos preguntas —una es de uso y la otra es de riesgo—, y juntas en un mismo
+ * cuadro el número de bloqueados queda como una métrica más al lado del total
+ * de mensajes, que es exactamente lo que no es.
+ *
+ * El id lleva el de la cuenta adentro: es también el id de la pestaña que abre
+ * el widget, así que sin eso abrir las analíticas de dos cuentas distintas
+ * pediría la misma pestaña dos veces. */
+/* El cuerpo de un gráfico adentro del diálogo. No lleva título: el header del
+   diálogo ya dice cuál es, y repetirlo dos centímetros más abajo es el mismo
+   renglón dos veces. Lo que sí lleva es de quién y de cuándo —un gráfico sin
+   eso podría ser de cualquiera y de cualquier mes— y va arriba, chico y en el
+   color secundario: es la ficha del gráfico, no su encabezado. */
+function EnDialogo({
+  quien,
+  nota,
+  children,
+}: {
+  quien: string;
+  nota?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-baseline justify-between gap-4 text-[12px] text-muted-foreground">
+        <span className="min-w-0 truncate">{quien}</span>
+        {nota && <span className="shrink-0">{nota}</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function Pagina({
+  titulo,
+  /** El tramo que se está mirando —"Last 6 months"—, a la derecha del título.
+   *  Un gráfico sin decir de cuándo es no dice nada: el mismo pico puede ser de
+   *  esta semana o del año pasado. */
+  nota,
+  children,
+}: {
+  titulo: string;
+  nota?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-6 py-10">
+      <div className="flex items-baseline justify-between gap-4">
+        <h2 className="text-[16px] font-medium tracking-tight">{titulo}</h2>
+        {nota && (
+          <span className="shrink-0 text-[12px] text-muted-foreground">
+            {nota}
+          </span>
+        )}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/* Lo que la moderación frenó. Va con el porcentaje al lado del total: "338
+   bloqueados" no dice nada sin contra cuántos, y la misma cuenta con diez veces
+   más mensajes sería una cuenta distinta.
+
+   La hora pico sale como entero del modelo y se escribe acá: cómo se muestra un
+   número lo decide quien lo muestra —ver el comentario de `peakHour`—. */
+function Moderacion({ usuario }: { usuario: Usuario }) {
+  const escala = useTypeScale();
+  const tasa = usuario.messages
+    ? Math.round((usuario.blockedMessages / usuario.messages) * 100)
+    : 0;
+  /* La hora la escribe `comoHora`, que es la misma que rotula el eje del
+     gráfico de horas: dos formatos para la misma hora, uno al lado del otro,
+     se leen como dos horas distintas. */
+  const hora = comoHora(usuario.peakHour);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="flex min-w-0 flex-col gap-0.5">
+          <span
+            className="text-muted-foreground"
+            style={{ fontSize: escala.caption }}
+          >
+            Blocked messages
+          </span>
+          <span
+            className="font-medium tabular-nums"
+            style={{ fontSize: escala.title }}
+          >
+            {usuario.blockedMessages.toLocaleString("en-US")}
+          </span>
+        </span>
+        {/* El umbral no es un juicio sobre la cuenta, es dónde deja de ser
+            ruido de fondo: bajo el diez por ciento la moderación está haciendo
+            su trabajo, arriba pasa algo que alguien tiene que mirar. */}
+        <Badge size="compact" color={tasa >= 10 ? "rose" : "gray"}>
+          {tasa}% of all
+        </Badge>
+      </div>
+
+      <div className="flex min-w-0 flex-col gap-0.5 border-t border-border pt-3">
+        <span
+          className="text-muted-foreground"
+          style={{ fontSize: escala.caption }}
+        >
+          Peak hour
+        </span>
+        <span className="tabular-nums" style={{ fontSize: escala.body }}>
+          {hora}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function widgetsDeAnaliticas(usuario: Usuario): WidgetDefinition[] {
+  return [
+    {
+      id: `profile/${usuario.id}/analytics`,
+      label: "Analytics",
+      icon: ChartColumn,
+      span: "2x2",
+      glance: () => <Analiticas usuario={usuario} resumida />,
+      full: () => (
+        <Pagina titulo={`${usuario.name} · Analytics`}>
+          <Analiticas usuario={usuario} />
+        </Pagina>
+      ),
+    },
+    {
+      id: `profile/${usuario.id}/moderation`,
+      label: "Moderation",
+      icon: ShieldAlert,
+      span: "2x1",
+      glance: () => <Moderacion usuario={usuario} />,
+      full: () => (
+        <Pagina titulo={`${usuario.name} · Moderation`}>
+          <Moderacion usuario={usuario} />
+        </Pagina>
+      ),
+    },
+    /* Los tres gráficos. En baldosas propias y no adentro de la de Analytics:
+       cada uno contesta una pregunta distinta —cuándo habla, cómo habla, qué
+       se le frenó— y apilados en un cuadro serían tres cosas que hay que
+       separar con la vista antes de leer cualquiera.
+
+       Todas `2x2`: un gráfico en una baldosa de una fila es una línea de
+       veinte píxeles, que no es un gráfico, es un adorno. */
+    {
+      id: `profile/${usuario.id}/hours`,
+      label: "Active Hours",
+      icon: Clock,
+      span: "2x2",
+      /* En diálogo y no en pestaña: un gráfico se abre para mirarlo y cerrarlo,
+         no es un lugar al que se vuelve ni tiene con qué trabajar al lado.
+         Tres gráficos por cuenta llenarían la barra de pestañas que nadie quiso
+         guardar. Ver `abre` en `WidgetDefinition`. */
+      abre: "dialog",
+      acciones: <CopiarChart />,
+      glance: () => <ActiveHours usuario={usuario} compacto />,
+      full: () => (
+        <EnDialogo quien={usuario.name} nota="Last 6 months">
+          <ActiveHours usuario={usuario} />
+        </EnDialogo>
+      ),
+    },
+    {
+      id: `profile/${usuario.id}/sentiment`,
+      label: "Sentiment Trend",
+      icon: ChartSpline,
+      span: "2x2",
+      /* En diálogo y no en pestaña: un gráfico se abre para mirarlo y cerrarlo,
+         no es un lugar al que se vuelve ni tiene con qué trabajar al lado.
+         Tres gráficos por cuenta llenarían la barra de pestañas que nadie quiso
+         guardar. Ver `abre` en `WidgetDefinition`. */
+      abre: "dialog",
+      acciones: <CopiarChart />,
+      glance: () => <SentimentTrend usuario={usuario} compacto />,
+      full: () => (
+        <EnDialogo quien={usuario.name} nota="Last 6 months">
+          <SentimentTrend usuario={usuario} />
+        </EnDialogo>
+      ),
+    },
+    {
+      id: `profile/${usuario.id}/moderated`,
+      label: "Moderated Messages",
+      icon: PieChart,
+      span: "2x2",
+      /* En diálogo y no en pestaña: un gráfico se abre para mirarlo y cerrarlo,
+         no es un lugar al que se vuelve ni tiene con qué trabajar al lado.
+         Tres gráficos por cuenta llenarían la barra de pestañas que nadie quiso
+         guardar. Ver `abre` en `WidgetDefinition`. */
+      abre: "dialog",
+      acciones: <CopiarChart />,
+      glance: () => <ModeratedMessages usuario={usuario} compacto />,
+      full: () => (
+        <EnDialogo quien={usuario.name} nota="Last 6 months">
+          <ModeratedMessages usuario={usuario} />
+        </EnDialogo>
+      ),
+    },
+  ];
+}
+
 function Perfil({
   usuario,
   tabId,
@@ -422,6 +658,27 @@ function Perfil({
   const escala = useTypeScale();
   const shape = useShape();
   const bloqueado = usuario.status === "blocked";
+
+  /* Analytics manda sus dos piezas al riel y lo abre. Las dos llamadas y no
+     una: `mostrarWidgets` corre solo cada vez que una pantalla actualiza lo
+     suyo, y si además abriera, cambiar de ticket en la sección Tickets le
+     reabriría el riel en la cara a quien lo había cerrado. Acá alguien lo
+     pidió con un clic, así que el abrir es explícito.
+
+     Va contra `tabId` y no contra la pestaña activa: dos perfiles abiertos son
+     dos pestañas montadas a la vez, y la escondida le pondría sus números en el
+     riel a la que sí se está mirando.
+
+     `useBoardMaybe` puede no haber: el perfil tiene que poder pintarse fuera
+     del shell. Sin puerta, la fila no hace nada y no se cae. */
+  const board = useBoardMaybe();
+
+  const verAnaliticas = () => {
+    if (!board) return;
+    board.mostrarWidgets(tabId, widgetsDeAnaliticas(usuario));
+    board.abrirBoard(tabId);
+  };
+
   /* Con cuál abre. Sólo el estado inicial: a partir de ahí la sección es de
      quien está mirando, y una prop que la siguiera mandando le sacaría la
      pestaña de las manos cada vez que el de afuera vuelva a pedir el perfil. */
@@ -483,8 +740,8 @@ function Perfil({
 
         {/* Lo que se está mirando y lo que se le puede hacer, juntos contra el
             borde derecho. El `gap` es más grande que el que separa entre sí a
-            las piezas del selector, así que el botón se lee como algo aparte y
-            no como una sección más. */}
+            las piezas del selector, así que los botones se leen como algo
+            aparte y no como una sección más. */}
         <div className="flex shrink-0 items-center gap-6">
           <Secciones
             activa={activa}
@@ -493,38 +750,77 @@ function Perfil({
             usuario={usuario}
           />
 
-          {/* Las acciones de la cuenta, en un menú y no en dos botones
-              sueltos. Son cosas que se le hacen a la cuenta y no cosas que la
-              pantalla ofrece: puestas al aire pesarían más que el nombre que
-              tienen al lado, y son las dos infrecuentes. El disparador es un
-              solo botón con el glifo de "más", que es como esta app ya dice
-              "acá hay más de lo que se ve" —ver `window-controls`—.
+          {/* Los dos menús, juntos y con el aire de un grupo de controles: son
+              dos cosas distintas —qué se mira y qué se le hace— pero las dos
+              cuelgan del mismo rincón, así que van pegadas entre sí y separadas
+              del selector por el `gap-6` de la caja de afuera. */}
+          <div className="flex items-center gap-2">
+            {/* Qué se mira de la cuenta. En su propio botón y con su nombre a
+                la vista: adentro del menú de acciones las tres filas
+                necesitaban un rótulo para no leerse como cosas que se le hacen
+                a la cuenta, y un rótulo adentro de un menú es una etiqueta que
+                hay que abrir para encontrar. Acá el nombre está siempre, y el
+                menú se queda con las tres opciones y nada más.
 
-              `align="end"`: el menú cuelga del borde derecho del botón, que es
-              el borde contra el que está apoyado. */}
-          <DropdownMenu>
-            <DropdownTrigger
-              render={
-                <Button
-                  variant="secondary"
-                  size="icon"
-                  aria-label="Account actions"
+                Todavía no muestran nada: las tres vistas no están escritas, así
+                que por ahora las filas dicen que van a existir. Es lo mismo que
+                hacen "Save user" y "Reset password" en el menú de al lado. */}
+            <DropdownMenu>
+              <DropdownTrigger
+                render={
+                  <Button
+                    variant="secondary"
+                    leadingIcon={SlidersHorizontal}
+                  />
+                }
+              >
+                Display
+              </DropdownTrigger>
+
+              <DropdownContent side="bottom" align="end" className="w-auto">
+                <MenuItem
+                  index={0}
+                  icon={ChartColumn}
+                  label="Analytics"
+                  onSelect={verAnaliticas}
                 />
-              }
-            >
-              <MoreHorizontal />
-            </DropdownTrigger>
+                <MenuItem index={1} icon={Activity} label="Activity" />
+                <MenuItem index={2} icon={Waypoints} label="Connections" />
+              </DropdownContent>
+            </DropdownMenu>
 
-            {/* El panel se ajusta a lo que dice y no al ancho fijo del
-                componente. Los 288px que trae `DropdownContent` son para un
-                menú de navegación, donde las filas son de largos distintos y
-                un ancho parejo las alinea; acá son tres acciones cortas, y ese
-                ancho deja media caja vacía al lado de las etiquetas. `w-auto`
-                sobre un `flex-col` es el contenido más ancho, y el `min-w` del
-                anclaje —que sigue puesto— evita que se angoste más que el
-                botón del que cuelga. */}
-            <DropdownContent side="bottom" align="end" className="w-auto">
-              {/* Lo que se le hace al registro, arriba y separado de lo que
+            {/* Las acciones de la cuenta, en un menú y no en dos botones
+                sueltos. Son cosas que se le hacen a la cuenta y no cosas que la
+                pantalla ofrece: puestas al aire pesarían más que el nombre que
+                tienen al lado, y son las dos infrecuentes. El disparador es un
+                solo botón con el glifo de "más", que es como esta app ya dice
+                "acá hay más de lo que se ve" —ver `window-controls`—.
+
+                `align="end"`: el menú cuelga del borde derecho del botón, que
+                es el borde contra el que está apoyado. */}
+            <DropdownMenu>
+              <DropdownTrigger
+                render={
+                  <Button
+                    variant="secondary"
+                    size="icon"
+                    aria-label="Account actions"
+                  />
+                }
+              >
+                <MoreHorizontal />
+              </DropdownTrigger>
+
+              {/* El panel se ajusta a lo que dice y no al ancho fijo del
+                  componente. Los 288px que trae `DropdownContent` son para un
+                  menú de navegación, donde las filas son de largos distintos y
+                  un ancho parejo las alinea; acá son tres acciones cortas, y
+                  ese ancho deja media caja vacía al lado de las etiquetas.
+                  `w-auto` sobre un `flex-col` es el contenido más ancho, y el
+                  `min-w` del anclaje —que sigue puesto— evita que se angoste
+                  más que el botón del que cuelga. */}
+              <DropdownContent side="bottom" align="end" className="w-auto">
+                {/* Lo que se le hace al registro, arriba y separado de lo que
                   se le hace a la cuenta: no son la misma clase de acción, y la
                   línea es más barata que agrupar por costumbre.
 
@@ -532,31 +828,32 @@ function Perfil({
                   está escrito, así que por ahora la fila dice que va a existir
                   y nada más. Cuando haya qué editar, lo que falta es lo de
                   abajo, no esta fila. */}
-              <MenuItem index={0} icon={Save} label="Save user" />
+                <MenuItem index={0} icon={Save} label="Save user" />
 
-              <DropdownSeparator />
+                <DropdownSeparator />
 
-              {/* Bloquear y desbloquear son la misma fila —una cuenta está de
+                {/* Bloquear y desbloquear son la misma fila —una cuenta está de
                   un lado o del otro, nunca de los dos—, así que la fila cambia
                   de etiqueta y de ícono en vez de aparecer al lado de su
                   contrario. Es la misma regla que el pie del `PeekCard` de la
                   tabla, y funciona de verdad: la tienda es una sola, así que el
                   badge de la fila y los conteos del panel de filtros cambian
                   con esto. */}
-              <MenuItem
-                index={1}
-                icon={bloqueado ? CircleCheck : Ban}
-                label={bloqueado ? "Unblock account" : "Block account"}
-                onSelect={() =>
-                  cambiarEstado(usuario.id, bloqueado ? "active" : "blocked")
-                }
-              />
-              {/* Reset password todavía no hace nada: no hay backend detrás,
+                <MenuItem
+                  index={1}
+                  icon={bloqueado ? CircleCheck : Ban}
+                  label={bloqueado ? "Unblock account" : "Block account"}
+                  onSelect={() =>
+                    cambiarEstado(usuario.id, bloqueado ? "active" : "blocked")
+                  }
+                />
+                {/* Reset password todavía no hace nada: no hay backend detrás,
                   y cuando lo haya lo que falta es la confirmación, no la
                   fila. */}
-              <MenuItem index={2} icon={KeyRound} label="Reset password" />
-            </DropdownContent>
-          </DropdownMenu>
+                <MenuItem index={2} icon={KeyRound} label="Reset password" />
+              </DropdownContent>
+            </DropdownMenu>
+          </div>
         </div>
       </header>
 
@@ -614,7 +911,9 @@ function Perfil({
                 : "hidden"
             }
           >
-            {seccion.contenido?.(usuario, tabId, foco) ?? <Vacio seccion={seccion} />}
+            {seccion.contenido?.(usuario, tabId, foco) ?? (
+              <Vacio seccion={seccion} />
+            )}
           </Elevated>
         ))}
       </div>

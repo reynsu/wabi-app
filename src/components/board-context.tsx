@@ -29,6 +29,19 @@ interface BoardContextValue {
    *  pantalla aporta es lo que corresponde a lo que se está mirando, y cuando
    *  eso cambia lo de antes ya no corresponde. */
   mostrarWidgets: (tabId: string, widgets: WidgetDefinition[]) => void;
+  /** Abre el board de esa pestaña, si estaba cerrado.
+   *
+   *  Puerta aparte de `mostrarWidgets` a propósito: poner algo y decidir si se
+   *  ve son dos cosas distintas. Una pantalla actualiza sus widgets todo el
+   *  tiempo mientras se la usa —cambiar de ticket cambia la ficha—, y si eso
+   *  además abriera el riel se lo estaría reabriendo en la cara a quien lo
+   *  cerró. Esto es lo otro: alguien pidió ver el board, con un clic, y por eso
+   *  es una llamada suya y no un efecto secundario.
+   *
+   *  Sólo abre. No hay `cerrarBoard`: cerrarlo es del que lo está mirando —la
+   *  × del riel, el botón de la barra— y una pantalla que lo cierre sola le
+   *  saca de la vista algo que no puso ella. */
+  abrirBoard: (tabId: string) => void;
 }
 
 const BoardContext = createContext<BoardContextValue | null>(null);
