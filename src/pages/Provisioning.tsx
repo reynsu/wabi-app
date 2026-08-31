@@ -332,14 +332,19 @@ function pasa(buzon: Buzon, busqueda: string, filtros: FilterSelection) {
 
    La dirección se lleva la porción más grande: es lo largo de la fila —un
    `guadalupe.caceres@wabihouse.example` no se abrevia— y es lo que se busca. El
-   estado va último y angosto: es un badge de dos palabras, y lo que uno hace con
-   esta columna es barrerla de arriba abajo buscando el que no dice "Active". */
+   estado va último, y lo que uno hace con esa columna es barrerla de arriba
+   abajo buscando el que no dice "Active".
+
+   Las dos de la derecha no se aprietan más de lo que miden lo que muestran: una
+   dirección cortada sigue diciendo de quién es, pero un badge cortado —"Suspende"
+   con el borde comiéndose el resto— deja de ser una palabra. El ancho que les
+   sobra sale de la dirección y del creador, que sí se pueden truncar. */
 const COLUMNAS = [
-  { id: "name", ancho: "24%" },
-  { id: "address", ancho: "30%" },
-  { id: "creator", ancho: "20%" },
-  { id: "created", ancho: "13%" },
-  { id: "status", ancho: "13%" },
+  { id: "name", ancho: "23%" },
+  { id: "address", ancho: "28%" },
+  { id: "creator", ancho: "18%" },
+  { id: "created", ancho: "15%" },
+  { id: "status", ancho: "16%" },
 ];
 
 function Columnas() {
@@ -597,6 +602,11 @@ function Pantalla() {
                       <motion.span
                         variants={entraCelda}
                         className="block truncate tabular-nums"
+                        /* La fecha entera a un hover, para el panel angosto
+                           donde la columna la corta y se lleva el año —que es
+                           justo la parte que hace falta—. Es lo mismo que hace
+                           la columna de fecha de Email Search. */
+                        title={fechaDia(buzon.creadoEl)}
                       >
                         {fechaDia(buzon.creadoEl)}
                       </motion.span>
