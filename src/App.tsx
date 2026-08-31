@@ -440,13 +440,18 @@ function Shell() {
 
         {/* Los toasts, montados una sola vez para toda la app: son del shell,
             como el riel y las pestañas, y una pantalla que montara el suyo
-            tendría dos pilas de avisos apiladas en la misma esquina.
+            tendría dos pilas de avisos apiladas en el mismo lugar.
+
+            Arriba y al centro: es donde el aviso cruza por encima de la barra de
+            pestañas sin taparle nada a la pantalla —el trabajo pasa abajo, en la
+            tabla— y donde se lo encuentra sin buscarlo, que es lo que hace falta
+            cuando lo que cuenta es que algo terminó.
 
             El tema va explícito y atado al toggle de la cabecera: el modo
             `"system"` de Sileo sigue al sistema operativo, y acá el tema lo
             decide la clase `.dark` en `<html>` —quedarían desincronizados—. */}
         <Toaster
-          position="bottom-right"
+          position="top-center"
           offset={16}
           theme={dark ? "dark" : "light"}
         />

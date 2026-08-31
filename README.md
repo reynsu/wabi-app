@@ -1317,9 +1317,16 @@ creando, se creó, no se pudo— en un solo aviso, y devuelve la misma promesa a
 que lo que sigue se encadena igual. El relato va ahí y no adentro de la banda
 porque la banda está ocupada mostrando el borrador: un cartel más ahí competiría
 con las filas que justamente hay que mirar. El `Toaster` se monta una sola vez en
-el shell —son de la ventana, como el riel y las pestañas— con el tema atado al
-toggle de la cabecera, porque el modo `"system"` de Sileo sigue al sistema
-operativo y acá el tema lo decide la clase `.dark`.
+el shell —son de la ventana, como el riel y las pestañas—, arriba y al centro:
+ahí el aviso cruza por encima de la barra de pestañas sin taparle nada a la
+pantalla —el trabajo pasa abajo, en la tabla— y se lo encuentra sin buscarlo. El
+tema va atado al toggle de la cabecera, porque el modo `"system"` de Sileo sigue
+al sistema operativo y acá el tema lo decide la clase `.dark`.
+
+Un detalle de la copia: Sileo **capitaliza el título** palabra por palabra, así
+que lo que se escriba ahí tiene que leerse bien en mayúsculas de título —"Creating
+the mailbox…" sale "Creating The Mailbox…"—. De ahí que los títulos no lleven
+artículos.
 
 La pantalla igual muestra lo suyo, que es otra cosa: el botón se pone en curso
 —el `loading` del registry deja la etiqueta de fondo invisible, así que no cambia

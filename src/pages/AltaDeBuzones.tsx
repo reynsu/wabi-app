@@ -151,10 +151,13 @@ export function useAltaDeBuzones() {
          Devuelve la misma promesa, así que lo que sigue se encadena igual. */
       const creados = await sileo.promise(crearBuzon(pedidos), {
         loading: {
+          /* Sin artículos: Sileo capitaliza el título palabra por palabra, y
+             "Creating the mailbox…" sale "Creating The Mailbox…". Lo que se
+             escribe acá tiene que leerse bien en mayúsculas de título. */
           title:
             cuantos > 1
               ? `Creating ${cuantos} mailboxes…`
-              : "Creating the mailbox…",
+              : "Creating mailbox…",
         },
         success: (hechos) => ({
           title:
