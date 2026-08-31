@@ -460,17 +460,16 @@ export function BarraDeAlta({ alta }: { alta: Alta }) {
                     shape.item,
                   )}
                 >
+                  {/* El nombre y nada más. La dirección estaba de más en dos
+                      sentidos: se deriva del nombre —así que no dice nada que el
+                      nombre no diga— y le comía el ancho justo a lo que uno está
+                      escribiendo, que terminaba cortado en "Bruno S…". Cuando la
+                      cuenta baja a la tabla, la dirección está en su columna. */}
                   <span
                     className="min-w-0 flex-1 truncate"
                     style={{ fontSize: escala.body }}
                   >
                     {u.name}
-                  </span>
-                  <span
-                    className="shrink-0 truncate text-muted-foreground"
-                    style={{ fontSize: escala.caption }}
-                  >
-                    {direccionDe(u)}
                   </span>
                   <CornerDownLeft
                     size={12}
