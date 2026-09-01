@@ -78,6 +78,42 @@ const SISTEMA = {
  *  oscuro. Es lo que se pidió —"con los mismos colores"— y es coherente con lo
  *  que la foto muestra: una barra blanca. Si tiene que seguir al tema oscuro,
  *  lo que cambia es este objeto y nada más. */
+/* La paleta de la tarjeta de la transcripción, del diseño de referencia: un
+   fondo apenas gris con un panel blanco flotando adentro, el título casi negro
+   y todo lo demás en dos grises.
+
+   Se escribe en vez de salir de los tokens porque la relación que importa acá
+   —**el panel más claro que su fondo**— es la contraria a la que arma el
+   sistema de superficies, donde lo que flota sube de tono sobre un sustrato que
+   ya es blanco. Con tokens saldrían dos blancos y no habría panel.
+
+   El tema oscuro no está en el diseño y hubo que derivarlo: los mismos papeles
+   con los mismos saltos entre sí, dados vuelta. Sin eso la tarjeta sale como un
+   bloque blanco encima de una app oscura.
+
+   Opacos los dos, y sin sombra ninguno: lo único que separa al panel de su
+   plato es que es más claro que él. */
+const TARJETA = {
+  claro: {
+    fondo: "#f2f2f2",
+    panel: "#ffffff",
+    titulo: "#1a1a1a",
+    texto: "#3d3d3d",
+    apagado: "#9e9e9e",
+    chip: "#e9e9e9",
+    chipTexto: "#6b6b6b",
+  },
+  oscuro: {
+    fondo: "#1c1c1c",
+    panel: "#303030",
+    titulo: "#f5f5f5",
+    texto: "#d4d4d4",
+    apagado: "#8a8a8a",
+    chip: "#333333",
+    chipTexto: "#a3a3a3",
+  },
+} as const;
+
 const REFERENCIA = {
   barra: "#FFFFFF",
   pastilla: "#F1F3F4",
@@ -171,6 +207,7 @@ export function AudioMessage({
     : oscuro
       ? SISTEMA.oscuro
       : SISTEMA.claro;
+  const tarjeta = oscuro ? TARJETA.oscuro : TARJETA.claro;
 
   const caja = useRef<HTMLDivElement>(null);
   const onda = useRef<WaveSurfer | null>(null);
@@ -485,21 +522,78 @@ export function AudioMessage({
           open={leyendo}
           onOpenChange={setLeyendo}
           title="Transcript"
-          icon={Captions}
+          /* Sin ícono: en el diseño el título va solo con su chip al lado, y un
+             glifo delante le corre el nombre del borde donde se lo busca. */
           align="end"
+          width={340}
+          /* El plato. El color va por `style` y no por clase: `Elevated` le
+             pinta su propio `bg-surface-N`, y una utilidad de Tailwind pierde
+             contra eso por especificidad.
+
+             El aire del cuerpo se le achica desde acá con un selector de
+             descendiente. `PeekCard` no expone el relleno de sus zonas —y está
+             bien que no lo haga, es lo que hace que todas las tarjetas del
+             sistema se vean iguales—, pero acá el panel tiene que llegar casi
+             al borde: es el gesto del diseño, un papel que ocupa la tarjeta y
+             no una nota en el medio de un margen. Es la misma manera en que las
+             tablas de esta app se corren la sangría.
+
+             Y los dos radios se acompañan: 18 afuera, 12 adentro, 6 de aire
+             entre los dos. Un radio interior que no es el exterior menos el
+             aire deja las dos curvas peleadas, y a esta distancia se ve. */
+          className={cn(
+            "rounded-[18px]",
+            "[&_[data-slot=card-content]]:px-1.5",
+            "[&_[data-slot=card-content]]:pt-1.5",
+          )}
+          style={{ background: tarjeta.fondo, color: tarjeta.titulo }}
+          /* Cuánto dura, pegado al nombre: dice cuál de todas es esta. */
+          badge={
+            <span
+              className="shrink-0 rounded-full px-2 py-0.5 tabular-nums"
+              style={{
+                background: tarjeta.chip,
+                color: tarjeta.chipTexto,
+                fontSize: escala.caption,
+              }}
+            >
+              {reloj(segundos)}
+            </span>
+          }
+          /* El pie: de dónde salió el texto. Una transcripción no es lo que
+             alguien escribió, y en una consola que modera vale la pena que eso
+             esté dicho y no supuesto. */
+          footer={
+            <span
+              className="w-full text-center"
+              style={{ color: tarjeta.apagado, fontSize: escala.caption }}
+            >
+              Transcribed from the voice note
+            </span>
+          }
           tabs={[
             {
               label: "Transcript",
-              icon: Captions,
-              /* El tamaño va escrito: un `<p>` pelado hereda los 16px del
+              /* El texto en su propio panel, más claro que el plato: es el
+                 gesto del diseño —un papel apoyado sobre la tarjeta— y es lo
+                 que separa lo que se dijo del marco que lo presenta. Sin
+                 sombra: el color alcanza, y la tarjeta entera mide dos
+                 centímetros —una sombra ahí adentro es una segunda tarjeta
+                 flotando dentro de la primera—.
+
+                 El tamaño va escrito: un `<p>` pelado hereda los 16px del
                  documento, y en una tarjeta de región compacta eso es tres
                  escalones más grande que todo lo que tiene alrededor. Sale del
                  mismo escalón que lee la fila, que es el que la tarjeta hereda
                  —el `PeekCard` sigue al `SizeProvider` de acá afuera—. */
               content: (
                 <p
-                  className="leading-relaxed"
-                  style={{ fontSize: escala.body }}
+                  className="rounded-[12px] px-3.5 py-3 leading-relaxed"
+                  style={{
+                    background: tarjeta.panel,
+                    color: tarjeta.texto,
+                    fontSize: escala.body,
+                  }}
                 >
                   {transcripcion}
                 </p>

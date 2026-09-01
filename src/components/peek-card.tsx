@@ -51,6 +51,7 @@ import {
   useRef,
   useState,
   type ComponentProps,
+  type CSSProperties,
   type ReactElement,
   type ReactNode,
 } from "react";
@@ -116,6 +117,12 @@ interface PeekCardProps {
    *  title's size; this is the way out when what goes there isn't one. Given
    *  both, this wins. */
   media?: ReactNode;
+  /** A chip riding next to the title — a number, a duration, a state. It goes
+   *  after the name and not in `action` because it belongs to the name: it says
+   *  *which* of these this one is, and pushed to the far right it reads as
+   *  something the card does. The title stays a string so it can keep lending
+   *  its text to `aria-label`; this is the part that doesn't have to be one. */
+  badge?: ReactNode;
   /** The header's action, at the top right. A short button: what the card
    *  invites you to do with what it's showing. */
   action?: ReactNode;
@@ -164,6 +171,11 @@ interface PeekCardProps {
   size?: SizeVariant;
   /** Classes for the tray. */
   className?: string;
+  /** Inline styles for the tray. There when a card has to paint its own ground
+   *  instead of taking the substrate's: `Elevated` gives the tray a
+   *  `bg-surface-N`, and a Tailwind utility loses to it on specificity, so a
+   *  colour that has to win comes in here. */
+  style?: CSSProperties;
 }
 
 /** How far the body shifts when the tab changes, in px: it comes in from the
@@ -178,6 +190,7 @@ function PeekCard({
   title,
   icon: Icon,
   media,
+  badge,
   action,
   tabs,
   footer,
@@ -197,6 +210,7 @@ function PeekCard({
   nativeButton,
   size,
   className,
+  style,
 }: PeekCardProps) {
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
   const open = openProp !== undefined ? openProp : internalOpen;
@@ -357,9 +371,13 @@ function PeekCard({
             // inwards, so a menu opened in here keeps rising from where it used
             // to rise.
             render={<Elevated offset={POPUP_RISE} shadowLevel={POPUP_SHADOW} />}
+            // The caller's styles come last: the width is the tray's own
+            // business, but a card that paints its own ground has to be able to
+            // win over `Elevated`'s substrate, and a Tailwind utility can't.
             style={{
               width: width ?? WIDTH[variant],
               maxWidth: "calc(100vw - 16px)",
+              ...style,
             }}
             className={cn(
               // The padding is set by the `Card` inside, zone by zone.
@@ -414,6 +432,7 @@ function PeekCard({
                     >
                       {title}
                     </Popover.Title>
+                    {badge}
                   </div>
                   {action && <CardAction>{action}</CardAction>}
                 </CardHeader>
