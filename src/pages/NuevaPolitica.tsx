@@ -106,11 +106,13 @@ type Draft = ReturnType<typeof useBorradorDePolitica>;
 
 /** La regla escrita como una oración. Es lo único que dice si lo que se armó es
  *  lo que se quiso armar: los campos dicen qué se puso, esto dice qué va a
- *  pasar. */
-export function comoSeLeeElBorrador(b: Borrador): string {
-  if (b.objetivos.length === 0 && b.direcciones.length === 0) {
-    return "Nothing yet — add an address or a target.";
-  }
+ *  pasar.
+ *
+ *  `null` mientras no haya nada que decir. Una ficha recién abierta no necesita
+ *  un renglón que anuncie que está vacía —eso ya se ve—, y el resumen aparece
+ *  cuando aparece la primera decisión, que es cuando empieza a servir. */
+export function comoSeLeeElBorrador(b: Borrador): string | null {
+  if (b.objetivos.length === 0 && b.direcciones.length === 0) return null;
   const de =
     b.direcciones.length === 0
       ? "any sender"
@@ -273,20 +275,6 @@ function Objetivos({ d }: { d: Draft }) {
   );
 }
 
-/** El hueco cuando todavía no hay nada, con el borde punteado de la referencia:
- *  dice que ahí va a haber algo, que es distinto de no decir nada. */
-function Hueco({ que }: { que: string }) {
-  const escala = useTypeScale();
-  return (
-    <p
-      className="rounded-xl border border-dashed border-border px-3 py-2.5 text-center text-muted-foreground"
-      style={{ fontSize: escala.caption }}
-    >
-      {que}
-    </p>
-  );
-}
-
 /** Buscar un objetivo y sumarlo. El conmutador Facilities/Residents arriba a la
  *  derecha del rótulo —como en la referencia—, el campo debajo, y las
  *  coincidencias en una lista que sólo aparece cuando hay algo que escribir:
@@ -421,9 +409,10 @@ function Direcciones({ d }: { d: Draft }) {
         </Button>
       </div>
 
-      {d.b.direcciones.length === 0 ? (
-        <Hueco que="No addresses yet — the rule will match any sender." />
-      ) : (
+      {/* Sin hueco cuando no hay ninguna: lo que falta ya lo dice el pie —"add an
+          address or a target"— y un cartel punteado por campo vacío llena de
+          bordes una ficha que todavía no tiene nada adentro. */}
+      {d.b.direcciones.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {d.b.direcciones.map((x) => (
             <button
@@ -520,6 +509,7 @@ const Corte = () => (
 function FichaDePolitica({ d, cerrar }: { d: Draft; cerrar: () => void }) {
   const escala = useTypeScale();
   const listo = d.b.nombre.trim().length > 0;
+  const frase = comoSeLeeElBorrador(d.b);
 
   return (
     <div className={cn("flex min-w-0 flex-col rounded-2xl bg-card p-5", AIRE.corte)}>
@@ -559,11 +549,7 @@ function FichaDePolitica({ d, cerrar }: { d: Draft; cerrar: () => void }) {
           <BuscarObjetivo d={d} />
         </Campo>
 
-        {d.b.objetivos.length === 0 ? (
-          <Hueco que="No targets yet — the rule will cover everyone." />
-        ) : (
-          <Objetivos d={d} />
-        )}
+        <Objetivos d={d} />
       </div>
 
       <Corte />
@@ -574,13 +560,16 @@ function FichaDePolitica({ d, cerrar }: { d: Draft; cerrar: () => void }) {
         {/* La frase va en su propia caja y no suelta entre los dos textos
             grises del pie: es la conclusión de todo lo de arriba —lo único que
             dice si lo armado es lo que se quiso armar— y suelta se lee como
-            una nota al pie más. */}
-        <p
-          className="rounded-lg bg-muted/70 px-3 py-2"
-          style={{ fontSize: escala.caption }}
-        >
-          {comoSeLeeElBorrador(d.b)}
-        </p>
+            una nota al pie más. Aparece con la primera decisión: ver
+            `comoSeLeeElBorrador`. */}
+        {frase && (
+          <p
+            className="rounded-lg bg-muted/70 px-3 py-2"
+            style={{ fontSize: escala.caption }}
+          >
+            {frase}
+          </p>
+        )}
 
         <div className="flex items-center gap-1.5">
           <Button
