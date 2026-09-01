@@ -690,6 +690,14 @@ export function useAltaDePolitica(tabId?: string) {
 
   const mostrarWidgets = useBoards((b) => b.mostrarWidgets);
   const abrirBoard = useBoards((b) => b.abrirBoard);
+  const editarBoard = useBoards((b) => b.editarBoard);
+  /* Si el riel lo abrimos nosotros. La tienda no tiene `cerrarBoard` a
+     propósito —cerrarlo es de quien lo está mirando, y una pantalla que lo
+     cierre sola le saca de la vista algo que no puso ella—, y esta es
+     justamente la excepción que esa regla deja pasar: lo que hay adentro lo
+     pusimos nosotros y lo estamos sacando. Fuera de eso no se toca: un board
+     que alguien abrió desde la barra, con sus widgets, sigue como estaba. */
+  const abrimos = useRef(false);
 
   /* Cerrar es descartar: un borrador que sobrevive escondido vuelve a aparecer
      media hora después con una regla que ya nadie se acuerda de haber escrito. */
@@ -770,13 +778,32 @@ export function useAltaDePolitica(tabId?: string) {
 
   useEffect(() => {
     if (!tabId) return;
-    if (!abierta) {
-      mostrarWidgets(tabId, []);
+
+    if (abierta) {
+      mostrarWidgets(tabId, celdaDeAlta(d, { cerrar, crear, enviando }));
+      abrirBoard(tabId);
+      abrimos.current = true;
       return;
     }
-    mostrarWidgets(tabId, celdaDeAlta(d, { cerrar, crear, enviando }));
-    abrirBoard(tabId);
-  }, [tabId, abierta, d, cerrar, crear, enviando, mostrarWidgets, abrirBoard]);
+
+    /* La ficha se fue —se creó la regla, o se descartó—: con ella se va el
+       riel. Un board vacío abierto no es un lugar donde mirar algo, es un hueco
+       que quedó; y lo que se acaba de crear está en la tabla, que es adonde hay
+       que mirar ahora. */
+    if (!abrimos.current) return;
+    abrimos.current = false;
+    editarBoard(tabId, (b) => ({ ...b, open: false, widgets: [] }));
+  }, [
+    tabId,
+    abierta,
+    d,
+    cerrar,
+    crear,
+    enviando,
+    mostrarWidgets,
+    abrirBoard,
+    editarBoard,
+  ]);
 
   return {
     abierta,
