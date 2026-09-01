@@ -43,6 +43,7 @@ import {
   ModeratedMessages,
   SentimentTrend,
 } from "@/components/analytics-charts";
+import { ActivityPreview } from "@/components/activity-preview";
 import { ConnectionMap } from "@/components/connection-map";
 import { CopiarChart } from "@/components/copy-chart";
 import { LateralPreview } from "@/components/lateral-preview";
@@ -693,6 +694,23 @@ function Perfil({
   const { show, close } = usePreview(tabId);
   const usuarios = useUsuarios();
 
+  /* Activity va al riel, como Connections y por lo mismo: son dos listas que se
+     recorren, no dos números que se miran de reojo. Y las dos comparten el
+     riel, así que abrir una cierra la otra —el riel muestra una cosa a la vez,
+     que es lo que lo separa del board—. */
+  const verActividad = () =>
+    show(
+      <LateralPreview
+        key={`${usuario.id}/actividad`}
+        title="Activity"
+        subtitle={usuario.name}
+        icon={Activity}
+        onClose={close}
+      >
+        <ActivityPreview usuario={usuario} />
+      </LateralPreview>,
+    );
+
   const verConexiones = () =>
     show(
       <LateralPreview
@@ -811,7 +829,12 @@ function Perfil({
                   label="Analytics"
                   onSelect={verAnaliticas}
                 />
-                <MenuItem index={1} icon={Activity} label="Activity" />
+                <MenuItem
+                  index={1}
+                  icon={Activity}
+                  label="Activity"
+                  onSelect={verActividad}
+                />
                 <MenuItem
                   index={2}
                   icon={Waypoints}
