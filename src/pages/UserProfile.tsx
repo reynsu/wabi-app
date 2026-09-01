@@ -43,7 +43,11 @@ import {
   ModeratedMessages,
   SentimentTrend,
 } from "@/components/analytics-charts";
+import { ConnectionMap } from "@/components/connection-map";
 import { CopiarChart } from "@/components/copy-chart";
+import { LateralPreview } from "@/components/lateral-preview";
+import { usePreview } from "@/stores/preview";
+import { useUsuarios } from "@/pages/usuarios";
 import { comoHora } from "@/pages/analiticas";
 import type { WidgetDefinition } from "@/components/widget";
 import { Analiticas } from "@/pages/Users";
@@ -679,6 +683,29 @@ function Perfil({
     abrirBoard(tabId);
   };
 
+  /* Connections va al riel y no al board. Un board es para mirar de reojo
+     mientras se trabaja en otra cosa —números, una ficha—, y un mapa de
+     conexiones no se mira de reojo: se recorre. El riel le da la columna
+     entera, que es lo que necesita para que las etiquetas no se pisen. */
+  /* Con el `tabId` de este perfil y no con la pestaña activa: dos perfiles
+     abiertos son dos `Perfil` montados a la vez, y el de atrás no tiene por qué
+     poder escribirle el riel al de adelante. */
+  const { show, close } = usePreview(tabId);
+  const usuarios = useUsuarios();
+
+  const verConexiones = () =>
+    show(
+      <LateralPreview
+        key={usuario.id}
+        title="Connections"
+        subtitle={`${usuario.name} · up to 3 degrees`}
+        icon={Waypoints}
+        onClose={close}
+      >
+        <ConnectionMap usuario={usuario} usuarios={usuarios} />
+      </LateralPreview>,
+    );
+
   /* Con cuál abre. Sólo el estado inicial: a partir de ahí la sección es de
      quien está mirando, y una prop que la siguiera mandando le sacaría la
      pestaña de las manos cada vez que el de afuera vuelva a pedir el perfil. */
@@ -785,7 +812,12 @@ function Perfil({
                   onSelect={verAnaliticas}
                 />
                 <MenuItem index={1} icon={Activity} label="Activity" />
-                <MenuItem index={2} icon={Waypoints} label="Connections" />
+                <MenuItem
+                  index={2}
+                  icon={Waypoints}
+                  label="Connections"
+                  onSelect={verConexiones}
+                />
               </DropdownContent>
             </DropdownMenu>
 

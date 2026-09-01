@@ -58,16 +58,27 @@ export function usePreviewActivo(): ReactNode | null {
 
 /** Poner algo en el riel, y devolvérselo al board.
  *
- *  Las dos van contra la pestaña activa, que es la que está pidiendo: quien
- *  llama a esto está pintando adentro de ella. Las funciones son estables —salen
- *  de la tienda— así que sirven de dependencia sin volver a crear callbacks. */
-export function usePreview() {
-  const scope = useWorkspace((s) => s.activeId) ?? SOLO;
+ *  **El scope se pasa cuando se lo sabe.** Todas las pestañas siguen montadas
+ *  cuando no se las mira, así que una pantalla escondida que escriba contra "la
+ *  activa" le mete su vistazo en el riel a la que sí se está mirando: se abre la
+ *  actividad de una cuenta y aparece la de otra. Es el mismo error que
+ *  `mostrarWidgets` evita pidiendo el `tabId`, y acá hacía falta igual.
+ *
+ *  Sin scope cae en la activa, que es lo correcto para una pantalla que no sabe
+ *  de qué pestaña es —las tablas de búsqueda se montan sin id—: ésas sólo pueden
+ *  pedirlo mientras se las está mirando, porque el pedido nace de un clic sobre
+ *  una de sus filas.
+ *
+ *  Las funciones de la tienda son estables, así que las devueltas se pueden usar
+ *  de dependencia sin volver a crear callbacks en cada render. */
+export function usePreview(scope?: string) {
+  const activa = useWorkspace((s) => s.activeId);
+  const suyo = scope ?? activa ?? SOLO;
   const show = useTiendaDePreviews((p) => p.show);
   const close = useTiendaDePreviews((p) => p.close);
 
   return {
-    show: (preview: ReactNode) => show(scope, preview),
-    close: () => close(scope),
+    show: (preview: ReactNode) => show(suyo, preview),
+    close: () => close(suyo),
   };
 }
