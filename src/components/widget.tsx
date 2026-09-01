@@ -140,8 +140,9 @@ interface WidgetDefinition {
    *
    * Use it for the exception, not for chrome you happen to dislike: a raw
    * widget gives up the header —so it can't be named or closed from the board—
-   * and gives up the whole glance/peek/full ladder. Whatever goes in has to
-   * carry its own way out.
+   * gives up the whole glance/peek/full ladder, and gives up being dragged: its
+   * surface is the content's, not the card's. Whatever goes in has to carry its
+   * own way out.
    */
   crudo?: boolean;
 }
@@ -327,9 +328,21 @@ function WidgetTile({
   }
 
   /* Raw: see `crudo`. No plane, no header and no click layer — the content is
-     the cell. */
+     the cell.
+
+     And `data-no-drag`: the whole surface belongs to what's inside. A tile is
+     dragged by its face because its face is decoration; a raw cell's face is a
+     form, and every press on it —a field, a row of a list, a button— is the
+     content's own. Without this the card takes the press as the start of a
+     drag, and any click that moves a pixel on the way down —which is every
+     click a hand makes— gets swallowed: the list row you pressed doesn't get
+     picked, and it looks like the click "didn't take". */
   if (widget.crudo) {
-    return <div className={cn("min-w-0", className)}>{widget.glance()}</div>;
+    return (
+      <div data-no-drag className={cn("min-w-0", className)}>
+        {widget.glance()}
+      </div>
+    );
   }
 
   const tile = (
