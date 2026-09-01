@@ -6,7 +6,14 @@ import type { BadgeColor } from "@/components/ui/badge";
    tiene una sola consola y cuatro personas que la usan, así que la lista se toma
    prestada en vez de escribirse otra vez con los mismos nombres. */
 import { CREADORES } from "@/pages/buzones";
-import { HOY, TIPOS, useUsuarios, type Tipo, type Usuario } from "@/pages/usuarios";
+import {
+  HOY,
+  TIPOS,
+  useUsuarios,
+  usuariosDeAhora,
+  type Tipo,
+  type Usuario,
+} from "@/pages/usuarios";
 
 /* Las políticas de correo de la casa: el fixture de la sección Email › Policies.
  *
@@ -423,14 +430,51 @@ const hechoHastaAhora = () => useTiendaDePoliticas.getState();
 
 /** Escribir una política nueva. Devuelve la que quedó, que es lo que la
  *  pantalla usa para señalarla en la tabla. */
-export function crearPolitica(datos: Alta): Politica {
+/** Cuánto tarda en escribirse una política.
+ *
+ *  No hay servidor detrás, y sin demora el alta sería instantánea: se toca el
+ *  botón y la fila ya está. Eso no es lo que va a pasar el día que haya una API,
+ *  y una pantalla diseñada contra un alta instantánea no tiene dónde poner lo
+ *  que pasa mientras —que es la mitad de lo que hay que mostrar—. La demora está
+ *  para que ese "mientras" exista y se pueda mirar; cuando haya API, esto se va
+ *  y lo que queda es el `await`. Es la misma decisión que toma el alta de
+ *  buzones, con el mismo número. */
+const DEMORA_MS = 900;
+
+const demora = () => new Promise((listo) => setTimeout(listo, DEMORA_MS));
+
+/**
+ * Escribir una política. Devuelve la que quedó.
+ *
+ * Es `async` y no una escritura a secas porque del otro lado va a haber una red:
+ * quien la llama tiene que poder esperarla, mostrar que está en curso y
+ * enterarse si falla.
+ *
+ * Falla cuando ya hay una regla con ese nombre. No es una restricción inventada
+ * para tener un error: la tabla se lee por su primera columna y se busca por
+ * ella, así que dos reglas con el mismo nombre son dos filas que nadie puede
+ * distinguir —y la que se quiso corregir va a ser la otra—. Se chequea **después
+ * de la espera**, contra la lista de ese momento, que es donde estaría la que se
+ * coló mientras tanto.
+ */
+export async function crearPolitica(datos: Alta): Promise<Politica> {
+  await demora();
+
+  const nombre = datos.nombre.trim();
+  const yaHay = armar(usuariosDeAhora(), hechoHastaAhora()).some(
+    (p) => p.nombre.toLowerCase() === nombre.toLowerCase(),
+  );
+  if (yaHay) {
+    throw new Error(`A policy called "${nombre}" already exists.`);
+  }
+
   const { creadas } = hechoHastaAhora();
   const politica: Politica = {
     /* El id lleva el contador y no sólo el nombre: dos políticas pueden
        llamarse igual —la misma regla escrita dos veces para dos grupos— y la
        `key` de la fila no puede repetirse. */
     id: `pol/nueva/${creadas.length + 1}`,
-    nombre: datos.nombre,
+    nombre,
     tipo: "access",
     /* Sin objetivos rige sobre todos, que es lo que la ficha dice mientras no
        se agregue ninguno. Con objetivos el alcance no se mira: manda la lista.

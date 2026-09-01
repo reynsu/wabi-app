@@ -385,8 +385,13 @@ function Pantalla({ tabId }: { tabId?: string }) {
   const [editando, setEditando] = useState<Politica | null>(null);
   const [borrando, setBorrando] = useState<Politica | null>(null);
   /* La fila que se acaba de tocar, para el destello. Se guarda el id y no la
-     fila: la fila se vuelve a armar y la de antes ya no es la misma. */
-  const [recien, setRecien] = useState<string | null>(null);
+     fila: la fila se vuelve a armar y la de antes ya no es la misma.
+
+     Son dos fuentes porque son dos caminos: corregir una es del diálogo, y
+     escribir una nueva es de la ficha del riel, que la señala cuando su alta
+     termina. */
+  const [corregida, setCorregida] = useState<string | null>(null);
+  const recien = corregida ?? alta.recienCreada;
 
   /* El alcance escrito se calcula una vez por fila y se usa tres veces —la
      columna, la búsqueda y el `title`—: resolverlo adentro de cada uso sería
@@ -679,7 +684,7 @@ function Pantalla({ tabId }: { tabId?: string }) {
           politica={editando}
           onListo={(id) => {
             setEditando(null);
-            setRecien(id);
+            setCorregida(id);
           }}
           onCancelar={() => setEditando(null)}
         />
