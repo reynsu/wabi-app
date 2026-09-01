@@ -22,6 +22,7 @@ import {
   type FilterSelection,
 } from "@/components/filter-menu";
 import { Badge, type BadgeColor } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { TabItem, Tabs, TabsList } from "@/components/ui/tabs";
 import { useShape } from "@/lib/shape-context";
 import { useTypeScale } from "@/lib/size-context";
@@ -100,9 +101,9 @@ function Fila({
    *  que va entero en el `title` y truncado en pantalla: el renglón no puede
    *  crecer treinta caracteres porque la clave los tenga. */
   clave?: string;
-  /** Quién lo hizo. Va en su propio renglón y con el nombre resaltado: en un
-   *  registro, la pregunta que sigue a "qué pasó" es siempre "quién", y es lo
-   *  único de la fila que no se puede deducir de ningún otro lado. */
+  /** Quién lo hizo. Va en su propio renglón: en un registro, la pregunta que
+   *  sigue a "qué pasó" es siempre "quién", y es lo único de la fila que no se
+   *  puede deducir de ningún otro lado. */
   porQuien?: string;
   cuando: string;
   /** Dónde va el "hace cuánto". Abajo con el resto de los datos chicos, salvo
@@ -143,7 +144,11 @@ function Fila({
             className="min-w-0 truncate text-muted-foreground"
             style={{ fontSize: escala.caption }}
           >
-            by <span className="font-medium text-foreground">{porQuien}</span>
+            {/* El nombre pesa un poco más que el "by" que lo introduce, pero en
+                la misma tinta: el renglón es una frase sola —"by Hugo
+                Sarmiento"— y partirla en dos colores la lee como dos datos
+                puestos uno al lado del otro. */}
+            by <span className="font-medium">{porQuien}</span>
           </span>
         )}
         {/* Hace cuánto y no la fecha: lo que se quiere saber de un renglón de
@@ -695,7 +700,17 @@ export function ActivityPreview({ usuario }: { usuario: Usuario }) {
     setFiltros((antes) => ({ ...antes, [puesta.value]: v }));
 
   return (
-    <div className="flex min-w-0 flex-col gap-3">
+    /* El riel entero deja de correr y corre sólo la lista.
+       
+       El cuerpo del riel scrollea todo lo que le pongan adentro, y con eso las
+       pestañas y la barra se iban para arriba en cuanto la lista era larga: se
+       perdía de vista con qué se está mirando justo cuando hay tanto que hay que
+       filtrar. Tomando el alto —`h-full`— nada desborda al riel, y el único que
+       se pasa es el bloque de filas.
+
+       Es la misma decisión que ya toma `LateralPreview` con su cabecera, un
+       nivel más adentro. */
+    <div className="flex h-full min-w-0 flex-col gap-3">
       <Tabs value={activa} onValueChange={setActiva}>
         {/* El riel a lo ancho: tres pestañas repartiendo la columna se leen
             como un control, y apretadas a la izquierda como tres botones que
@@ -724,13 +739,16 @@ export function ActivityPreview({ usuario }: { usuario: Usuario }) {
           El total es el de la pestaña, no el de la cuenta: son tres listas
           distintas y "8 of 244" con 8 filas de registro sería un número que no
           es de nadie. */}
+      {/* El marco no crece: se achica. Con pocas filas mide lo que miden, y
+          cuando no entran es el único que cede —las pestañas no—, así que lo que
+          sobra queda adentro de la lista y no abajo del riel. */}
       <div
         className={cn(
-          "min-w-0 overflow-hidden border border-border",
+          "flex min-h-0 min-w-0 flex-col overflow-hidden border border-border",
           shape.container,
         )}
       >
-        <div className="flex min-w-0 items-center justify-between gap-2 bg-muted py-1 pr-1 pl-3">
+        <div className="flex min-w-0 shrink-0 items-center justify-between gap-2 bg-muted py-1 pr-1 pl-3">
           <span
             className="text-muted-foreground tabular-nums"
             style={{ fontSize: escala.caption }}
@@ -750,18 +768,29 @@ export function ActivityPreview({ usuario }: { usuario: Usuario }) {
 
         <Puestos filtros={puestos} grupos={grupos} onChange={ponerFiltros} />
 
-        <div className="px-3">
-          {todas.length === 0 ? (
-            <Vacio que={puesta.vacio} />
-          ) : filas.length === 0 ? (
-            /* Que no haya nada porque se filtró no es lo mismo que no haya
-               nada: una dice qué hacer —soltar un filtro— y la otra dice que no
-               hay más que ver. */
-            <Vacio que="Nothing matches these filters." />
-          ) : (
-            <ul className="flex flex-col">{filas.map((f) => puesta.fila(f))}</ul>
-          )}
-        </div>
+        {/* La barra de scroll es la del sistema y no la del navegador, como en
+            los paneles y en la barra lateral; en un teléfono se devuelve sola al
+            scroll nativo. El relleno va adentro del viewport para que la barra
+            corra pegada al borde del marco y no a tres píxeles de las filas, y
+            el desvanecido es corto: sobre una lista de doscientos píxeles, los
+            cuarenta y ocho de siempre son el borde comiéndose el contenido. */}
+        <ScrollArea
+          className="min-h-0"
+          viewportClassName="scroll-fade [--scroll-fade-size:24px]!"
+        >
+          <div className="px-3">
+            {todas.length === 0 ? (
+              <Vacio que={puesta.vacio} />
+            ) : filas.length === 0 ? (
+              /* Que no haya nada porque se filtró no es lo mismo que no haya
+                 nada: una dice qué hacer —soltar un filtro— y la otra dice que
+                 no hay más que ver. */
+              <Vacio que="Nothing matches these filters." />
+            ) : (
+              <ul className="flex flex-col">{filas.map((f) => puesta.fila(f))}</ul>
+            )}
+          </div>
+        </ScrollArea>
       </div>
     </div>
   );
