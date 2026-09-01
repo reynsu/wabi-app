@@ -104,6 +104,16 @@ const SPAN: Record<WidgetSpan, string> = {
  *  whether that grid does anything with a drag at all. */
 const Board = createContext<{ id: string; draggable: boolean } | null>(null);
 
+/** Los controles que escriben. Una tecla o un botón del mouse sobre uno de
+ *  ellos es suyo y no de la tarjeta: un espacio adentro de un campo es un
+ *  espacio, y apretar un campo es poner el cursor, no levantar la baldosa. */
+const ESCRIBEN = "input, textarea, select, [contenteditable]";
+
+/** Si el gesto le pertenece a algo de adentro y no a la tarjeta: un control que
+ *  escribe, o cualquier cosa marcada con `data-no-drag`. */
+const esSuyo = (target: HTMLElement) =>
+  Boolean(target.closest(ESCRIBEN) || target.closest("[data-no-drag]"));
+
 /* ─────────────────────────────── The grid ─────────────────────────────── */
 
 /** A cell, as the grid sees it: an id, how much room it asks for, a name for
@@ -358,8 +368,25 @@ function SortableCard({
      control inside says the press is its own. */
   const onPointerDownCapture = useCallback(
     (event: React.PointerEvent<HTMLElement>) => {
-      if ((event.target as HTMLElement).closest("[data-no-drag]")) return;
+      if (esSuyo(event.target as HTMLElement)) return;
       listeners?.onPointerDown?.(event);
+    },
+    [listeners],
+  );
+
+  /* The keyboard activator, with the same door. Space is what picks a card up,
+     and dnd-kit cancels the key to do it — so inside a field that space never
+     reached the text. Same for Enter, which a form uses to submit.
+
+     A card used to hold nothing but chrome, so the question never came up; a
+     card can now hold a form (see `crudo` in `widget.tsx`), and there the keys
+     belong to whatever has focus. */
+  const onKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (esSuyo(event.target as HTMLElement)) return;
+      (listeners?.onKeyDown as ((e: React.KeyboardEvent<HTMLDivElement>) => void) | undefined)?.(
+        event,
+      );
     },
     [listeners],
   );
@@ -384,11 +411,8 @@ function SortableCard({
       aria-label={label ?? id}
       onPointerDownCapture={onPointerDownCapture}
       // The keyboard sensor's activator — space picks the card up, the arrows
-      // move it, space drops it and escape puts it back. dnd-kit types its
-      // listeners loosely, hence the cast.
-      onKeyDown={
-        listeners?.onKeyDown as React.KeyboardEventHandler<HTMLDivElement> | undefined
-      }
+      // move it, space drops it and escape puts it back.
+      onKeyDown={onKeyDown}
       className={cn(
         SPAN[span],
         "min-w-0 outline-none",
