@@ -22,6 +22,7 @@ import { MessageSearch } from "@/pages/MessageSearch";
 import { SupportTickets } from "@/pages/SupportTickets";
 import { Users } from "@/pages/Users";
 import { Placeholder } from "@/pages/Placeholder";
+import { Policies } from "@/pages/Policies";
 import { Provisioning } from "@/pages/Provisioning";
 import { Releases } from "@/pages/Releases";
 
@@ -96,7 +97,9 @@ export const NAV: NavGroup[] = [
       hoja("email/search", "Search", MailSearch, "Email", () => (
         <EmailSearch />
       )),
-      hoja("email/policies", "Policies", ShieldCheck, "Email"),
+      hoja("email/policies", "Policies", ShieldCheck, "Email", (tabId) => (
+        <Policies tabId={tabId} />
+      )),
       hoja("email/reports", "Reports", FileChartColumn, "Email"),
     ],
   },

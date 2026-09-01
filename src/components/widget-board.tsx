@@ -364,7 +364,11 @@ function WidgetBoard({
             onRemove={onRemove}
             className="grid grid-cols-1 @md:grid-cols-2 @4xl:grid-cols-4"
             style={{
-              gridAutoRows: `${ROW}px`,
+              /* A raw cell —a form— doesn't fit a fixed row: see `crudo` in
+                 `widget.tsx`. With one on the board, rows measure whatever
+                 their content asks for. The ladder of spans only means
+                 something while every cell is a tile. */
+              gridAutoRows: widgets.some((w) => w.crudo) ? "auto" : `${ROW}px`,
               gap: GAP,
               /* An empty board that takes cards still has to be somewhere to
                  drop them: with no cells the grid measures zero and there'd be

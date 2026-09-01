@@ -69,16 +69,22 @@ const MAX = 560;
 /**
  * How much the rail widens while it's showing a preview, in px.
  *
- * The board lives on short numbers in cells; a preview lives on lines
- * —messages, rows of data— and in the board's column they wrap every three
- * words. It's a width driven by content and not a preference: that's why it's
- * added to whatever width the person left instead of replacing it, and why on
- * closing the preview the rail goes back on its own to where it was.
+ * It used to be 140: the board was born holding short numbers in cells and the
+ * preview holding lines —messages, rows of data— which in a narrow column wrap
+ * every three words. That gap stopped being true. What the board holds now is
+ * the same kind of content the preview does —a network map, three tabs of
+ * activity, a form— and two regions that swap in the same place shouldn't
+ * change size that much: the rail visibly jumped every time one replaced the
+ * other.
  *
- * The ceiling doesn't change: if there's no room for the 140, the rail widens
+ * So the board starts close to the preview and the preview keeps the last word
+ * with a nudge, not a leap. The preview is still the wider of the two, and the
+ * width the person drags is still the board's.
+ *
+ * The ceiling doesn't change: if there's no room for the extra, the rail widens
  * as much as it can. The panel's rule outranks this.
  */
-const PREVIEW_EXTRA = 140;
+const PREVIEW_EXTRA = 40;
 
 /** How far the rail moves with each arrow key. */
 const STEP = 16;
@@ -143,7 +149,7 @@ interface WidgetRailProps {
    *  the panel meanwhile —raise its elevation, darken its edge— and that's
    *  decided outside, together with the hover of the control that fires it. */
   onResizingChange?: (resizing: boolean) => void;
-  /** Starting width, before it's trimmed against the ceiling. @default 360 */
+  /** Starting width, before it's trimmed against the ceiling. @default 460 */
   defaultWidth?: number;
   className?: string;
 }
@@ -159,7 +165,7 @@ function WidgetRail({
   onBoardClose,
   controlRef,
   onResizingChange,
-  defaultWidth = 360,
+  defaultWidth = 460,
   className,
 }: WidgetRailProps) {
   const { open, setOpen } = useSidebar();

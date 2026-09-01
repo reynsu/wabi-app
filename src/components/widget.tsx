@@ -127,6 +127,23 @@ interface WidgetDefinition {
   /** The full view's actions, in the dialog header. Only with
    *  `abre: "dialog"`: a tab has the panel's own chrome for this. */
   acciones?: ReactNode;
+  /**
+   * The widget paints raw: no plane, no header, and no surface to open it with.
+   * What `glance` returns *is* the cell, and the row takes whatever height that
+   * content asks for.
+   *
+   * It exists because a tile is normally something you look at and then open —
+   * a fixed-height box with a button over the whole of it— and that is the
+   * wrong shape for the one case where the board holds something you *fill in*:
+   * a form. Under that button an input never gets a click, and in that box a
+   * form gets clipped at the third field.
+   *
+   * Use it for the exception, not for chrome you happen to dislike: a raw
+   * widget gives up the header —so it can't be named or closed from the board—
+   * and gives up the whole glance/peek/full ladder. Whatever goes in has to
+   * carry its own way out.
+   */
+  crudo?: boolean;
 }
 
 /** The button that takes the widget off the board. It lives in the header, and
@@ -307,6 +324,12 @@ function WidgetTile({
         </span>
       </div>
     );
+  }
+
+  /* Raw: see `crudo`. No plane, no header and no click layer — the content is
+     the cell. */
+  if (widget.crudo) {
+    return <div className={cn("min-w-0", className)}>{widget.glance()}</div>;
   }
 
   const tile = (
