@@ -18,8 +18,9 @@ import type { Objetivo, Politica } from "@/pages/politicas";
  *
  * Así que el resto se asoma. Es el mismo paso que la transcripción de una nota
  * de voz —más de lo que entra en un tooltip, menos de lo que justifica abrir
- * algo— y por eso lleva la misma tarjeta de papel: el plato apenas gris, cada
- * objetivo en su panel más claro, y el pie diciendo de dónde salió la lista.
+ * algo— y por eso lleva la misma tarjeta de papel: el plato apenas gris, los
+ * objetivos en un panel más claro apoyado encima, y el pie diciendo de dónde
+ * salió la lista.
  *
  * Sólo cuando hay más de uno. Con un objetivo la celda ya lo dice entero, y una
  * tarjeta que repite lo que está a la vista es una tarjeta que estorba.
@@ -37,20 +38,27 @@ function Objetivos({ objetivos }: { objetivos: Objetivo[] }) {
   const papel = usePapel();
 
   return (
-    <ul className="flex flex-col gap-1">
-      {objetivos.map((o) => {
+    /* Un solo panel para todos, y no uno por objetivo: son los renglones de una
+       lista —lo que cambia entre uno y otro es el nombre, no de qué se está
+       hablando—, y un papel por renglón los cuenta como cosas separadas. La
+       tarjeta pasa a tener un papel, que es el gesto del diseño. */
+    <ul
+      className="flex flex-col overflow-hidden rounded-[12px]"
+      style={{ background: papel.panel }}
+    >
+      {objetivos.map((o, i) => {
         const Icono = o.clase === "facility" ? Building2 : UserRound;
         return (
           <li
             key={o.id}
-            /* Cada uno en su panel, más claro que el plato: es el gesto del
-               diseño —papeles apoyados sobre la tarjeta— y es lo que hace que
-               cinco objetivos se lean como cinco cosas y no como un párrafo. */
-            className="flex min-w-0 items-center gap-2 rounded-[12px] px-3 py-2"
+            className="flex min-w-0 items-center gap-2 px-3 py-2"
             style={{
-              background: papel.panel,
               color: papel.texto,
               fontSize: escala.body,
+              /* La línea entre renglones es del color del plato: un corte en el
+                 papel y no una regla dibujada encima. El primero no la lleva
+                 —arriba está el borde de la tarjeta—. */
+              ...(i > 0 ? { borderTop: `1px solid ${papel.fondo}` } : null),
             }}
           >
             <Icono
