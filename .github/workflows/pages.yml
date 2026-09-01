@@ -1,0 +1,63 @@
+name: Deploy to GitHub Pages
+
+# Cada push a `main` reconstruye el sitio. Y a mano desde la pestaña Actions,
+# que es lo que hace falta cuando el deploy se cae por algo que no es el código.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Los permisos que pide el deploy oficial de Pages: leer el repo y escribir el
+# artefacto con el token de la corrida, sin secretos de por medio.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Un deploy a la vez. `cancel-in-progress: false` a propósito: cancelar uno a
+# mitad de camino puede dejar el sitio publicado a medias, y esperar unos
+# minutos es más barato que eso.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # `npm ci` y no `install`: instala exactamente lo que dice el lockfile, así
+      # que lo que se publica se construyó con las mismas versiones que localmente.
+      - run: npm ci
+
+      # La bandera que le dice a Vite que el sitio cuelga de `/wabi-app/` — ver
+      # el comentario de `base` en `vite.config.ts`.
+      - run: npm run build
+        env:
+          GITHUB_PAGES: "1"
+
+      # El 404 es una copia del index. Pages sirve archivos estáticos y no sabe
+      # de rutas de la app; sin esto, recargar en cualquier URL que no sea la
+      # raíz da el 404 de GitHub en vez de la pantalla que se estaba mirando.
+      - run: cp dist/index.html dist/404.html
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
