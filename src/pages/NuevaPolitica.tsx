@@ -55,6 +55,12 @@ import { useBoards } from "@/stores/board";
  * lean.
  */
 
+/* El hook y las piezas que dibuja viven en el mismo archivo a propósito: son una
+   sola cosa leída de una vez —lo que se está escribiendo, y los ocho lugares
+   donde eso se muestra o se toca—, y partirlo para contentar al fast refresh lo
+   dejaría en dos. Es la misma decisión que toma el alta de buzones. */
+/* oxlint-disable react/only-export-components */
+
 /* ─────────────────────────── El borrador ─────────────────────────── */
 
 interface Borrador {
@@ -531,6 +537,12 @@ const Corte = () => (
  * Todo lo demás es la escalera de grises, que es lo que deja que esos dos se
  * lean.
  */
+
+/* El hook y las piezas que dibuja viven en el mismo archivo a propósito: son una
+   sola cosa leída de una vez —lo que se está escribiendo, y los ocho lugares
+   donde eso se muestra o se toca—, y partirlo para contentar al fast refresh lo
+   dejaría en dos. Es la misma decisión que toma el alta de buzones. */
+/* oxlint-disable react/only-export-components */
 function FichaDePolitica({ d, curso }: { d: Draft; curso: Curso }) {
   const escala = useTypeScale();
   /* Mientras el alta está en vuelo la ficha entera se apaga: lo que se escriba
