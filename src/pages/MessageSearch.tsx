@@ -73,6 +73,12 @@ import {
   useUsuarios,
   type Usuario,
 } from "@/pages/usuarios";
+import {
+  AIRE_FILA,
+  AIRE_TITULOS,
+  BANDA_TITULOS,
+  SANGRIA,
+} from "@/pages/tabla";
 
 /* La pantalla de Messages Search: los mensajes de toda la casa, no los de un
    hilo.
@@ -451,25 +457,6 @@ function Columnas() {
     </colgroup>
   );
 }
-
-/* Las mismas medidas que las otras dos tablas, por lo mismo: la sangría alinea
-   la tabla con el header sin meterle un contenedor con padding, y el aire
-   suelta las filas sin sacarlas de la densidad compacta. El mismo `py-2` que
-   Email Search: las filas volvieron a ser de un renglón. */
-const SANGRIA =
-  "[&_th:first-child]:pl-6 [&_td:first-child]:pl-6 [&_th:last-child]:pr-6 [&_td:last-child]:pr-6";
-
-const AIRE_FILA = "[&_td]:py-2";
-const AIRE_TITULOS = "[&_th]:py-2.5";
-
-/* La banda de la cabecera, la misma de las otras dos: el violeta lavado del
-   sistema, translúcido y con desenfoque detrás, para que se lea como una banda
-   apoyada sobre la lista y no como un bloque pintado al lado. */
-const BANDA_TITULOS = [
-  "bg-[oklch(0.966_0.022_292)]/70",
-  "dark:bg-[oklch(0.34_0.03_292)]/70",
-  "backdrop-blur-md",
-].join(" ");
 
 /** Cuántos mensajes entran en una página. */
 const POR_PAGINA = 40;

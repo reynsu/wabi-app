@@ -70,6 +70,12 @@ import {
   type Usuario,
 } from "@/pages/usuarios";
 import { conversacionesDe } from "@/pages/conversaciones";
+import {
+  AIRE_FILA,
+  AIRE_TITULOS,
+  BANDA_TITULOS,
+  SANGRIA,
+} from "@/pages/tabla";
 
 /* La pantalla de usuarios: un header con la búsqueda y el `FilterMenu`, y la
    tabla debajo. Los tres filtran lo mismo —la búsqueda por nombre, el panel
@@ -554,48 +560,6 @@ function Columnas() {
     </colgroup>
   );
 }
-
-/* La sangría de las columnas de los extremos: es lo que alinea la tabla con el
-   header sin meterle un contenedor con padding, que le sacaría los bordes. */
-const SANGRIA =
-  "[&_th:first-child]:pl-6 [&_td:first-child]:pl-6 [&_th:last-child]:pr-6 [&_td:last-child]:pr-6";
-
-/* Aire propio, arriba del que trae el escalón compacto.
-   Las filas: el escalón compacto las deja en 5px de padding, que con una celda
-   de dos líneas y un avatar de 32px es una lista apretada. 8px las suelta sin
-   sacarlas de la densidad —el texto sigue en el escalón compacto, lo que
-   cambia es cuánto respiran.
-   Los títulos: 10px los lleva a 36px de alto, que es justo el escalón normal
-   de la escalera de tamaños. La cabecera queda en la altura de un control y no
-   aplastada contra la primera fila. */
-const AIRE_FILA = "[&_td]:py-2";
-const AIRE_TITULOS = "[&_th]:py-2.5";
-
-/* La banda de la cabecera. No sale de la escalera de superficies: en el modo
-   claro la escalera es plana en blanco de la tercera para arriba, así que un
-   escalón no la separaría ni de las filas ni del header de la pestaña, que
-   están sobre el mismo plano.
-
-   Es un violeta muy lavado, en el tono del violeta de los badges —hue 292—
-   para que sea el mismo púrpura del sistema y no otro traído de afuera. En el
-   modo claro va a la altura del `--muted` que reemplaza, apenas 0.022 de croma
-   sobre el blanco; en el oscuro sube un poco por encima del plano, porque una
-   banda más oscura que lo que la rodea se lee como un hueco y no como una
-   cabecera.
-
-   Translúcida y con desenfoque detrás: es lo que la vuelve una banda apoyada
-   sobre la lista y no un bloque pintado al lado. Para que el desenfoque tenga
-   algo que desenfocar, la cabecera va por encima del scroller y no antes —ver
-   `Pantalla`—, y las filas le pasan por debajo.
-
-   Va acá y no como token en `index.css` a propósito: ese archivo es copia byte
-   a byte del showcase y una variable de más lo desalinea. Si el violeta le
-   sirve a otra pantalla, el lugar es el registry. */
-const BANDA_TITULOS = [
-  "bg-[oklch(0.966_0.022_292)]/70",
-  "dark:bg-[oklch(0.34_0.03_292)]/70",
-  "backdrop-blur-md",
-].join(" ");
 
 /** Cuántas filas se agregan cada vez que el final entra en pantalla. */
 const PASO = 12;
