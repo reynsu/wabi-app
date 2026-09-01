@@ -5,6 +5,7 @@ import { Captions, Pause, Play, Trash, X } from "lucide-react";
 import WaveSurfer from "wavesurfer.js";
 
 import { PeekCard } from "@/components/peek-card";
+import { usePapel } from "@/components/papel";
 
 import { useEsMovil } from "@/hooks/use-es-movil";
 import { temaDeAhora, useTemaOscuro } from "@/stores/tema";
@@ -78,42 +79,6 @@ const SISTEMA = {
  *  oscuro. Es lo que se pidió —"con los mismos colores"— y es coherente con lo
  *  que la foto muestra: una barra blanca. Si tiene que seguir al tema oscuro,
  *  lo que cambia es este objeto y nada más. */
-/* La paleta de la tarjeta de la transcripción, del diseño de referencia: un
-   fondo apenas gris con un panel blanco flotando adentro, el título casi negro
-   y todo lo demás en dos grises.
-
-   Se escribe en vez de salir de los tokens porque la relación que importa acá
-   —**el panel más claro que su fondo**— es la contraria a la que arma el
-   sistema de superficies, donde lo que flota sube de tono sobre un sustrato que
-   ya es blanco. Con tokens saldrían dos blancos y no habría panel.
-
-   El tema oscuro no está en el diseño y hubo que derivarlo: los mismos papeles
-   con los mismos saltos entre sí, dados vuelta. Sin eso la tarjeta sale como un
-   bloque blanco encima de una app oscura.
-
-   Opacos los dos, y sin sombra ninguno: lo único que separa al panel de su
-   plato es que es más claro que él. */
-const TARJETA = {
-  claro: {
-    fondo: "#f2f2f2",
-    panel: "#ffffff",
-    titulo: "#1a1a1a",
-    texto: "#3d3d3d",
-    apagado: "#9e9e9e",
-    chip: "#e9e9e9",
-    chipTexto: "#6b6b6b",
-  },
-  oscuro: {
-    fondo: "#1c1c1c",
-    panel: "#303030",
-    titulo: "#f5f5f5",
-    texto: "#d4d4d4",
-    apagado: "#8a8a8a",
-    chip: "#333333",
-    chipTexto: "#a3a3a3",
-  },
-} as const;
-
 const REFERENCIA = {
   barra: "#FFFFFF",
   pastilla: "#F1F3F4",
@@ -200,6 +165,7 @@ export function AudioMessage({
   const variante = useSizeVariant();
   const escala = useTypeScale();
   const oscuro = useTemaOscuro();
+  const papel = usePapel();
   const esMovil = useEsMovil();
   const medidas = MEDIDAS[variante];
   const tintes = esMovil
@@ -207,7 +173,9 @@ export function AudioMessage({
     : oscuro
       ? SISTEMA.oscuro
       : SISTEMA.claro;
-  const tarjeta = oscuro ? TARJETA.oscuro : TARJETA.claro;
+  /* La paleta de papel, compartida con la tarjeta de objetivos de una
+     política: ver `papel.ts`. */
+  const tarjeta = papel;
 
   const caja = useRef<HTMLDivElement>(null);
   const onda = useRef<WaveSurfer | null>(null);

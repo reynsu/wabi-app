@@ -51,6 +51,7 @@ import { usePaginacion } from "@/hooks/use-paginacion";
 import { SizeProvider, useTypeScale } from "@/lib/size-context";
 import { spring } from "@/lib/springs";
 import { cn } from "@/lib/utils";
+import { PolicyTargets } from "@/components/policy-targets";
 import { EditorDePolitica, BorrarPolitica } from "@/pages/EditorDePolitica";
 import { useAltaDePolitica } from "@/pages/NuevaPolitica";
 import {
@@ -602,6 +603,12 @@ function Pantalla({ tabId }: { tabId?: string }) {
                             >
                               {cuenta.name}
                             </TarjetaUsuario>
+                          ) : politica.objetivos.length > 1 ? (
+                            /* Con varios, la celda escribe el primero y cuántos
+                               más, y el resto se asoma: leer dos nombres no
+                               puede costar abrir la regla. Con uno solo no hay
+                               nada que asomar —la celda ya lo dice entero—. */
+                            <PolicyTargets politica={politica} resumen={alcance} />
                           ) : (
                             <span className="min-w-0 truncate" title={alcance}>
                               {alcance}
