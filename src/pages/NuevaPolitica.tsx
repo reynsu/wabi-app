@@ -649,9 +649,13 @@ function FichaDePolitica({ d, curso }: { d: Draft; curso: Curso }) {
 
 /** La celda del board: una sola, cruda. El board no pinta nada alrededor —ni
  *  plano, ni cabecera, ni sombra— y la fila mide lo que la ficha pida. */
+/** El id de la celda. Lo usan el widget y el selector que pregunta si la ficha
+ *  está puesta, así que se escribe una vez. */
+const CELDA = "policies/nueva";
+
 const celdaDeAlta = (d: Draft, curso: Curso): WidgetDefinition[] => [
   {
-    id: "policies/nueva",
+    id: CELDA,
     label: "New policy",
     icon: ShieldCheck,
     crudo: true,
@@ -670,7 +674,24 @@ const celdaDeAlta = (d: Draft, curso: Curso): WidgetDefinition[] => [
  */
 export function useAltaDePolitica(tabId?: string) {
   const d = useBorradorDePolitica();
-  const [abierta, setAbierta] = useState(false);
+
+  /* **Si la ficha está abierta lo sabe el board, no este hook.**
+     
+     Estaba copiado en un `useState` de acá, y esa copia se desincronizaba en
+     cuanto el riel se cerraba por otro lado —su ×, que va directo a la tienda—:
+     el board quedaba cerrado y el hook creyendo que seguía abierto, así que el
+     siguiente clic en "New policy" pedía abrir algo que para él ya estaba
+     abierto, no cambiaba ningún estado, y el efecto que llama a `abrirBoard`
+     nunca volvía a correr. El botón dejaba de responder hasta que alguien abría
+     el riel desde la barra —y ahí aparecía la ficha, que nunca se había ido—.
+     
+     Derivado no puede pasar: hay un solo lugar donde vive el hecho. Se lee con
+     un selector que devuelve un booleano, así que reescribir los widgets en cada
+     tecla no vuelve a renderizar esta pantalla. */
+  const abierta = useBoards((b) => {
+    const board = tabId ? b.porPestaña[tabId] : undefined;
+    return Boolean(board?.open && board.widgets.some((w) => w.id === CELDA));
+  });
   /* Lo que pasa mientras. Lo lee la ficha entera —los campos se apagan, el botón
      cuenta que está en curso—, así que vive acá y no adentro del botón. Lo que
      salió mal no se guarda: lo cuenta el toast, y tenerlo en los dos lugares
@@ -691,21 +712,16 @@ export function useAltaDePolitica(tabId?: string) {
   const mostrarWidgets = useBoards((b) => b.mostrarWidgets);
   const abrirBoard = useBoards((b) => b.abrirBoard);
   const editarBoard = useBoards((b) => b.editarBoard);
-  /* Si el riel lo abrimos nosotros. La tienda no tiene `cerrarBoard` a
-     propósito —cerrarlo es de quien lo está mirando, y una pantalla que lo
-     cierre sola le saca de la vista algo que no puso ella—, y esta es
-     justamente la excepción que esa regla deja pasar: lo que hay adentro lo
-     pusimos nosotros y lo estamos sacando. Fuera de eso no se toca: un board
-     que alguien abrió desde la barra, con sus widgets, sigue como estaba. */
-  const abrimos = useRef(false);
 
-  /* Cerrar es descartar: un borrador que sobrevive escondido vuelve a aparecer
-     media hora después con una regla que ya nadie se acuerda de haber escrito. */
+  /* Cerrar es sacar la ficha del board. La tienda no tiene `cerrarBoard` a
+     propósito —cerrarlo es de quien lo está mirando, y una pantalla que lo
+     cierre sola le saca de la vista algo que no puso ella—, y ésta es la
+     excepción que esa regla deja pasar: lo que hay adentro lo pusimos nosotros
+     y lo estamos sacando. */
   const cerrar = useCallback(() => {
-    setAbierta(false);
-    d.limpiar();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!tabId) return;
+    editarBoard(tabId, (b) => ({ ...b, open: false, widgets: [] }));
+  }, [tabId, editarBoard]);
 
   /**
    * El alta, de punta a punta.
@@ -762,8 +778,7 @@ export function useAltaDePolitica(tabId?: string) {
         },
       );
 
-      setAbierta(false);
-      d.limpiar();
+      cerrar();
       setRecienCreada(creada.id);
       if (reloj.current) clearTimeout(reloj.current);
       reloj.current = setTimeout(() => setRecienCreada(null), DESTELLO_MS);
@@ -774,42 +789,40 @@ export function useAltaDePolitica(tabId?: string) {
       setEnviando(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [d.b, enviando]);
+  }, [d.b, enviando, cerrar]);
 
+  /* Mientras está abierta, la ficha se vuelve a armar con cada tecla: el board
+     guarda nodos, no estado. Va con el id de la pestaña —las que no se miran
+     siguen montadas, y escribir contra "la activa" le pondría la ficha en la
+     cara a otra—. */
   useEffect(() => {
+    if (!tabId || !abierta) return;
+    mostrarWidgets(tabId, celdaDeAlta(d, { cerrar, crear, enviando }));
+  }, [tabId, abierta, d, cerrar, crear, enviando, mostrarWidgets]);
+
+  /* Y cuando se cierra —por la ×, por Discard, o porque el alta terminó— el
+     borrador se limpia. Un borrador que sobrevive escondido vuelve a aparecer
+     media hora después con una regla que ya nadie se acuerda de haber escrito.
+     Sobre un borrador ya vacío no hace nada: `setState` con el mismo objeto no
+     vuelve a renderizar. */
+  useEffect(() => {
+    if (!abierta) d.limpiar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [abierta]);
+
+  /** Abrir es poner la ficha y abrir el riel, en ese orden: si el riel se abre
+   *  antes, hay un cuadro con el board vacío. */
+  const abrir = useCallback(() => {
     if (!tabId) return;
-
-    if (abierta) {
-      mostrarWidgets(tabId, celdaDeAlta(d, { cerrar, crear, enviando }));
-      abrirBoard(tabId);
-      abrimos.current = true;
-      return;
-    }
-
-    /* La ficha se fue —se creó la regla, o se descartó—: con ella se va el
-       riel. Un board vacío abierto no es un lugar donde mirar algo, es un hueco
-       que quedó; y lo que se acaba de crear está en la tabla, que es adonde hay
-       que mirar ahora. */
-    if (!abrimos.current) return;
-    abrimos.current = false;
-    editarBoard(tabId, (b) => ({ ...b, open: false, widgets: [] }));
-  }, [
-    tabId,
-    abierta,
-    d,
-    cerrar,
-    crear,
-    enviando,
-    mostrarWidgets,
-    abrirBoard,
-    editarBoard,
-  ]);
+    mostrarWidgets(tabId, celdaDeAlta(d, { cerrar, crear, enviando }));
+    abrirBoard(tabId);
+  }, [tabId, d, cerrar, crear, enviando, mostrarWidgets, abrirBoard]);
 
   return {
     abierta,
     enviando,
     recienCreada,
-    abrir: () => setAbierta(true),
+    abrir,
     /* Para la pantalla que no tiene board —una copia sin `tabId`—: sin lugar
        donde poner la ficha, el botón no promete algo que no va a pasar. */
     disponible: tabId !== undefined,
