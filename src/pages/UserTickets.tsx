@@ -268,13 +268,11 @@ function Fila({
         <Badge variant="dot" size="compact" color={estado.color}>
           {estado.label}
         </Badge>
-        {/* La prioridad sólo se dibuja cuando es alta. Un badge que dice
-            "Normal" en cinco filas de seis no informa: ocupa. */}
-        {ticket.prioridad === "high" && (
-          <Badge size="compact" color="rose">
-            High
-          </Badge>
-        )}
+        {/* La prioridad no se pinta en la fila. Sigue estando —la ficha del
+            ticket la dice, en "Priority"—, pero en la lista competía con el
+            estado por el mismo lugar y por la misma lectura: dos insignias
+            pegadas se leen como una sola cosa de dos partes, y lo que se recorre
+            acá es en qué anda cada ticket. */}
         <span
           className="min-w-0 flex-1 truncate text-right text-muted-foreground"
           style={{ fontSize: escala.caption }}
