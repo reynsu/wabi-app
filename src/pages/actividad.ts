@@ -294,11 +294,21 @@ export function transaccionesDe(usuario: Usuario): Transaccion[] {
 
 /* ─────────────────────────── Los registros ─────────────────────────── */
 
+/** De qué habla el renglón. No sale del texto —leer "Blocked" adentro de una
+ *  oración para saber de qué se trata es una regla que se rompe la primera vez
+ *  que alguien reescribe la oración— sino que se escribe con él. */
+export type ClaseDeRegistro =
+  | "provisioning"
+  | "access"
+  | "password"
+  | "moderation";
+
 export interface Registro {
   id: string;
   cuando: string;
   /** Qué pasó, en una línea. */
   que: string;
+  clase: ClaseDeRegistro;
   /** Quién lo hizo. `system` cuando no fue una persona. */
   quien: string;
   /** Si hace falta mirarlo. Lo que le cambia el estado a una cuenta y lo que la
@@ -355,6 +365,7 @@ export function registrosDe(usuario: Usuario): Registro[] {
     id: string,
     cuando: number,
     que: string,
+    clase: ClaseDeRegistro,
     quien: string,
     atencion?: boolean,
     reseteo?: Registro["reseteo"],
@@ -363,14 +374,21 @@ export function registrosDe(usuario: Usuario): Registro[] {
       id: `${usuario.id}/log/${id}`,
       cuando: new Date(cuando).toISOString(),
       que,
+      clase,
       quien,
       atencion,
       reseteo,
     });
 
   /* El alta: el primer renglón de cualquier cuenta. */
-  agregar("alta", alta, "Account created", operador());
-  agregar("buzon", alta + 2 * 60 * 60 * 1000, "Mailbox provisioned", operador());
+  agregar("alta", alta, "Account created", "provisioning", operador());
+  agregar(
+    "buzon",
+    alta + 2 * 60 * 60 * 1000,
+    "Mailbox provisioned",
+    "provisioning",
+    operador(),
+  );
 
   /* Los reseteos. Es una residencia: la contraseña olvidada y el llamado a la
      recepción son el trámite más común que hay, y son también el que deja un
@@ -383,6 +401,7 @@ export function registrosDe(usuario: Usuario): Registro[] {
       `clave/${i}`,
       cuando,
       "Password reset was requested for this account.",
+      "password",
       operador(),
       false,
       {
@@ -398,11 +417,12 @@ export function registrosDe(usuario: Usuario): Registro[] {
   if (azar() < 0.35) {
     const quien = operador();
     const cuando = alta + (0.5 + 0.3 * azar()) * (visto - alta);
-    agregar("bloqueo/previo", cuando, "Account Blocked", quien, true);
+    agregar("bloqueo/previo", cuando, "Account Blocked", "access", quien, true);
     agregar(
       "desbloqueo/previo",
       cuando + (2 + Math.floor(azar() * 40)) * 60 * 60 * 1000,
       "Account Unblocked",
+      "access",
       quien,
     );
   }
@@ -414,6 +434,7 @@ export function registrosDe(usuario: Usuario): Registro[] {
       "estado",
       visto + 6 * 60 * 60 * 1000,
       usuario.status === "blocked" ? "Account Blocked" : "Account Deactivated",
+      "access",
       operador(),
       true,
     );
@@ -427,6 +448,7 @@ export function registrosDe(usuario: Usuario): Registro[] {
       "moderacion",
       visto - 12 * 60 * 60 * 1000,
       `${usuario.blockedMessages.toLocaleString("en-US")} messages held by moderation`,
+      "moderation",
       "system",
       usuario.blockedMessages / Math.max(1, usuario.messages) >= 0.1,
     );
