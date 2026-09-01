@@ -334,7 +334,12 @@ function BuscarObjetivo({ d }: { d: Draft }) {
         ]}
       />
 
-      <InputGroup>
+      {/* Compacto: 28px de alto en vez de 36. En una barra de herramientas un
+          campo de 36 es un control entre otros; acá son tres apilados en una
+          columna de 460px, y el escalón alto los convierte en tres bloques
+          gordos que empujan la ficha hacia abajo. Y es el mismo escalón del
+          botón que suma, así que los dos de la misma línea miden igual. */}
+      <InputGroup size="compact">
         <InputField
           index={0}
           className={CAMPO_PUESTO}
@@ -394,7 +399,7 @@ function Direcciones({ d }: { d: Draft }) {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-1.5">
-        <InputGroup className="min-w-0 flex-1">
+        <InputGroup size="compact" className="min-w-0 flex-1">
           <InputField
             index={0}
             className={CAMPO_PUESTO}
@@ -441,7 +446,7 @@ function Direcciones({ d }: { d: Draft }) {
 
 function Nombre({ d }: { d: Draft }) {
   return (
-    <InputGroup>
+    <InputGroup size="compact">
       <InputField
         index={0}
         className={CAMPO_PUESTO}
@@ -607,7 +612,13 @@ function FichaDePolitica({ d, cerrar }: { d: Draft; cerrar: () => void }) {
           </Button>
         </div>
 
-        <p className="text-muted-foreground" style={{ fontSize: escala.caption }}>
+        {/* Separada del renglón de los botones: es una salida lateral —irse a
+            leer cómo funciona una regla— y pegada a "Create policy" se lee como
+            una tercera acción de la misma fila. */}
+        <p
+          className="mt-3 text-muted-foreground"
+          style={{ fontSize: escala.caption }}
+        >
           Not sure who a rule should cover?{" "}
           <button
             type="button"
