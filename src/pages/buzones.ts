@@ -1,4 +1,5 @@
-import { useMemo, useSyncExternalStore } from "react";
+import { useMemo } from "react";
+import { create } from "zustand";
 
 import type { BadgeColor } from "@/components/ui/badge";
 import { DOMINIO_CASA, direccionDe } from "@/pages/emails";
@@ -256,18 +257,15 @@ function armar(usuarios: Usuario[], tienda: Tienda): Buzon[] {
    vivir en algún lado donde dos pestañas de esta pantalla vean lo mismo.
    Suspender un buzón no es una decisión de la vista.
 
-   Es la misma tienda mínima de `usuarios.ts` —una variable, un `Set` de oyentes
-   y `useSyncExternalStore`—, pero guarda **sólo lo que la consola hizo** y no la
-   lista entera: los buzones de las cuentas se arman de los usuarios vivos, y una
-   copia acá se despegaría de ellos el día que se dé de baja a alguien.
+   Es la misma tienda que `usuarios.ts`, pero guarda **sólo lo que la consola
+   hizo** y no la lista entera: los buzones de las cuentas se arman de los
+   usuarios vivos, y una copia acá se despegaría de ellos el día que se dé de
+   baja a alguien.
 
    Dos cosas guarda, y son de naturaleza distinta: `tocados` son estados que se
    cambiaron —una corrección sobre algo que ya existía— y `creados` son buzones
-   que antes no estaban. Van juntas en un mismo objeto para que la suscripción
-   sea una sola: `useSyncExternalStore` compara la instantánea por identidad, y
-   con dos variables sueltas habría que devolver un objeto nuevo en cada lectura
-   —que es un bucle de renders—. La clave de las dos es la dirección, que es la
-   identidad del buzón. */
+   que antes no estaban. La clave de las dos es la dirección, que es la identidad
+   del buzón. */
 
 type Cambios = Record<string, EstadoBuzon>;
 
@@ -288,21 +286,17 @@ interface Tienda {
   creados: PedidoDeAlta[];
 }
 
-let tienda: Tienda = { tocados: {}, creados: [] };
+const useTiendaDeBuzones = create<Tienda>()(() => ({
+  tocados: {},
+  creados: [],
+}));
 
-const oyentes = new Set<() => void>();
+/** Lo que la consola hizo, para el que no está pintando —validar un alta antes
+ *  de mandarla, por ejemplo—. */
+const hechoHastaAhora = () => useTiendaDeBuzones.getState();
 
-function escribir(proxima: Tienda) {
-  tienda = proxima;
-  for (const avisar of oyentes) avisar();
-}
-
-function suscribir(avisar: () => void) {
-  oyentes.add(avisar);
-  return () => {
-    oyentes.delete(avisar);
-  };
-}
+const escribir = (proxima: Partial<Tienda>) =>
+  useTiendaDeBuzones.setState(proxima);
 
 /** Suspender un buzón, apagarlo, volverlo a encender.
 
@@ -312,8 +306,7 @@ function suscribir(avisar: () => void) {
 export function cambiarEstadoBuzon(buzon: Buzon, estado: EstadoBuzon) {
   if (buzon.estado === estado) return;
   escribir({
-    ...tienda,
-    tocados: { ...tienda.tocados, [buzon.direccion]: estado },
+    tocados: { ...hechoHastaAhora().tocados, [buzon.direccion]: estado },
   });
 }
 
@@ -353,24 +346,35 @@ export async function crearBuzon(pedidos: PedidoDeAlta[]): Promise<Buzon[]> {
      —después de la espera, no antes—, que es donde estaría el que se coló
      mientras tanto. */
   const usuarios = usuariosDeAhora();
-  const yaHay = new Set(armar(usuarios, tienda).map((b) => b.direccion));
+  const yaHay = new Set(
+    armar(usuarios, hechoHastaAhora()).map((b) => b.direccion),
+  );
   const repetido = pedidos.find((p) => yaHay.has(p.direccion));
   if (repetido) {
     throw new Error(`${repetido.direccion} already has a mailbox.`);
   }
 
-  escribir({ ...tienda, creados: [...tienda.creados, ...pedidos] });
+  escribir({ creados: [...hechoHastaAhora().creados, ...pedidos] });
 
   const creadas = new Set(pedidos.map((p) => p.direccion));
-  return armar(usuarios, tienda).filter((b) => creadas.has(b.direccion));
+  return armar(usuarios, hechoHastaAhora()).filter((b) =>
+    creadas.has(b.direccion),
+  );
 }
 
 /** La lista viva. Todo lo que la lee se vuelve a pintar cuando cambia —porque
  *  cambió un buzón, o porque cambió la lista de cuentas de la que sale. */
 export function useBuzones(): Buzon[] {
   const usuarios = useUsuarios();
-  const hecho = useSyncExternalStore(suscribir, () => tienda);
-  return useMemo(() => armar(usuarios, hecho), [usuarios, hecho]);
+  /* Las dos mitades por separado y no la tienda entera: `create` devuelve un
+     objeto nuevo en cada escritura, así que leerla entera repintaría al que
+     sólo mira los creados cada vez que alguien suspende uno. */
+  const tocados = useTiendaDeBuzones((t) => t.tocados);
+  const creados = useTiendaDeBuzones((t) => t.creados);
+  return useMemo(
+    () => armar(usuarios, { tocados, creados }),
+    [usuarios, tocados, creados],
+  );
 }
 
 /** Las cuentas que todavía no tienen buzón: a quiénes se les puede dar uno.

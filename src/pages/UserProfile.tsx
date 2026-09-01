@@ -37,7 +37,7 @@ import {
   DropdownTrigger,
 } from "@/components/ui/dropdown";
 import { MenuItem } from "@/components/ui/menu-item";
-import { useBoardMaybe } from "@/components/board-context";
+import { useBoards } from "@/stores/board";
 import {
   ActiveHours,
   ModeratedMessages,
@@ -659,7 +659,7 @@ function Perfil({
   const shape = useShape();
   const bloqueado = usuario.status === "blocked";
 
-  /* Analytics manda sus dos piezas al riel y lo abre. Las dos llamadas y no
+  /* Analytics manda sus piezas al riel y lo abre. Las dos llamadas y no
      una: `mostrarWidgets` corre solo cada vez que una pantalla actualiza lo
      suyo, y si además abriera, cambiar de ticket en la sección Tickets le
      reabriría el riel en la cara a quien lo había cerrado. Acá alguien lo
@@ -669,14 +669,14 @@ function Perfil({
      dos pestañas montadas a la vez, y la escondida le pondría sus números en el
      riel a la que sí se está mirando.
 
-     `useBoardMaybe` puede no haber: el perfil tiene que poder pintarse fuera
-     del shell. Sin puerta, la fila no hace nada y no se cae. */
-  const board = useBoardMaybe();
+     Las dos acciones salen de la tienda con selector: son estables, así que
+     tenerlas no vuelve a pintar el perfil cuando alguien toca su board. */
+  const mostrarWidgets = useBoards((b) => b.mostrarWidgets);
+  const abrirBoard = useBoards((b) => b.abrirBoard);
 
   const verAnaliticas = () => {
-    if (!board) return;
-    board.mostrarWidgets(tabId, widgetsDeAnaliticas(usuario));
-    board.abrirBoard(tabId);
+    mostrarWidgets(tabId, widgetsDeAnaliticas(usuario));
+    abrirBoard(tabId);
   };
 
   /* Con cuál abre. Sólo el estado inicial: a partir de ahí la sección es de

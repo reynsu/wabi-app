@@ -82,7 +82,7 @@ export const direccionDe = ({ mensaje }: MensajeEnContexto): Direccion =>
 /** Todos los mensajes de la casa, del más nuevo al más viejo. Es el único
  *  orden que tiene sentido en una búsqueda: lo último que se dijo, arriba.
  *
- *  Sin tienda ni `useSyncExternalStore`, igual que los correos: un mensaje no
+ *  Sin tienda, igual que los correos: un mensaje no
  *  cambia desde la consola, y `conversacionesDe` devuelve siempre la misma
  *  lista, así que alcanza con memorizar esto contra `usuarios`. */
 export function todosLosMensajes(usuarios: Usuario[]): MensajeEnContexto[] {

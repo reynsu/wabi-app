@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { create } from "zustand";
 
 import type { BadgeColor } from "@/components/ui/badge";
 
@@ -314,46 +314,50 @@ const USUARIOS: Usuario[] = [
 
    Que las pestañas sostengan lo suyo vale para lo que es de la vista —el
    filtro, el scroll, qué se está mirando—. El estado de una cuenta no es de
-   la vista: es el mismo hecho para todo el que lo mire.
+   la vista: es el mismo hecho para todo el que lo mire. */
 
-   Es una tienda mínima a propósito —una variable, un `Set` de oyentes y
-   `useSyncExternalStore`—: lo que hay para compartir es una lista de mentira
-   hasta que haya API, y traer una librería de estado para eso es cargar un
-   camión para mudar una silla. */
-
-let vivos: Usuario[] = USUARIOS;
-
-const oyentes = new Set<() => void>();
-
-function suscribir(avisar: () => void) {
-  oyentes.add(avisar);
-  return () => {
-    oyentes.delete(avisar);
-  };
+interface TiendaDeUsuarios {
+  /** La lista viva. Se reemplaza entera y las filas que no cambian se
+   *  conservan por identidad, así que un `useMemo` que filtre sobre ella sigue
+   *  sirviendo para todo lo demás. */
+  usuarios: Usuario[];
+  /** Bloquear, desbloquear, dar de baja. */
+  cambiarEstado: (id: string, status: Estado) => void;
 }
+
+const useTiendaDeUsuarios = create<TiendaDeUsuarios>()((set) => ({
+  usuarios: USUARIOS,
+  cambiarEstado: (id, status) =>
+    set((t) => {
+      const proximos = t.usuarios.map((u) =>
+        u.id === id ? { ...u, status } : u,
+      );
+      /* Si no cambió nada, no se escribe: escribir un array nuevo con los
+         mismos elementos vuelve a pintar todo lo que lo mira para nada. */
+      if (proximos.every((u, i) => u === t.usuarios[i])) return t;
+      return { usuarios: proximos };
+    }),
+}));
 
 /** La lista viva. Todo lo que la lee se vuelve a pintar cuando cambia. */
-export function useUsuarios() {
-  return useSyncExternalStore(suscribir, () => vivos);
-}
+export const useUsuarios = () => useTiendaDeUsuarios((t) => t.usuarios);
 
 /** La lista, para el que no está pintando. `useUsuarios` es para un componente;
  *  esto es para decidir fuera de un render —validar un alta, por ejemplo—, donde
  *  no hay hooks y lo que hace falta es la lista de este instante. */
-export const usuariosDeAhora = () => vivos;
+export const usuariosDeAhora = () => useTiendaDeUsuarios.getState().usuarios;
 
 /** Un usuario por id. `undefined` si no está: un perfil abierto sobre una
- *  cuenta que ya no existe tiene que poder decirlo en vez de romperse. */
-export function useUsuario(id: string) {
-  return useUsuarios().find((u) => u.id === id);
-}
+ *  cuenta que ya no existe tiene que poder decirlo en vez de romperse.
+ *
+ *  Con selector y no filtrando sobre `useUsuarios()`: así el perfil se vuelve a
+ *  pintar cuando cambia **su** cuenta y no cada vez que cambia cualquiera. */
+export const useUsuario = (id: string) =>
+  useTiendaDeUsuarios((t) => t.usuarios.find((u) => u.id === id));
 
-/** Bloquear, desbloquear, dar de baja. La lista se reemplaza entera y las
- *  filas que no cambian se conservan por identidad, así que un `useMemo` que
- *  filtre sobre ella sigue sirviendo para todo lo demás. */
-export function cambiarEstado(id: string, status: Estado) {
-  const proximos = vivos.map((u) => (u.id === id ? { ...u, status } : u));
-  if (proximos.every((u, i) => u === vivos[i])) return;
-  vivos = proximos;
-  for (const avisar of oyentes) avisar();
-}
+/** Bloquear, desbloquear, dar de baja.
+ *
+ *  Se exporta la acción suelta y no el hook: la llaman una tabla, un menú y una
+ *  tarjeta, y ninguna de las tres necesita volver a pintarse porque exista. */
+export const cambiarEstado = (id: string, status: Estado) =>
+  useTiendaDeUsuarios.getState().cambiarEstado(id, status);

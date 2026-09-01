@@ -30,7 +30,7 @@ import {
   type FilterOption,
   type FilterSelection,
 } from "@/components/filter-menu";
-import { useBoardMaybe } from "@/components/board-context";
+import { useBoards } from "@/stores/board";
 import { FloatingActions } from "@/components/floating-actions";
 import type { WidgetDefinition } from "@/components/widget";
 import { InputField, InputGroup } from "@/components/ui/input-group";
@@ -830,15 +830,15 @@ export function PanelDeTickets({
   const abiertoAhora =
     filas.find((f) => f.ticket.id === elegido)?.ticket ?? filas[0]?.ticket;
 
-  const board = useBoardMaybe();
+  const mostrarWidgets = useBoards((b) => b.mostrarWidgets);
   const widgets = useMemo(
     () => (abiertoAhora ? widgetsDe(abiertoAhora) : []),
     [abiertoAhora],
   );
 
   useEffect(() => {
-    board?.mostrarWidgets(tabId, widgets);
-  }, [board, tabId, widgets]);
+    mostrarWidgets(tabId, widgets);
+  }, [mostrarWidgets, tabId, widgets]);
 
   if (!abiertoAhora) {
     return (

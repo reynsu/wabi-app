@@ -7,7 +7,7 @@ import WaveSurfer from "wavesurfer.js";
 import { PeekCard } from "@/components/peek-card";
 
 import { useEsMovil } from "@/hooks/use-es-movil";
-import { useTemaOscuro } from "@/hooks/use-tema-oscuro";
+import { temaDeAhora, useTemaOscuro } from "@/stores/tema";
 import { useSizeVariant, useTypeScale } from "@/lib/size-context";
 import { cn } from "@/lib/utils";
 import { notaDeVoz, reloj } from "@/pages/nota-de-voz";
@@ -205,7 +205,7 @@ export function AudioMessage({
        vez. El efecto de abajo se los pasa al dibujante ya montado. */
     const inicial = esMovil
       ? { onda: REFERENCIA.onda, avance: REFERENCIA.avance }
-      : document.documentElement.classList.contains("dark")
+      : temaDeAhora()
         ? SISTEMA.oscuro
         : SISTEMA.claro;
 

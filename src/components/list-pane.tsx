@@ -23,7 +23,8 @@
  * es la sección.
  */
 
-import { useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
+import { create } from "zustand";
 
 import { cn } from "@/lib/utils";
 
@@ -46,35 +47,26 @@ const POR_DEFECTO: Record<string, number> = {
 
 const DEFECTO = 340;
 
-const anchos = new Map<string, number>();
-
-const oyentes = new Set<() => void>();
-
-function suscribir(avisar: () => void) {
-  oyentes.add(avisar);
-  return () => {
-    oyentes.delete(avisar);
-  };
-}
+/* El ancho de cada panel, en una tienda. No es de una pantalla: dos perfiles
+   abiertos comparten el ancho de su sección —es la misma clase de vista— y
+   arrastrarlo en uno tiene que moverlo en el otro. */
+const useAnchos = create<Record<string, number>>()(() => ({}));
 
 const acotar = (px: number) => Math.max(MINIMO, Math.min(MAXIMO, px));
 
-const anchoDe = (id: string) => anchos.get(id) ?? POR_DEFECTO[id] ?? DEFECTO;
+const anchoDe = (id: string, anchos: Record<string, number>) =>
+  anchos[id] ?? POR_DEFECTO[id] ?? DEFECTO;
 
 function fijarAncho(id: string, px: number) {
   const nuevo = acotar(px);
-  if (nuevo === anchoDe(id)) return;
-  anchos.set(id, nuevo);
-  for (const avisar of oyentes) avisar();
+  const anchos = useAnchos.getState();
+  if (nuevo === anchoDe(id, anchos)) return;
+  useAnchos.setState({ [id]: nuevo });
 }
 
-function useAncho(id: string) {
-  return useSyncExternalStore(
-    suscribir,
-    () => anchoDe(id),
-    () => POR_DEFECTO[id] ?? DEFECTO,
-  );
-}
+/* Con selector por id: arrastrar el panel de conversaciones no vuelve a pintar
+   al de tickets, que está montado en otra pestaña mirando su propio ancho. */
+const useAncho = (id: string) => useAnchos((a) => anchoDe(id, a));
 
 export function ListPane({
   id,

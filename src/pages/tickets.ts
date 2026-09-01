@@ -1,4 +1,5 @@
-import { useMemo, useSyncExternalStore } from "react";
+import { useMemo } from "react";
+import { create } from "zustand";
 
 import { HOY, type Usuario } from "@/pages/usuarios";
 import type { BadgeColor } from "@/components/ui/badge";
@@ -229,25 +230,28 @@ function construir(usuario: Usuario): Ticket[] {
 
 const memoria = new Map<string, Ticket[]>();
 
-const oyentes = new Set<() => void>();
+/* La tienda guarda un número y no los tickets. Es la excepción de las tres:
+   `ticketsDe` arma los de una cuenta la primera vez y los guarda en `memoria`,
+   y las escrituras los mutan ahí adentro. Mudar todo eso a la tienda sería
+   rehacer cómo se arman los tickets, que no es lo que este cambio viene a
+   hacer.
 
-/* Un número que sube con cada escritura. `ticketsDe` guarda lo que arma y
-   devuelve el mismo array mientras nadie lo toque, así que para "todos los
-   tickets de todas las cuentas" no alcanza con mirar un array: hace falta algo
-   que cambie cuando cambia cualquiera. */
-let version = 0;
-
-function suscribir(avisar: () => void) {
-  oyentes.add(avisar);
-  return () => {
-    oyentes.delete(avisar);
-  };
+   Lo que la tienda aporta es lo que hacía falta: **cuándo** volver a mirar.
+   `ticketsDe` devuelve el mismo array mientras nadie lo toque —y tiene que
+   seguir haciéndolo, porque media pantalla lo compara por identidad—, así que
+   un componente que quiere enterarse de un cambio necesita algo aparte que
+   cambie. Ese algo es este número. */
+interface TiendaDeTickets {
+  version: number;
+  tocar: () => void;
 }
 
-const avisar = () => {
-  version += 1;
-  for (const oyente of oyentes) oyente();
-};
+const useTiendaDeTickets = create<TiendaDeTickets>()((set) => ({
+  version: 0,
+  tocar: () => set((t) => ({ version: t.version + 1 })),
+}));
+
+const avisar = () => useTiendaDeTickets.getState().tocar();
 
 export function ticketsDe(usuario: Usuario): Ticket[] {
   const guardado = memoria.get(usuario.id);
@@ -260,13 +264,12 @@ export function ticketsDe(usuario: Usuario): Ticket[] {
 /** La lista viva de una cuenta. Todo lo que la lee se vuelve a pintar cuando
  *  cambia. */
 export function useTickets(usuario: Usuario): Ticket[] {
-  return useSyncExternalStore(
-    suscribir,
-    /* `ticketsDe` guarda lo que arma, así que devuelve el mismo array mientras
-       nadie lo toque: `useSyncExternalStore` lo compara por identidad y sin eso
-       repintaría para siempre. */
-    () => ticketsDe(usuario),
-  );
+  /* Se lee la versión para suscribirse y después se pide la lista. El valor de
+     la versión no se usa: lo único que hace es traer de vuelta a este
+     componente cuando alguien escribió, y ahí `ticketsDe` ya devuelve lo
+     nuevo. */
+  useTiendaDeTickets((t) => t.version);
+  return ticketsDe(usuario);
 }
 
 /* El id del ticket lleva el de la cuenta adelante (`USR-1042/t0`), así que
@@ -358,7 +361,7 @@ export interface TicketConDueno {
  *  Ese orden y no el del id: una cola de soporte se lee por lo que se movió
  *  recién, no por quién entró primero al padrón. */
 export function useTodosLosTickets(usuarios: Usuario[]): TicketConDueno[] {
-  const v = useSyncExternalStore(suscribir, () => version);
+  const v = useTiendaDeTickets((t) => t.version);
 
   return useMemo(
     () =>

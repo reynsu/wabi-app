@@ -26,7 +26,7 @@ import { MessageImage } from "@/components/message-image";
 import { punto } from "@/components/color-dot";
 import { LateralPreview } from "@/components/lateral-preview";
 import { MessageThread } from "@/components/message-thread";
-import { usePreview } from "@/components/preview-context";
+import { usePreview } from "@/stores/preview";
 import { Pagination } from "@/components/pagination";
 import { Rango } from "@/components/pager-range";
 import {
@@ -35,7 +35,7 @@ import {
   type FilterOption,
   type FilterSelection,
 } from "@/components/filter-menu";
-import { useWorkspace } from "@/components/workspace-context";
+import { useWorkspace } from "@/stores/workspace";
 import { Button } from "@/components/ui/button";
 import { esFoto, esNota, type Conversacion } from "@/pages/conversaciones";
 import { InputField, InputGroup } from "@/components/ui/input-group";
@@ -506,7 +506,7 @@ function Pantalla() {
 
   const GRUPOS = useMemo(() => grupos(todos), [todos]);
 
-  const { openTab } = useWorkspace();
+  const openTab = useWorkspace((w) => w.openTab);
 
   const abrirCuenta = useCallback(
     (usuario: Usuario) => openTab(tabDePerfil(usuario)),

@@ -24,14 +24,14 @@ import { punto } from "@/components/color-dot";
 import { LateralPreview } from "@/components/lateral-preview";
 import { Pagination } from "@/components/pagination";
 import { Rango } from "@/components/pager-range";
-import { usePreview } from "@/components/preview-context";
+import { usePreview } from "@/stores/preview";
 import {
   FilterMenu,
   type FilterGroup,
   type FilterOption,
   type FilterSelection,
 } from "@/components/filter-menu";
-import { useWorkspace } from "@/components/workspace-context";
+import { useWorkspace } from "@/stores/workspace";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -630,7 +630,7 @@ function Pantalla() {
 
   const GRUPOS = useMemo(() => grupos(todos), [todos]);
 
-  const { openTab } = useWorkspace();
+  const openTab = useWorkspace((w) => w.openTab);
 
   const abrirCuenta = useCallback(
     (usuario: Usuario) => openTab(tabDePerfil(usuario)),

@@ -84,7 +84,7 @@ import {
 // The span belongs to the cell, and the cell is the card's: a widget only
 // declares how much room it asks for.
 import type { WidgetSpan } from "@/components/widget-card";
-import { useWorkspace } from "@/components/workspace-context";
+import { useWorkspace } from "@/stores/workspace";
 import type { WorkspaceTab } from "@/components/workspace-panel";
 import { Elevated } from "@/lib/elevated";
 import type { IconComponent } from "@/lib/icon-context";
@@ -267,7 +267,8 @@ function WidgetTile({
   onClose?: () => void;
   className?: string;
 }) {
-  const { openTab, activeId } = useWorkspace();
+  const openTab = useWorkspace((w) => w.openTab);
+  const activeId = useWorkspace((w) => w.activeId);
   const typeScale = useTypeScale();
   const Icon = widget.icon;
   const enDialogo = widget.abre === "dialog";

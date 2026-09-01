@@ -33,7 +33,7 @@ import {
 } from "@/components/filter-menu";
 import { Pagination } from "@/components/pagination";
 import { Rango } from "@/components/pager-range";
-import { useWorkspace } from "@/components/workspace-context";
+import { useWorkspace } from "@/stores/workspace";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -452,7 +452,7 @@ function Pantalla() {
      cosas distintas. */
   const alta = useAltaDeBuzones();
 
-  const { openTab } = useWorkspace();
+  const openTab = useWorkspace((w) => w.openTab);
 
   const abrirCuenta = useCallback(
     (usuario: Usuario) => openTab(tabDePerfil(usuario)),

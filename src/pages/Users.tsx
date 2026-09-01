@@ -36,7 +36,7 @@ import {
 import { punto } from "@/components/color-dot";
 import { Datos } from "@/components/data-rows";
 import { PeekCard } from "@/components/peek-card";
-import { useWorkspace } from "@/components/workspace-context";
+import { useWorkspace } from "@/stores/workspace";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -647,7 +647,7 @@ function Pantalla() {
 
   const GRUPOS = useMemo(() => grupos(usuarios), [usuarios]);
 
-  const { openTab } = useWorkspace();
+  const openTab = useWorkspace((w) => w.openTab);
 
   const abrirPerfil = useCallback(
     (usuario: Usuario) => openTab(tabDePerfil(usuario)),

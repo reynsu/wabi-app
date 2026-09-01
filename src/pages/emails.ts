@@ -421,7 +421,7 @@ export interface EmailConDueno {
 /** Todos los correos de la casa, del más nuevo al más viejo. El orden es el
  *  único que tiene sentido en una bandeja: lo último que pasó, arriba.
  *
- *  Sin tienda ni `useSyncExternalStore` —a diferencia de los tickets—: un
+ *  Sin tienda —a diferencia de los tickets—: un
  *  correo no cambia desde la consola, así que `emailsDe` devuelve siempre la
  *  misma lista y alcanza con memorizar esto contra `usuarios`. */
 export function todosLosEmails(usuarios: Usuario[]): EmailConDueno[] {
