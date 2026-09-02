@@ -397,37 +397,29 @@ function Lista({
           trae un `w-72` fijo —el ancho de un formulario suelto— y este panel es
           redimensionable: con el ancho fijo, arrastrarlo para ver los nombres
           enteros deja el buscador parado donde estaba y un hueco a su
-          derecha.
-
-          Y en el escalón compacto: es la barra de herramientas de una columna
-          angosta, no un formulario. El escalón se pone una vez sobre el renglón
-          y no control por control —el campo, el panel y el botón lo leen del
-          `SizeProvider`—, que es como las tablas de esta consola resuelven lo
-          mismo. */}
-      <SizeProvider size="compact">
-        <div className="flex shrink-0 items-center gap-2 p-3">
-          <InputGroup className="min-w-0 flex-1">
-            <InputField
-              index={0}
-              label="Search conversations"
-              labelHidden
-              icon={Search}
-              placeholder="Search conversations"
-              value={busqueda}
-              onChange={setBusqueda}
-              className="[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border"
-            />
-          </InputGroup>
-
-          <FilterMenu
-            groups={GRUPOS}
-            align="end"
-            variant="secondary"
-            value={filtros}
-            onValueChange={setFiltros}
+          derecha. */}
+      <div className="flex shrink-0 items-center gap-2 p-3">
+        <InputGroup className="min-w-0 flex-1">
+          <InputField
+            index={0}
+            label="Search conversations"
+            labelHidden
+            icon={Search}
+            placeholder="Search conversations"
+            value={busqueda}
+            onChange={setBusqueda}
+            className="[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border"
           />
-        </div>
-      </SizeProvider>
+        </InputGroup>
+
+        <FilterMenu
+          groups={GRUPOS}
+          align="end"
+          variant="secondary"
+          value={filtros}
+          onValueChange={setFiltros}
+        />
+      </div>
 
       {/* `[&>div]:min-w-0!`: Base UI mete un envoltorio con `min-width:
           fit-content` adentro del viewport para poder medir el ancho
@@ -582,14 +574,24 @@ function Hilo({ conversacion }: { conversacion: Conversacion }) {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      {/* Buscar adentro del hilo abierto. El mismo alto, el mismo aire y el
-          mismo escalón compacto que el buscador de la lista —y el mismo par de
-          controles, en el mismo orden—, así las dos columnas arrancan a la
-          misma altura y se recorren igual.
+      {/* Buscar adentro del hilo abierto: el mismo par de controles que la
+          lista, en el mismo orden.
+
+          En el escalón compacto, y **la lista no**. Son dos barras de
+          herramientas que hacen lo mismo pero no pesan lo mismo: la de la lista
+          es la entrada de la sección —lo primero que se toca al llegar, y lo
+          único que hay arriba de una columna que se recorre entera— y la del
+          hilo va encima de lo que se está leyendo, así que cuanto menos ocupe,
+          mejor. Un escalón menos es lo que la corre del camino sin sacarla.
+
+          El costo es que las dos cabeceras dejan de medir igual —60 contra 52— y
+          los dos campos no quedan a la misma altura. Es a propósito: el filete
+          que las separa es vertical y no hay nada que alinee de un lado al otro
+          salvo el ojo.
 
           Contra el borde derecho y sin nada a la izquierda: con quién es el hilo
           ya lo dice la fila encendida de la lista, dos centímetros más allá, y
-          repetirlo acá era decir dos veces lo mismo a la misma altura. */}
+          repetirlo acá era decir dos veces lo mismo. */}
       <SizeProvider size="compact">
         <motion.header
           /* La cabecera del hilo no espera turno: es lo que contesta al clic
