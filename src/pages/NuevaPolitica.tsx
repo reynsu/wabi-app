@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 
+import { AIRE, CAMPO_PUESTO, Campo, Corte, Segmentado } from "@/components/ficha";
 import { Button } from "@/components/ui/button";
 import { InputField, InputGroup } from "@/components/ui/input-group";
 import type { WidgetDefinition } from "@/components/widget";
@@ -156,78 +157,6 @@ export function comoSeLeeElBorrador(b: Borrador): string | null {
 }
 
 /* ─────────────────────────── Las piezas ─────────────────────────── */
-
-/* La escala vertical de la ficha, escrita una vez. Tres valores y no seis: entre
-   el rótulo y su control (6), entre un campo y el siguiente (20), y a los lados
-   de una regla (24). Una ficha donde cada bloque elige su aire propio se lee
-   como varias fichas apiladas. */
-const AIRE = { rotulo: "gap-1.5", campos: "gap-5", corte: "gap-6" };
-
-/* Los campos arrancan con la cara que el sistema les da al pasarles el puntero
-   —fondo `muted/50` y anillo— en vez de arrancar transparentes.
-   
-   En una barra de herramientas un campo transparente está bien: hay tres cosas
-   en ese renglón y se sabe cuál es el buscador. En una ficha hay cinco campos
-   uno abajo del otro, y transparentes se leen como texto suelto: no se ve dónde
-   se escribe hasta que la mano pasa por encima, que es justo lo que un
-   formulario no puede pedir.
-   
-   El foco se conserva: la regla del `focus-within` pesa más que la de reposo, y
-   por eso el campo enfocado sigue subiendo a `bg-card` como en todo el resto de
-   la app. */
-const CAMPO_PUESTO = [
-  "[&>div:has(>input)]:bg-muted/50",
-  "[&>div:has(>input)]:ring-border",
-  "[&:focus-within>div:has(>input)]:bg-card",
-].join(" ");
-
-/** Un control segmentado. El de la referencia —Allow/Block e In/Out/Both—:
- *  fondo gris, la elegida en blanco con su sombra, y el resto en el gris del
- *  texto secundario. El color aparece sólo donde significa algo: lo que bloquea
- *  se pinta, lo que permite no. */
-function Segmentado<T extends string>({
-  valor,
-  opciones,
-  onElegir,
-  className,
-}: {
-  valor: T;
-  opciones: { value: T; label: string; icon?: ReactNode; tinte?: string }[];
-  onElegir: (v: T) => void;
-  className?: string;
-}) {
-  const escala = useTypeScale();
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-0.5 rounded-[10px] bg-muted p-0.5",
-        className,
-      )}
-    >
-      {opciones.map((o) => {
-        const puesta = o.value === valor;
-        return (
-          <button
-            key={o.value}
-            type="button"
-            onClick={() => onElegir(o.value)}
-            className={cn(
-              "inline-flex flex-1 cursor-pointer items-center justify-center gap-1 rounded-lg px-2 py-1 transition-colors duration-80",
-              puesta
-                ? "bg-card text-foreground shadow-surface-2"
-                : "text-muted-foreground hover:text-foreground",
-              puesta && o.tinte,
-            )}
-            style={{ fontSize: escala.caption }}
-          >
-            {o.icon}
-            {o.label}
-          </button>
-        );
-      })}
-    </span>
-  );
-}
 
 const ALLOW_BLOCK: { value: Permiso; label: string; icon: ReactNode; tinte?: string }[] = [
   { value: "allow", label: "Allow", icon: <Check className="size-3" /> },
@@ -481,49 +410,6 @@ function Nombre({ d, enviando }: { d: Draft; enviando: boolean }) {
 }
 
 /* ─────────────────────────── La ficha ─────────────────────────── */
-
-/** Un campo: el rótulo encima, una línea de ayuda cuando hace falta, y el
- *  control debajo.
- *
- *  El rótulo va afuera y no adentro del campo: con el rótulo arriba, la columna
- *  se recorre de un vistazo —qué se pide, qué se puso— sin tener que enfocar
- *  cada control para acordarse de qué era. Es lo que hace la referencia y es lo
- *  que separa una ficha de un formulario de diálogo. */
-function Campo({
-  rotulo,
-  ayuda,
-  children,
-}: {
-  rotulo: string;
-  ayuda?: string;
-  children: ReactNode;
-}) {
-  const escala = useTypeScale();
-  return (
-    <div className={cn("flex min-w-0 flex-col", AIRE.rotulo)}>
-      <div className="flex min-w-0 flex-col gap-0.5">
-        <span className="font-medium" style={{ fontSize: escala.caption }}>
-          {rotulo}
-        </span>
-        {ayuda && (
-          <span
-            className="text-muted-foreground"
-            style={{ fontSize: escala.caption }}
-          >
-            {ayuda}
-          </span>
-        )}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-/** La regla que parte la ficha. Punteada: separa partes de una misma hoja, no
- *  dos superficies distintas. */
-const Corte = () => (
-  <span aria-hidden className="h-px shrink-0 border-t border-dashed border-border" />
-);
 
 /**
  * La ficha: el formulario entero sobre una hoja blanca.
