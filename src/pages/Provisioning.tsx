@@ -6,7 +6,6 @@ import {
   ChevronDown,
   Contact,
   Loader,
-  MailPlus,
   MailX,
   Search,
   UserPen,
@@ -19,6 +18,7 @@ import {
   AnimatedEmptyMedia,
   AnimatedEmptyTitle,
 } from "@/components/animated-empty";
+import { BotonDeAlta } from "@/components/boton-de-alta";
 import { punto } from "@/components/color-dot";
 import {
   BarraDeAlta,
@@ -35,7 +35,6 @@ import { Pagination } from "@/components/pagination";
 import { Rango } from "@/components/pager-range";
 import { useWorkspace } from "@/stores/workspace";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   DropdownContent,
   DropdownMenu,
@@ -514,20 +513,23 @@ function Pantalla() {
           />
 
           {/* La acción de la pantalla, y la única: dar de alta un buzón es lo
-              que "provisioning" quiere decir. Va `primary` —el resto de la
-              barra busca y filtra, que es mirar; esto es lo único que crea
-              algo— y última, contra el borde: es donde este sistema deja la
-              acción, después de los controles que la preceden.
+              que "provisioning" quiere decir. Va última, contra el borde: es
+              donde este sistema deja la acción, después de los controles que la
+              preceden —el resto de la barra busca y filtra, que es mirar—.
 
-              El glifo es el mismo con el que la fila del sidebar nombra la
-              sección: el botón hace lo que el lugar dice que se hace acá. */}
-          <Button
-            variant="primary"
-            leadingIcon={MailPlus}
-            onClick={alta.abrir}
-          >
-            New mailbox
-          </Button>
+              De hielo y no `primary`: es la misma acción que en Announcements,
+              DOC Accounts, Policies y Reports —crear lo que la tabla lista— y el
+              negro sólido pesa demasiado en una barra que al lado tiene un campo
+              y un panel de filtros. El glifo es el `+` y no el sobre de la
+              sección: el de la sección ya está a la vista dos veces —la fila del
+              sidebar y la pestaña— y lo que el botón tiene que decir es qué
+              hace. Con el signo delante, el "New" delante del sustantivo sería
+              la misma palabra escrita dos veces.
+
+              Sin `disponible`: esta alta no vive en el riel —el buzón se crea
+              desde adentro de la tabla— así que no depende de que haya un board
+              donde poner una ficha. */}
+          <BotonDeAlta onClick={alta.abrir}>Mailbox</BotonDeAlta>
         </div>
       </motion.header>
 
