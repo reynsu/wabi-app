@@ -16,11 +16,9 @@
  * vista, es cómo alguien decidió que quiere ver esta clase de vista, y tenerlo
  * por pantalla obligaría a acomodarlo de nuevo en cada perfil que se abra.
  *
- * Y es por sección, y no uno solo para las tres, porque las tres terminaron
- * llevando cosas distintas: una conversación es un nombre y un renglón, un
- * ticket son tres renglones con badges y el último mensaje del cliente. Lo que
- * a una le sobra a otra le falta, y quien sabe cuánto lugar necesitan sus filas
- * es la sección.
+ * Y es por sección, y no uno solo para las tres: arrastrar la lista de
+ * conversaciones no tiene por qué mover la de tickets. Lo que sí es uno solo es
+ * **de cuánto arranca**, que es otra cosa —ver `DEFECTO`—.
  */
 
 import { useRef, useState, type ReactNode } from "react";
@@ -35,17 +33,23 @@ import { cn } from "@/lib/utils";
 const MINIMO = 260;
 const MAXIMO = 560;
 
-/* Lo que mide cada sección mientras nadie la toque. La de tickets arranca un
-   cuarto más ancha que las otras dos: sus filas llevan tres renglones, y el
-   del medio es el último mensaje del cliente —una frase entera, no un nombre—,
-   así que es la que más se agradece el lugar. */
-const POR_DEFECTO: Record<string, number> = {
-  conversations: 340,
-  emails: 340,
-  tickets: 425,
-};
-
-const DEFECTO = 340;
+/** De cuánto arranca una lista mientras nadie la toque. Uno solo para las tres.
+ *
+ *  Eran dos números —340 para conversaciones y correos, 425 para tickets, que
+ *  llevan tres renglones y un badge—, y la diferencia se veía: pasar de una
+ *  sección a otra del mismo perfil movía el filete, y con él la conversación o
+ *  el correo abierto al lado. Ese salto costaba más de lo que compraba el ancho
+ *  a medida, y ahora que las tres tienen el mismo renglón de buscador y filtro
+ *  arriba, tampoco es que a una le sobre: el botón de filtros le saca al campo
+ *  el mismo lugar en las tres.
+ *
+ *  Manda el más ancho de los dos. Una lista puede tener aire de más sin que
+ *  nadie lo note; la que se queda corta corta texto, y la que más texto lleva
+ *  —el último mensaje del cliente en un ticket— es la que fijaba este número.
+ *
+ *  Sigue siendo un punto de partida y no un ancho fijo: quien quiera su lista de
+ *  conversaciones más angosta la arrastra, y eso se guarda por sección. */
+const DEFECTO = 425;
 
 /* El ancho de cada panel, en una tienda. No es de una pantalla: dos perfiles
    abiertos comparten el ancho de su sección —es la misma clase de vista— y
@@ -55,7 +59,7 @@ const useAnchos = create<Record<string, number>>()(() => ({}));
 const acotar = (px: number) => Math.max(MINIMO, Math.min(MAXIMO, px));
 
 const anchoDe = (id: string, anchos: Record<string, number>) =>
-  anchos[id] ?? POR_DEFECTO[id] ?? DEFECTO;
+  anchos[id] ?? DEFECTO;
 
 function fijarAncho(id: string, px: number) {
   const nuevo = acotar(px);
