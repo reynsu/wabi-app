@@ -23,6 +23,7 @@ import {
   AnimatedEmptyTitle,
 } from "@/components/animated-empty";
 import { BotonDeAlta } from "@/components/boton-de-alta";
+import { FilaDestellante } from "@/components/fila-destellante";
 import { punto } from "@/components/color-dot";
 import {
   FilterMenu,
@@ -118,21 +119,6 @@ const entraTabla = {
 const entraCelda = {
   oculto: { opacity: 0, filter: "blur(5px)" },
   visible: { opacity: 1, filter: "blur(0px)", transition: spring.slow },
-} as const;
-
-const FilaAnimada = motion.create(TableRow);
-
-/* El destello: la fila que acaba de existir llega encendida y se apaga sola. Es
-   lo que cierra el alta —la ficha se fue, y sin esto hay que buscar con la vista
-   cuál de las quince filas es la que uno acaba de crear, que además cae ordenada
-   por nombre y no arriba de todo—. Es el mismo violeta lavado con el que esta
-   consola marca lo suyo. */
-const DESTELLO = {
-  encendida: { backgroundColor: "oklch(0.966 0.022 292)" },
-  apagada: {
-    backgroundColor: "oklch(0.966 0.022 292 / 0)",
-    transition: { duration: 1.1, delay: 0.35 },
-  },
 } as const;
 
 /* ─────────────────────────── Los filtros ─────────────────────────── */
@@ -567,12 +553,10 @@ function Pantalla({ tabId }: { tabId?: string }) {
                   const tocada = cuenta.id === alta.recienCreada;
 
                   return (
-                    <FilaAnimada
+                    <FilaDestellante
                       key={cuenta.id}
                       index={i}
-                      initial={tocada ? "encendida" : false}
-                      animate={tocada ? "apagada" : undefined}
-                      variants={DESTELLO}
+                      destella={tocada}
                     >
                       {/* Quién es. En la tinta del texto y con algo de peso: es
                           la primera columna y es por donde se recorre la lista
@@ -685,7 +669,7 @@ function Pantalla({ tabId }: { tabId?: string }) {
                           />
                         </motion.span>
                       </TableCell>
-                    </FilaAnimada>
+                    </FilaDestellante>
                   );
                 })}
               </TableBody>
