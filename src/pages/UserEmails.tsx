@@ -2,8 +2,25 @@
 
 import { Fragment, useId, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, MailX, Paperclip, Search, Send } from "lucide-react";
+import {
+  CalendarClock,
+  ChevronDown,
+  CircleDot,
+  MailX,
+  Paperclip,
+  Scale,
+  Search,
+  Send,
+  ShieldCheck,
+} from "lucide-react";
 
+import { punto } from "@/components/color-dot";
+import {
+  FilterMenu,
+  type FilterGroup,
+  type FilterOption,
+  type FilterSelection,
+} from "@/components/filter-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { InputField, InputGroup } from "@/components/ui/input-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -15,15 +32,20 @@ import { spring } from "@/lib/springs";
 import { cn } from "@/lib/utils";
 import {
   CARPETAS,
+  ENTREGAS,
   ORDEN_CARPETAS,
+  ORDEN_ENTREGAS,
+  ORDEN_TIPOS,
+  TIPOS_EMAIL,
   direccionDe,
   emailsDe,
+  entregaDe,
   loEscribioLaCuenta,
   type Adjunto,
   type Carpeta,
   type Email,
 } from "@/pages/emails";
-import { cuandoCorto, fechaLarga } from "@/pages/tiempo";
+import { cuandoCorto, diasDesde, fechaLarga } from "@/pages/tiempo";
 import { iniciales, type Usuario } from "@/pages/usuarios";
 
 /* La sección Emails del perfil: la lista a la izquierda, el correo abierto a
@@ -167,6 +189,144 @@ function Fila({
   );
 }
 
+/* ─────────────────────────── El filtro ───────────────────────────
+
+   Los cinco atributos por los que se recorta la bandeja. Son los mismos —con
+   los mismos ids, las mismas etiquetas y los mismos tramos— que ofrece Email
+   Search sobre el correo de toda la casa: es la misma pregunta hecha sobre una
+   cuenta en vez de sobre la residencia, y dos vocabularios para lo mismo harían
+   que aprender a filtrar en una pantalla no sirva en la otra.
+
+   Los conteos salen de los correos vivos y no de una constante: un panel que
+   dice un número y devuelve otro miente sobre lo que va a hacer.
+
+   **Sin carpeta**, que es el único atributo de Email Search que no está. Acá la
+   lista ya va agrupada por carpeta, con su encabezado y su plegado: un filtro de
+   carpeta sería un segundo lugar para hacer lo que el encabezado ya hace, y los
+   dos podrían quedar diciendo cosas distintas —una carpeta plegada y filtrada
+   fuera es una carpeta que desapareció por dos motivos—.
+
+   Y con `read`, que Email Search no tiene: allá se mira el correo de la casa y
+   si alguien abrió el suyo no es lo que se va a buscar; acá es la bandeja de una
+   persona, y "qué le falta leer" es la primera pregunta. */
+
+const OPCIONES_LEIDO: FilterOption[] = [
+  { value: "unread", label: "Unread" },
+  { value: "read", label: "Read" },
+];
+
+const OPCIONES_ADJUNTOS: FilterOption[] = [
+  { value: "with", label: "With attachments" },
+  { value: "without", label: "Without attachments" },
+];
+
+/* Los mismos cuatro cortes que Email Search y la tabla de Accounts. */
+const OPCIONES_ENVIO: FilterOption[] = [
+  { value: "today", label: "Today" },
+  { value: "week", label: "Last 7 days" },
+  { value: "month", label: "Last 30 days" },
+  { value: "older", label: "Older" },
+];
+
+const tramoEnvio = (iso: string) => {
+  const dias = diasDesde(iso);
+  if (dias < 1) return "today";
+  if (dias < 7) return "week";
+  if (dias < 30) return "month";
+  return "older";
+};
+
+/** De qué valores dispone cada correo para cada atributo del panel. Entre
+ *  atributos, Y; entre los valores de un mismo atributo, O. */
+const CAMPOS: Record<string, (e: Email) => string> = {
+  type: (e) => e.tipo,
+  read: (e) => (e.leido ? "read" : "unread"),
+  delivery: (e) => entregaDe(e),
+  attachments: (e) => (e.adjuntos.length > 0 ? "with" : "without"),
+  sent: (e) => tramoEnvio(e.cuando),
+};
+
+const conCuenta = (
+  opciones: FilterOption[],
+  emails: Email[],
+  campo: (e: Email) => string,
+): FilterOption[] =>
+  opciones.map((o) => ({
+    ...o,
+    hint: String(emails.filter((e) => campo(e) === o.value).length),
+  }));
+
+const grupos = (emails: Email[]): FilterGroup[] => [
+  {
+    label: "The email",
+    attributes: [
+      {
+        id: "type",
+        label: "Email type",
+        icon: Scale,
+        options: conCuenta(
+          ORDEN_TIPOS.map((value) => ({
+            value,
+            label: TIPOS_EMAIL[value].label,
+          })),
+          emails,
+          CAMPOS.type,
+        ),
+      },
+      {
+        id: "read",
+        label: "Read state",
+        icon: CircleDot,
+        options: conCuenta(OPCIONES_LEIDO, emails, CAMPOS.read),
+      },
+    ],
+  },
+  {
+    label: "The record",
+    attributes: [
+      {
+        id: "delivery",
+        label: "Delivery",
+        icon: ShieldCheck,
+        options: conCuenta(
+          ORDEN_ENTREGAS.map((value) => ({
+            value,
+            label: ENTREGAS[value].label,
+            icon: punto(ENTREGAS[value].tinte),
+          })),
+          emails,
+          CAMPOS.delivery,
+        ),
+      },
+      {
+        id: "attachments",
+        label: "Attachments",
+        icon: Paperclip,
+        options: conCuenta(OPCIONES_ADJUNTOS, emails, CAMPOS.attachments),
+      },
+      /* `single`, como los tramos de Email Search y de Tickets: "hoy o esta
+         semana" es "esta semana". Elegir uno reemplaza al anterior. */
+      {
+        id: "sent",
+        label: "Date sent",
+        icon: CalendarClock,
+        options: OPCIONES_ENVIO,
+        single: true,
+      },
+    ],
+  },
+];
+
+function pasa(email: Email, filtros: FilterSelection) {
+  return Object.entries(filtros).every(([id, valores]) => {
+    const campo = CAMPOS[id];
+    if (!campo) return true;
+    return valores.includes(campo(email));
+  });
+}
+
+/* ─────────────────────────── La lista ─────────────────────────── */
+
 function Lista({
   emails,
   elegido,
@@ -178,6 +338,7 @@ function Lista({
 }) {
   const escala = useTypeScale();
   const [busqueda, setBusqueda] = useState("");
+  const [filtros, setFiltros] = useState<FilterSelection>({});
   /* Qué carpetas están plegadas. Guardadas las plegadas y no las abiertas: lo
      normal es que estén todas abiertas, y así el estado inicial es "ninguna"
      en vez de una lista que hay que mantener al día cuando aparezca una
@@ -201,17 +362,24 @@ function Lista({
 
   /* Busca por con quién, por asunto y por lo que dice el cuerpo. Lo último es
      lo que hace que buscar sirva de verdad: uno se acuerda de "riser" y no de
-     quién firmaba el aviso. */
+     quién firmaba el aviso.
+
+     El panel recorta lo mismo por atributos, y los dos se aplican juntos: entre
+     la barra y el panel es Y —lo que uno escribe **y** lo que marcó—, que es lo
+     que ya hacen las tablas de esta consola. */
   const encontrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
-    if (!q) return emails;
     return emails.filter(
       (e) =>
-        e.contacto.toLowerCase().includes(q) ||
-        e.asunto.toLowerCase().includes(q) ||
-        e.cuerpo.some((p) => p.toLowerCase().includes(q)),
+        pasa(e, filtros) &&
+        (!q ||
+          e.contacto.toLowerCase().includes(q) ||
+          e.asunto.toLowerCase().includes(q) ||
+          e.cuerpo.some((p) => p.toLowerCase().includes(q))),
     );
-  }, [emails, busqueda]);
+  }, [emails, busqueda, filtros]);
+
+  const GRUPOS = useMemo(() => grupos(emails), [emails]);
 
   /* Agrupados por carpeta y en el orden de siempre: primero lo que llegó,
      después lo que salió, después lo que no salió, y último lo que no debería
@@ -229,7 +397,7 @@ function Lista({
 
      Con el índice atado a la fila, plegar sólo deja huecos en la lista de
      medidas —que el hook ya sabe saltear— y ningún registro pisa a otro. */
-  const grupos = useMemo(
+  const carpetas = useMemo(
     () =>
       ORDEN_CARPETAS.map((carpeta) => {
         const dentro = encontrados
@@ -257,13 +425,17 @@ function Lista({
 
   return (
     <ListPane id="emails">
-      {/* El campo se lleva el ancho del panel. `InputGroup` trae un `w-72`
-          fijo —el ancho de un formulario suelto— y este panel es
-          redimensionable: con el ancho fijo, arrastrarlo para ver los nombres
-          enteros deja el buscador parado donde estaba y un hueco a su derecha.
-          Es lo mismo que ya hacía Tickets con su `flex-1`. */}
-      <div className="shrink-0 p-3">
-        <InputGroup className="w-full">
+      {/* El buscador y el filtro, en la misma fila y en ese orden. Es el mismo
+          renglón que Tickets y que Conversations: los dos recortan la misma
+          lista, y ponerlos en dos renglones haría creer que son dos cosas.
+
+          El campo se lleva lo que sobra y el botón mide lo suyo. `InputGroup`
+          trae un `w-72` fijo —el ancho de un formulario suelto— y este panel es
+          redimensionable: con el ancho fijo, arrastrarlo para ver los asuntos
+          enteros deja el buscador parado donde estaba y un hueco a su
+          derecha. */}
+      <div className="flex shrink-0 items-center gap-2 p-3">
+        <InputGroup className="min-w-0 flex-1">
           <InputField
             index={0}
             label="Search emails"
@@ -275,6 +447,14 @@ function Lista({
             className="[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border"
           />
         </InputGroup>
+
+        <FilterMenu
+          groups={GRUPOS}
+          align="end"
+          variant="secondary"
+          value={filtros}
+          onValueChange={setFiltros}
+        />
       </div>
 
       {/* `[&>div]:min-w-0!` por lo mismo que en Conversations: el envoltorio
@@ -335,7 +515,7 @@ function Lista({
             )}
           </AnimatePresence>
 
-          {grupos.map((grupo) => {
+          {carpetas.map((grupo) => {
             const plegada = plegadas.has(grupo.carpeta);
             const idCuerpo = `${idLista}-${grupo.carpeta}`;
             const { label, icon: Icono } = CARPETAS[grupo.carpeta];

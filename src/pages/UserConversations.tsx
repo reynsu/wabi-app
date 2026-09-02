@@ -2,8 +2,23 @@
 
 import { useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Image as ImageIcon, Lock, MessageSquareOff, Mic, Search } from "lucide-react";
+import {
+  CalendarClock,
+  CircleDot,
+  Image as ImageIcon,
+  Lock,
+  MessageSquareOff,
+  Mic,
+  Paperclip,
+  Search,
+} from "lucide-react";
 
+import {
+  FilterMenu,
+  type FilterGroup,
+  type FilterOption,
+  type FilterSelection,
+} from "@/components/filter-menu";
 import { MessageThread } from "@/components/message-thread";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -17,10 +32,12 @@ import { spring } from "@/lib/springs";
 import { cn } from "@/lib/utils";
 import {
   conversacionesDe,
+  esFoto,
+  esNota,
   ultimo,
   type Conversacion,
 } from "@/pages/conversaciones";
-import { cuandoCorto } from "@/pages/tiempo";
+import { cuandoCorto, diasDesde } from "@/pages/tiempo";
 import { iniciales, type Usuario } from "@/pages/usuarios";
 
 /* La sección Conversations del perfil: la lista a la izquierda, el hilo
@@ -180,6 +197,128 @@ function Fila({
   );
 }
 
+/* ─────────────────────────── El filtro ───────────────────────────
+
+   Los tres atributos por los que se recorta la lista. Es el mismo panel que ya
+   tenía Tickets al lado de su buscador, y por eso está: las tres secciones del
+   perfil son el mismo mueble —una lista a la izquierda y lo elegido a la
+   derecha— y que una recorte por atributos y las otras dos sólo por texto hacía
+   que cambiar de sección cambiara de herramienta.
+
+   Los conteos salen de las conversaciones vivas y no de una constante: un panel
+   que dice un número y devuelve otro miente sobre lo que va a hacer.
+
+   Son tres y no más porque una cuenta tiene cuatro o cinco hilos: lo que se
+   pregunta de esa lista es "¿qué me falta leer?", "¿dónde estaba ese audio?" y
+   "¿de cuándo es?". Un atributo por cada campo del modelo sería un panel más
+   largo que la lista que recorta. */
+
+const OPCIONES_LEIDO: FilterOption[] = [
+  { value: "unread", label: "Unread" },
+  { value: "read", label: "Read" },
+];
+
+/* Qué trae el hilo adentro. Es la única manera de volver a encontrar una nota
+   de voz: la búsqueda mira su transcripción, pero para eso hay que acordarse de
+   qué decía —y de un audio uno se acuerda de que era un audio—. */
+const OPCIONES_CONTENIDO: FilterOption[] = [
+  { value: "voice", label: "Voice notes" },
+  { value: "photo", label: "Photos" },
+];
+
+/* Los tramos del último mensaje. Los mismos cuatro cortes que usan Email Search
+   y la tabla de Accounts: es la misma pregunta hecha en tres lugares, y un
+   corte distinto en uno solo los volvería incomparables. */
+const OPCIONES_ACTIVIDAD: FilterOption[] = [
+  { value: "today", label: "Today" },
+  { value: "week", label: "Last 7 days" },
+  { value: "month", label: "Last 30 days" },
+  { value: "older", label: "Older" },
+];
+
+const tramoActividad = (iso: string) => {
+  const dias = diasDesde(iso);
+  if (dias < 1) return "today";
+  if (dias < 7) return "week";
+  if (dias < 30) return "month";
+  return "older";
+};
+
+/** De qué valores dispone cada conversación para cada atributo del panel. Entre
+ *  atributos, Y; entre los valores de un mismo atributo, O.
+ *
+ *  `contenido` devuelve una lista y no un valor, que es lo que hace que elegir
+ *  "Voice notes" y "Photos" a la vez traiga los hilos que tienen una cosa **o**
+ *  la otra —y no los que tienen las dos—: es como cualquiera lee un filtro de
+ *  varios valores marcados. */
+const CAMPOS: Record<string, (c: Conversacion) => string[]> = {
+  read: (c) => [c.sinLeer > 0 ? "unread" : "read"],
+  contenido: (c) => [
+    ...(c.mensajes.some(esNota) ? ["voice"] : []),
+    ...(c.mensajes.some(esFoto) ? ["photo"] : []),
+  ],
+  activity: (c) => [tramoActividad(ultimo(c).cuando)],
+};
+
+const conCuenta = (
+  opciones: FilterOption[],
+  conversaciones: Conversacion[],
+  campo: (c: Conversacion) => string[],
+): FilterOption[] =>
+  opciones.map((o) => ({
+    ...o,
+    hint: String(conversaciones.filter((c) => campo(c).includes(o.value)).length),
+  }));
+
+const grupos = (conversaciones: Conversacion[]): FilterGroup[] => [
+  {
+    label: "The conversation",
+    attributes: [
+      {
+        id: "read",
+        label: "Read state",
+        icon: CircleDot,
+        options: conCuenta(OPCIONES_LEIDO, conversaciones, CAMPOS.read),
+      },
+      {
+        id: "contenido",
+        label: "Contains",
+        icon: Paperclip,
+        options: conCuenta(
+          OPCIONES_CONTENIDO,
+          conversaciones,
+          CAMPOS.contenido,
+        ),
+      },
+    ],
+  },
+  {
+    label: "The record",
+    attributes: [
+      /* `single`, como los tramos de Tickets y de Email Search: "hoy o esta
+         semana" es "esta semana". Elegir uno reemplaza al anterior. */
+      {
+        id: "activity",
+        label: "Last message",
+        icon: CalendarClock,
+        options: OPCIONES_ACTIVIDAD,
+        single: true,
+      },
+    ],
+  },
+];
+
+function pasa(conversacion: Conversacion, filtros: FilterSelection) {
+  return Object.entries(filtros).every(([id, valores]) => {
+    const campo = CAMPOS[id];
+    if (!campo) return true;
+    const tiene = campo(conversacion);
+    return valores.some((v) => tiene.includes(v));
+  });
+}
+
+/* ─────────────────────────── La lista ─────────────────────────── */
+
 function Lista({
   conversaciones,
   elegida,
@@ -191,23 +330,31 @@ function Lista({
 }) {
   const escala = useTypeScale();
   const [busqueda, setBusqueda] = useState("");
+  const [filtros, setFiltros] = useState<FilterSelection>({});
   const caja = useRef<HTMLDivElement>(null);
+
+  const GRUPOS = useMemo(() => grupos(conversaciones), [conversaciones]);
 
   const { activeIndex, itemRects, isMeasured, sessionRef, handlers, registerItem } =
     useProximityHover(caja, { axis: "y" });
 
   /* Busca por con quién y por lo que se dijo. Lo segundo no es de más: los
      nombres se olvidan antes que la frase por la que uno vuelve a buscar la
-     conversación. */
+     conversación.
+
+     El panel recorta lo mismo por atributos, y los dos se aplican juntos: entre
+     la barra y el panel es Y —lo que uno escribe **y** lo que marcó—, que es lo
+     que ya hacen las cinco tablas de esta consola. */
   const encontradas = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
-    if (!q) return conversaciones;
     return conversaciones.filter(
       (c) =>
-        c.contacto.toLowerCase().includes(q) ||
-        c.mensajes.some((m) => m.texto.toLowerCase().includes(q)),
+        pasa(c, filtros) &&
+        (!q ||
+          c.contacto.toLowerCase().includes(q) ||
+          c.mensajes.some((m) => m.texto.toLowerCase().includes(q))),
     );
-  }, [conversaciones, busqueda]);
+  }, [conversaciones, busqueda, filtros]);
 
   /* Las funciones que registran cada fila, memorizadas: una arrow escrita en
      el `map` cambia de identidad en cada render y React la lee como que la
@@ -227,13 +374,19 @@ function Lista({
 
   return (
     <ListPane id="conversations">
-      {/* El campo se lleva el ancho del panel. `InputGroup` trae un `w-72`
-          fijo —el ancho de un formulario suelto— y este panel es
+      {/* El buscador y el filtro, en la misma fila y en ese orden. Es el mismo
+          renglón que Tickets, y por la misma razón: los dos recortan la misma
+          lista, y ponerlos en dos renglones haría creer que son dos cosas
+          —además de comerse un renglón de la lista, que es lo que este panel
+          tiene menos—.
+
+          El campo se lleva lo que sobra y el botón mide lo suyo. `InputGroup`
+          trae un `w-72` fijo —el ancho de un formulario suelto— y este panel es
           redimensionable: con el ancho fijo, arrastrarlo para ver los nombres
-          enteros deja el buscador parado donde estaba y un hueco a su derecha.
-          Es lo mismo que ya hacía Tickets con su `flex-1`. */}
-      <div className="shrink-0 p-3">
-        <InputGroup className="w-full">
+          enteros deja el buscador parado donde estaba y un hueco a su
+          derecha. */}
+      <div className="flex shrink-0 items-center gap-2 p-3">
+        <InputGroup className="min-w-0 flex-1">
           <InputField
             index={0}
             label="Search conversations"
@@ -245,6 +398,14 @@ function Lista({
             className="[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border"
           />
         </InputGroup>
+
+        <FilterMenu
+          groups={GRUPOS}
+          align="end"
+          variant="secondary"
+          value={filtros}
+          onValueChange={setFiltros}
+        />
       </div>
 
       {/* `[&>div]:min-w-0!`: Base UI mete un envoltorio con `min-width:

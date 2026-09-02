@@ -29,6 +29,8 @@ const RELEASES: Release[] = [
           "Correcting a policy does too: it opens the rail form filled in, instead of a dialog that asked for other things.",
           "Policies and Provisioning create with the same button as the rest of the console.",
           "The policy form handed over the pieces it was going to share.",
+          "The three profile sections filter the same way: Conversations and Emails got the panel Tickets already had.",
+          "The card behind an account name shows what the account is, and stops asking for a click to say more.",
         ],
       },
       {
