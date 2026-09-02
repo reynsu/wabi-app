@@ -9,7 +9,6 @@ import {
 import {
   Ban,
   CalendarPlus,
-  ChartColumn,
   CircleCheck,
   Contact,
   History,
@@ -203,11 +202,25 @@ export function Analiticas({
 /* El vistazo a un usuario, con lo que la fila muestre de él como disparador. Se
    abre con el hover porque no es un destino: es mirar sin irse de la lista.
 
-   Las tres pestañas no parten un dato en tres, muestran cosas distintas: quién
-   es la cuenta, cómo se mueve y cuándo pasaron sus cosas —con las fechas
-   enteras que la tabla abrevia—. El pie lleva las dos acciones, que son las
-   mismas del menú del perfil: acá se las tiene a mano sin irse de la lista, y
-   allá son las de la pantalla de la cuenta.
+   Muestra quién es la cuenta y nada más. Tenía tres pestañas —quién es, cómo se
+   mueve, y cuándo pasaron sus cosas— y las otras dos se fueron: una tarjeta que
+   se abre al pasar el puntero por encima se lee de un vistazo o no se lee, y
+   pedir un clic adentro de algo que se cierra cuando el puntero se va es pedir
+   dos gestos por un dato.
+
+   Lo que se llevaron es distinto en cada caso. Las analíticas siguen enteras en
+   el board de la cuenta —la fila Analytics del perfil, `Analiticas`—, que es
+   donde hay lugar y donde nada se cierra solo. La historia no: eran los dos
+   mismos hechos que la tabla ya tiene en columna —Last Activity y Date Added—,
+   escritos con la fecha entera y un "hace tanto" al lado. Lo que se pierde es
+   esa precisión, no el dato; el día que haga falta, el lugar es el perfil y no
+   una pestaña adentro de un hover.
+
+   Con una sola pestaña el `PeekCard` no dibuja riel —un control segmentado con
+   una opción no ofrece nada—, así que lo que queda es la tarjeta con sus cuatro
+   hechos. El pie lleva las dos acciones, que son las mismas del menú del perfil:
+   acá se las tiene a mano sin irse de la lista, y allá son las de la pantalla de
+   la cuenta.
 
    Se exporta porque la abren dos tablas: acá desde el nombre, y en Email Search
    desde la dirección del autor. Es la misma cuenta y por lo tanto la misma
@@ -288,10 +301,11 @@ export function TarjetaUsuario({
           </Button>
         </>
       }
+      /* Una sola, así que sin `icon`: el glifo de una pestaña sólo se ve en el
+         riel, y sin riel sería un dato que nadie pinta. */
       tabs={[
         {
           label: "Details",
-          icon: IdCard,
           content: (
             <Datos
               filas={[
@@ -315,31 +329,6 @@ export function TarjetaUsuario({
                       {estado.label}
                     </Badge>
                   ),
-                },
-              ]}
-            />
-          ),
-        },
-        {
-          label: "Analytics",
-          icon: ChartColumn,
-          content: <Analiticas usuario={usuario} />,
-        },
-        {
-          label: "Timeline",
-          icon: History,
-          content: (
-            <Datos
-              filas={[
-                {
-                  k: "Last activity",
-                  v: FECHA_HORA.format(new Date(usuario.lastActivity)),
-                  nota: cuandoFue(usuario.lastActivity),
-                },
-                {
-                  k: "Date added",
-                  v: fechaDia(usuario.addedAt),
-                  nota: `${diasDesde(`${usuario.addedAt}T12:00:00Z`)} days ago`,
                 },
               ]}
             />
@@ -371,17 +360,6 @@ const DIA_Y_MES = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
 });
 
-/* La fecha entera, con hora: es lo que la tabla abrevia en "2 h ago" y lo que
-   se va a ver a buscar cuando se abre la tarjeta. */
-const FECHA_HORA = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-  timeZone: "UTC",
-});
-
 /* Minutos a algo que se lea de un vistazo: "40m", "2h 40m", "1d 3h". Nadie
    compara tiempos de respuesta en minutos cuando pasan de una hora. */
 function duracion(minutos: number) {
@@ -400,9 +378,6 @@ function variacion(last30: number, prev30: number) {
   if (prev30 === 0) return null;
   return Math.round(((last30 - prev30) / prev30) * 100);
 }
-
-const diasDesde = (iso: string) =>
-  Math.round((HOY.getTime() - new Date(iso).getTime()) / DIA);
 
 function cuandoFue(iso: string) {
   const pasado = HOY.getTime() - new Date(iso).getTime();
