@@ -640,7 +640,17 @@ function Adjuntos({ adjuntos }: { adjuntos: Adjunto[] }) {
   const shape = useShape();
 
   return (
-    <div className="flex flex-wrap gap-2 border-t border-border pt-4">
+    /* La regla de arriba va punteada y más lavada que la que separa la cabecera
+       del cuerpo, y las dos cosas dicen lo mismo: esto no es una parte nueva del
+       correo sino lo que el cuerpo venía diciendo. Arriba el corte es entre dos
+       clases de cosa —quién lo manda y qué dice—, y ahí una línea llena está
+       bien; acá el adjunto es la última frase del mismo mensaje, y una línea
+       llena lo cortaba como si empezara otra cosa.
+
+       Es la misma punteada con la que las fichas del riel parten una hoja —ver
+       `Corte` en `ficha.tsx`—, por el mismo motivo: separa partes de la misma
+       hoja, no dos superficies distintas. */
+    <div className="flex flex-wrap gap-2 border-t border-dashed border-border/60 pt-4">
       {adjuntos.map((a) => (
         /* No son botones: no hay de dónde bajarlos. Decir que hay algo colgado
            y cuánto pesa es todo lo que esta pantalla puede prometer hoy, y un
