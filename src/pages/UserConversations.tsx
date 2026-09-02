@@ -658,8 +658,15 @@ function Hilo({ conversacion }: { conversacion: Conversacion }) {
             <DropdownContent side="bottom" align="end" className="w-auto">
               {/* Lo que se le hace al registro, arriba y separado de lo que se le
                   hace a la comunicación: no son la misma clase de acción. Es el
-                  mismo reparto que el menú de la cuenta. */}
-              <MenuItem index={0} icon={Save} label="Save conversation" />
+                  mismo reparto que el menú de la cuenta.
+
+                  Los verbos van solos, sin el "conversation" atrás. El menú
+                  cuelga de un botón que se llama "Conversation actions" y está
+                  clavado en la cabecera del hilo: sobre qué actúan ya lo dice el
+                  lugar, y repetirlo en cada fila era la misma palabra tres veces
+                  en tres renglones seguidos. Es lo mismo que hace el botón de
+                  alta con su sustantivo. */}
+              <MenuItem index={0} icon={Save} label="Save" />
               <MenuItem index={1} icon={History} label="History" />
 
               <DropdownSeparator />
@@ -672,11 +679,7 @@ function Hilo({ conversacion }: { conversacion: Conversacion }) {
               <MenuItem
                 index={2}
                 icon={conversacion.bloqueada ? CircleCheck : Ban}
-                label={
-                  conversacion.bloqueada
-                    ? "Unblock conversation"
-                    : "Block conversation"
-                }
+                label={conversacion.bloqueada ? "Unblock" : "Block"}
               />
             </DropdownContent>
           </DropdownMenu>
