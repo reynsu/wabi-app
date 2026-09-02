@@ -61,6 +61,24 @@ export interface Conversacion {
   /** Sin leer del lado de la cuenta. Cero es lo normal; el badge sólo aparece
    *  cuando hay algo. */
   sinLeer: number;
+  /** Si este hilo está cortado: no entra ni sale nada por él.
+   *
+   *  Hoy sale del estado de la cuenta —una cuenta bloqueada no está recibiendo
+   *  nada, y eso vale para todos sus hilos por igual—, que es la misma regla
+   *  con la que se apaga `sinLeer` dos líneas más abajo. Deriva y no se escribe
+   *  en la plantilla: marcar un hilo suelto como bloqueado sería inventarle a
+   *  esta casa una historia que no tiene, y un fixture que cuenta algo que
+   *  nadie escribió se nota.
+   *
+   *  Existe como campo del hilo y no se lee de `usuario.status` en la pantalla
+   *  porque son dos hechos que van a separarse: cortarle la comunicación a una
+   *  residente entera no es lo mismo que cortarle **un** contacto —el sobrino
+   *  que pide plata— y es lo segundo lo que el menú del hilo va a hacer. El día
+   *  que eso se escriba, cambia de dónde sale este booleano y nada más.
+   *
+   *  Por ahora sólo decide qué dice ese menú, "Block" o "Unblock": nada lo
+   *  cambia todavía. Ver la nota al pie de `UserConversations`. */
+  bloqueada: boolean;
   /** Del más viejo al más nuevo, que es el orden en que se leen. */
   mensajes: Mensaje[];
 }
@@ -294,6 +312,7 @@ function construir(usuario: Usuario): Conversacion[] {
          dice que algo la está esperando cuando no es cierto. */
       sinLeer:
         k === 0 && usuario.status === "active" ? plantilla.sinLeer ?? 0 : 0,
+      bloqueada: usuario.status === "blocked",
       mensajes: plantilla.mensajes.map((m, i) => {
         const hablado = esHablado(m, n, k, i);
         /* La foto sólo si no es nota: las dos preguntas en orden y la primera

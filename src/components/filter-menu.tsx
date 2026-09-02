@@ -128,6 +128,16 @@ interface FilterMenuProps {
   groups: FilterGroup[];
   /** The button's label and the panel's accessible name. */
   label?: string;
+  /** Drops the word from the button and leaves the glyph. The label doesn't go
+   *  away —it becomes the button's `aria-label`— so what changes is what's
+   *  drawn, not what the button says it is.
+   *
+   *  For toolbars where the word is dead weight: a header that already has a
+   *  search field and another icon button next to it, and where the filter
+   *  funnel is the only glyph that means "narrow this down". The counter stays
+   *  when something is filtered — that's the whole reason it exists, and
+   *  without it there'd be no way to tell a filtered list from a full one. */
+  labelHidden?: boolean;
   value?: FilterSelection;
   defaultValue?: FilterSelection;
   onValueChange?: (value: FilterSelection) => void;
@@ -800,6 +810,7 @@ function PanelList({
 function FilterMenu({
   groups,
   label = "Filters",
+  labelHidden = false,
   value,
   defaultValue,
   onValueChange,
@@ -1092,8 +1103,24 @@ function FilterMenu({
           render={
             <Button
               variant={variant}
-              leadingIcon={ListFilter}
-              size={size}
+              /* Without the word, the glyph stops being a leading icon and
+                 becomes the button's whole content — so it goes in as a child
+                 and the button takes the square size of the ladder's step. With
+                 a counter it can't stay square: the number needs room, so the
+                 button falls back to the padded size and draws the two things
+                 side by side. Either way the word is gone, which is the point;
+                 what a filtered list can't afford to lose is the count. */
+              leadingIcon={labelHidden ? undefined : ListFilter}
+              size={
+                labelHidden && triggerCount === 0
+                  ? size === "compact"
+                    ? "icon-compact"
+                    : "icon"
+                  : size
+              }
+              /* The label doesn't disappear, it moves: a button whose only
+                 content is a glyph has nothing for a screen reader to read. */
+              aria-label={labelHidden ? label : undefined}
               active={open}
               className={className}
             />
@@ -1107,9 +1134,11 @@ function FilterMenu({
               would drop to the next line. */}
           {triggerCount > 0 ? (
             <span className={cn("inline-flex items-center", classes.gap)}>
-              {label}
+              {labelHidden ? <ListFilter aria-hidden /> : label}
               <Count>{triggerCount}</Count>
             </span>
+          ) : labelHidden ? (
+            <ListFilter aria-hidden />
           ) : (
             label
           )}

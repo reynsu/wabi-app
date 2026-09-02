@@ -3,13 +3,18 @@
 import { useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  Ban,
   CalendarClock,
+  CircleCheck,
   CircleDot,
+  History,
   Image as ImageIcon,
   Lock,
   MessageSquareOff,
   Mic,
+  MoreHorizontal,
   Paperclip,
+  Save,
   Search,
 } from "lucide-react";
 
@@ -20,8 +25,16 @@ import {
   type FilterSelection,
 } from "@/components/filter-menu";
 import { MessageThread } from "@/components/message-thread";
+import {
+  DropdownContent,
+  DropdownMenu,
+  DropdownSeparator,
+  DropdownTrigger,
+} from "@/components/ui/dropdown";
+import { MenuItem } from "@/components/ui/menu-item";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { InputField, InputGroup } from "@/components/ui/input-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ListPane } from "@/components/list-pane";
@@ -591,13 +604,70 @@ function Hilo({ conversacion }: { conversacion: Conversacion }) {
           />
         </InputGroup>
 
+        {/* Sin la palabra: el embudo es el único glifo de esta barra que dice
+            "achicá esto", y al lado de un campo de búsqueda y de otro botón de
+            ícono la palabra era ancho gastado. El contador se queda cuando hay
+            algo filtrado —es para lo que existe—; ver `labelHidden`. */}
         <FilterMenu
           groups={GRUPOS_DEL_HILO}
           align="end"
           variant="secondary"
+          labelHidden
           value={filtros}
           onValueChange={setFiltros}
         />
+
+        {/* Lo que se le hace al hilo, en un menú y no en tres botones sueltos.
+            Son cosas que se le hacen a la conversación y no cosas que la
+            pantalla ofrece —son infrecuentes y pesarían más que los dos
+            controles que tienen al lado—, y el glifo de "más" es como esta app
+            ya dice "acá hay más de lo que se ve". Es el mismo disparador, con
+            el mismo `align="end"`, que el menú de la cuenta en el header del
+            perfil.
+
+            **Ninguna de las tres hace nada todavía**: ver la nota al pie. */}
+        <DropdownMenu>
+          <DropdownTrigger
+            render={
+              <Button
+                variant="secondary"
+                size="icon"
+                aria-label="Conversation actions"
+              />
+            }
+          >
+            <MoreHorizontal />
+          </DropdownTrigger>
+
+          {/* `w-auto`: los 288px que trae el panel son para un menú de
+              navegación, donde filas de largos distintos se alinean con un
+              ancho parejo; acá son tres acciones cortas y ese ancho deja media
+              caja vacía. */}
+          <DropdownContent side="bottom" align="end" className="w-auto">
+            {/* Lo que se le hace al registro, arriba y separado de lo que se le
+                hace a la comunicación: no son la misma clase de acción. Es el
+                mismo reparto que el menú de la cuenta. */}
+            <MenuItem index={0} icon={Save} label="Save conversation" />
+            <MenuItem index={1} icon={History} label="History" />
+
+            <DropdownSeparator />
+
+            {/* Bloquear y desbloquear son la misma fila —un hilo está de un lado
+                o del otro, nunca de los dos—, así que la fila cambia de etiqueta
+                y de ícono en vez de aparecer al lado de su contraria. Es la
+                misma regla que el menú de la cuenta y que el pie del `PeekCard`
+                de la tabla. */}
+            <MenuItem
+              index={2}
+              icon={conversacion.bloqueada ? CircleCheck : Ban}
+              label={
+                conversacion.bloqueada
+                  ? "Unblock conversation"
+                  : "Block conversation"
+              }
+            />
+          </DropdownContent>
+        </DropdownMenu>
       </motion.header>
 
       <ScrollArea
@@ -698,4 +768,21 @@ export function UserConversations({
    La segunda es la que corresponde, y es la que hay que escribir. Mientras
    tanto los atributos ya están declarados —`GRUPOS_DEL_HILO`— y reusan las
    mismas opciones que el panel de la lista, así que el día que se escriba no hay
-   que inventar el vocabulario otra vez. */
+   que inventar el vocabulario otra vez.
+
+   **Las tres acciones del menú.** Las filas están y ninguna hace nada, y lo que
+   le falta a cada una es distinto:
+
+   - **Block / Unblock** es la que más lejos está, y no por la escritura sino por
+     el modelo. `Conversacion.bloqueada` hoy sale del estado de la cuenta —una
+     residente bloqueada tiene todos sus hilos cortados—, así que desbloquear
+     *este* hilo no tiene dónde guardarse sin desbloquear a la persona entera.
+     Cortar un contacto suelto es el hecho que falta: una tienda como la de los
+     tickets, con el id del hilo, y `bloqueada` pasando a leerse de ahí. La fila
+     ya dice la etiqueta correcta contra el estado que hay.
+   - **Save** espera lo mismo que el "Save user" del header del perfil: no hay
+     nada editable en un hilo todavía, así que no hay qué guardar. Cuando lo
+     haya, lo que falta es eso y no esta fila.
+   - **History** es la más barata de las tres y la que más se parece a algo que
+     ya existe: el riel de un ticket muestra su historia con `LateralPreview`, y
+     acá sería la misma pieza contra las novedades del hilo. */
