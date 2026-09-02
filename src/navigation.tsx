@@ -18,6 +18,7 @@ import {
 
 import type { IconComponent } from "@/lib/icon-context";
 import { Announcements } from "@/pages/Announcements";
+import { EmailReports } from "@/pages/EmailReports";
 import { EmailSearch } from "@/pages/EmailSearch";
 import { MessageSearch } from "@/pages/MessageSearch";
 import { SupportTickets } from "@/pages/SupportTickets";
@@ -101,7 +102,9 @@ export const NAV: NavGroup[] = [
       hoja("email/policies", "Policies", ShieldCheck, "Email", (tabId) => (
         <Policies tabId={tabId} />
       )),
-      hoja("email/reports", "Reports", FileChartColumn, "Email"),
+      hoja("email/reports", "Reports", FileChartColumn, "Email", () => (
+        <EmailReports />
+      )),
     ],
   },
   {
