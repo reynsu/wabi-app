@@ -745,12 +745,18 @@ function Vista({ email, usuario }: { email: Email; usuario: Usuario }) {
             </div>
           </motion.header>
 
-          {/* El cuerpo, párrafo por párrafo. `max-w` en caracteres y no en
-              píxeles: lo que hace legible una columna de texto es cuántos
-              signos entran en un renglón, no cuánto mide en pantalla. */}
+          {/* El cuerpo, párrafo por párrafo, a lo ancho de lo que haya.
+              Estaba acotado a 68 caracteres —la medida en la que una columna de
+              texto se lee sin que el ojo pierda el renglón al volver—, y acá esa
+              regla protegía de un problema que este panel no tiene: el correo se
+              abre al lado de una lista que ya se lleva 425 píxeles, y la regla
+              del corte y el filete de arriba dejaban un escalón contra la
+              derecha que se leía como un bloque flojo en vez de como una
+              columna cuidada. La franja de lectura la marca el panel; el cuerpo
+              la ocupa entera. */}
           <motion.div
             variants={entraBloque}
-            className="flex max-w-[68ch] flex-col gap-3 border-t border-border pt-4 leading-relaxed"
+            className="flex flex-col gap-3 border-t border-border pt-4 leading-relaxed"
             style={{ fontSize: escala.body }}
           >
             {email.cuerpo.map((parrafo, i) => (
