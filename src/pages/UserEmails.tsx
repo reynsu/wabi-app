@@ -28,7 +28,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { ListPane } from "@/components/list-pane";
 import { useProximityHover } from "@/hooks/use-proximity-hover";
 import { useShape } from "@/lib/shape-context";
-import { useTypeScale } from "@/lib/size-context";
+import { SizeProvider, useTypeScale } from "@/lib/size-context";
 import { spring } from "@/lib/springs";
 import { cn } from "@/lib/utils";
 import {
@@ -433,29 +433,37 @@ function Lista({
           trae un `w-72` fijo —el ancho de un formulario suelto— y este panel es
           redimensionable: con el ancho fijo, arrastrarlo para ver los asuntos
           enteros deja el buscador parado donde estaba y un hueco a su
-          derecha. */}
-      <div className="flex shrink-0 items-center gap-2 p-3">
-        <InputGroup className="min-w-0 flex-1">
-          <InputField
-            index={0}
-            label="Search emails"
-            labelHidden
-            icon={Search}
-            placeholder="Search emails"
-            value={busqueda}
-            onChange={setBusqueda}
-            className="[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border"
-          />
-        </InputGroup>
+          derecha.
 
-        <FilterMenu
-          groups={GRUPOS}
-          align="end"
-          variant="secondary"
-          value={filtros}
-          onValueChange={setFiltros}
-        />
-      </div>
+          Y en el escalón compacto: es la barra de herramientas de una columna
+          angosta, no un formulario. El escalón se pone una vez sobre el renglón
+          y no control por control —el campo, el panel y el botón lo leen del
+          `SizeProvider`—, que es como las tablas de esta consola resuelven lo
+          mismo. */}
+      <SizeProvider size="compact">
+        <div className="flex shrink-0 items-center gap-2 p-3">
+          <InputGroup className="min-w-0 flex-1">
+            <InputField
+              index={0}
+              label="Search emails"
+              labelHidden
+              icon={Search}
+              placeholder="Search emails"
+              value={busqueda}
+              onChange={setBusqueda}
+              className="[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border"
+            />
+          </InputGroup>
+
+          <FilterMenu
+            groups={GRUPOS}
+            align="end"
+            variant="secondary"
+            value={filtros}
+            onValueChange={setFiltros}
+          />
+        </div>
+      </SizeProvider>
 
       {/* `[&>div]:min-w-0!` por lo mismo que en Conversations: el envoltorio
           que Base UI mete adentro del viewport trae `min-width: fit-content` y

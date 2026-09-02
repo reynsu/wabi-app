@@ -40,7 +40,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { ListPane } from "@/components/list-pane";
 import { useProximityHover } from "@/hooks/use-proximity-hover";
 import { useShape } from "@/lib/shape-context";
-import { useTypeScale } from "@/lib/size-context";
+import { SizeProvider, useTypeScale } from "@/lib/size-context";
 import { spring } from "@/lib/springs";
 import { cn } from "@/lib/utils";
 import {
@@ -397,29 +397,37 @@ function Lista({
           trae un `w-72` fijo —el ancho de un formulario suelto— y este panel es
           redimensionable: con el ancho fijo, arrastrarlo para ver los nombres
           enteros deja el buscador parado donde estaba y un hueco a su
-          derecha. */}
-      <div className="flex shrink-0 items-center gap-2 p-3">
-        <InputGroup className="min-w-0 flex-1">
-          <InputField
-            index={0}
-            label="Search conversations"
-            labelHidden
-            icon={Search}
-            placeholder="Search conversations"
-            value={busqueda}
-            onChange={setBusqueda}
-            className="[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border"
-          />
-        </InputGroup>
+          derecha.
 
-        <FilterMenu
-          groups={GRUPOS}
-          align="end"
-          variant="secondary"
-          value={filtros}
-          onValueChange={setFiltros}
-        />
-      </div>
+          Y en el escalón compacto: es la barra de herramientas de una columna
+          angosta, no un formulario. El escalón se pone una vez sobre el renglón
+          y no control por control —el campo, el panel y el botón lo leen del
+          `SizeProvider`—, que es como las tablas de esta consola resuelven lo
+          mismo. */}
+      <SizeProvider size="compact">
+        <div className="flex shrink-0 items-center gap-2 p-3">
+          <InputGroup className="min-w-0 flex-1">
+            <InputField
+              index={0}
+              label="Search conversations"
+              labelHidden
+              icon={Search}
+              placeholder="Search conversations"
+              value={busqueda}
+              onChange={setBusqueda}
+              className="[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border"
+            />
+          </InputGroup>
+
+          <FilterMenu
+            groups={GRUPOS}
+            align="end"
+            variant="secondary"
+            value={filtros}
+            onValueChange={setFiltros}
+          />
+        </div>
+      </SizeProvider>
 
       {/* `[&>div]:min-w-0!`: Base UI mete un envoltorio con `min-width:
           fit-content` adentro del viewport para poder medir el ancho
@@ -574,101 +582,104 @@ function Hilo({ conversacion }: { conversacion: Conversacion }) {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      {/* Buscar adentro del hilo abierto. El mismo alto y el mismo aire que el
-          buscador de la lista —y el mismo par de controles, en el mismo orden—,
-          así las dos columnas arrancan a la misma altura y se recorren igual.
+      {/* Buscar adentro del hilo abierto. El mismo alto, el mismo aire y el
+          mismo escalón compacto que el buscador de la lista —y el mismo par de
+          controles, en el mismo orden—, así las dos columnas arrancan a la
+          misma altura y se recorren igual.
 
           Contra el borde derecho y sin nada a la izquierda: con quién es el hilo
           ya lo dice la fila encendida de la lista, dos centímetros más allá, y
           repetirlo acá era decir dos veces lo mismo a la misma altura. */}
-      <motion.header
-        /* La cabecera del hilo no espera turno: es lo que contesta al clic
-           —"abriste esta"— y llegar tarde a su propia respuesta la haría ver
-           lenta. Entra sola y en el escalón rápido; la cascada empieza
-           después, abajo. */
-        initial={{ opacity: 0, y: -4 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={spring.fast}
-        className="flex shrink-0 items-center justify-end gap-2 border-b border-border px-4 py-3"
-      >
-        <InputGroup className="w-56">
-          <InputField
-            index={0}
-            label="Search this conversation"
-            labelHidden
-            icon={Search}
-            placeholder="Search this conversation"
-            value={busqueda}
-            onChange={setBusqueda}
-            className="[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border"
-          />
-        </InputGroup>
-
-        {/* Sin la palabra: el embudo es el único glifo de esta barra que dice
-            "achicá esto", y al lado de un campo de búsqueda y de otro botón de
-            ícono la palabra era ancho gastado. El contador se queda cuando hay
-            algo filtrado —es para lo que existe—; ver `labelHidden`. */}
-        <FilterMenu
-          groups={GRUPOS_DEL_HILO}
-          align="end"
-          variant="secondary"
-          labelHidden
-          value={filtros}
-          onValueChange={setFiltros}
-        />
-
-        {/* Lo que se le hace al hilo, en un menú y no en tres botones sueltos.
-            Son cosas que se le hacen a la conversación y no cosas que la
-            pantalla ofrece —son infrecuentes y pesarían más que los dos
-            controles que tienen al lado—, y el glifo de "más" es como esta app
-            ya dice "acá hay más de lo que se ve". Es el mismo disparador, con
-            el mismo `align="end"`, que el menú de la cuenta en el header del
-            perfil.
-
-            **Ninguna de las tres hace nada todavía**: ver la nota al pie. */}
-        <DropdownMenu>
-          <DropdownTrigger
-            render={
-              <Button
-                variant="secondary"
-                size="icon"
-                aria-label="Conversation actions"
-              />
-            }
-          >
-            <MoreHorizontal />
-          </DropdownTrigger>
-
-          {/* `w-auto`: los 288px que trae el panel son para un menú de
-              navegación, donde filas de largos distintos se alinean con un
-              ancho parejo; acá son tres acciones cortas y ese ancho deja media
-              caja vacía. */}
-          <DropdownContent side="bottom" align="end" className="w-auto">
-            {/* Lo que se le hace al registro, arriba y separado de lo que se le
-                hace a la comunicación: no son la misma clase de acción. Es el
-                mismo reparto que el menú de la cuenta. */}
-            <MenuItem index={0} icon={Save} label="Save conversation" />
-            <MenuItem index={1} icon={History} label="History" />
-
-            <DropdownSeparator />
-
-            {/* Bloquear y desbloquear son la misma fila —un hilo está de un lado
-                o del otro, nunca de los dos—, así que la fila cambia de etiqueta
-                y de ícono en vez de aparecer al lado de su contraria. Es la
-                misma regla que el menú de la cuenta y que el pie del `PeekCard`
-                de la tabla. */}
-            <MenuItem
-              index={2}
-              icon={conversacion.bloqueada ? CircleCheck : Ban}
-              label={
-                conversacion.bloqueada
-                  ? "Unblock conversation"
-                  : "Block conversation"
-              }
+      <SizeProvider size="compact">
+        <motion.header
+          /* La cabecera del hilo no espera turno: es lo que contesta al clic
+             —"abriste esta"— y llegar tarde a su propia respuesta la haría ver
+             lenta. Entra sola y en el escalón rápido; la cascada empieza
+             después, abajo. */
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={spring.fast}
+          className="flex shrink-0 items-center justify-end gap-2 border-b border-border px-4 py-3"
+        >
+          <InputGroup className="w-56">
+            <InputField
+              index={0}
+              label="Search this conversation"
+              labelHidden
+              icon={Search}
+              placeholder="Search this conversation"
+              value={busqueda}
+              onChange={setBusqueda}
+              className="[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border"
             />
-          </DropdownContent>
-        </DropdownMenu>
-      </motion.header>
+          </InputGroup>
+
+          {/* Sin la palabra: el embudo es el único glifo de esta barra que dice
+              "achicá esto", y al lado de un campo de búsqueda y de otro botón de
+              ícono la palabra era ancho gastado. El contador se queda cuando hay
+              algo filtrado —es para lo que existe—; ver `labelHidden`. */}
+          <FilterMenu
+            groups={GRUPOS_DEL_HILO}
+            align="end"
+            variant="secondary"
+            labelHidden
+            value={filtros}
+            onValueChange={setFiltros}
+          />
+
+          {/* Lo que se le hace al hilo, en un menú y no en tres botones sueltos.
+              Son cosas que se le hacen a la conversación y no cosas que la
+              pantalla ofrece —son infrecuentes y pesarían más que los dos
+              controles que tienen al lado—, y el glifo de "más" es como esta app
+              ya dice "acá hay más de lo que se ve". Es el mismo disparador, con
+              el mismo `align="end"`, que el menú de la cuenta en el header del
+              perfil.
+
+              **Ninguna de las tres hace nada todavía**: ver la nota al pie. */}
+          <DropdownMenu>
+            <DropdownTrigger
+              render={
+                <Button
+                  variant="secondary"
+                  size="icon-compact"
+                  aria-label="Conversation actions"
+                />
+              }
+            >
+              <MoreHorizontal />
+            </DropdownTrigger>
+
+            {/* `w-auto`: los 288px que trae el panel son para un menú de
+                navegación, donde filas de largos distintos se alinean con un
+                ancho parejo; acá son tres acciones cortas y ese ancho deja media
+                caja vacía. */}
+            <DropdownContent side="bottom" align="end" className="w-auto">
+              {/* Lo que se le hace al registro, arriba y separado de lo que se le
+                  hace a la comunicación: no son la misma clase de acción. Es el
+                  mismo reparto que el menú de la cuenta. */}
+              <MenuItem index={0} icon={Save} label="Save conversation" />
+              <MenuItem index={1} icon={History} label="History" />
+
+              <DropdownSeparator />
+
+              {/* Bloquear y desbloquear son la misma fila —un hilo está de un lado
+                  o del otro, nunca de los dos—, así que la fila cambia de etiqueta
+                  y de ícono en vez de aparecer al lado de su contraria. Es la
+                  misma regla que el menú de la cuenta y que el pie del `PeekCard`
+                  de la tabla. */}
+              <MenuItem
+                index={2}
+                icon={conversacion.bloqueada ? CircleCheck : Ban}
+                label={
+                  conversacion.bloqueada
+                    ? "Unblock conversation"
+                    : "Block conversation"
+                }
+              />
+            </DropdownContent>
+          </DropdownMenu>
+        </motion.header>
+      </SizeProvider>
 
       <ScrollArea
         className="min-h-0 flex-1"

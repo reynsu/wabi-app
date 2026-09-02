@@ -37,7 +37,7 @@ import { InputField, InputGroup } from "@/components/ui/input-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ListPane } from "@/components/list-pane";
 import { useProximityHover } from "@/hooks/use-proximity-hover";
-import { useTypeScale } from "@/lib/size-context";
+import { SizeProvider, useTypeScale } from "@/lib/size-context";
 import { spring } from "@/lib/springs";
 import { cn } from "@/lib/utils";
 import { cuandoCorto, diaLargo, diasDesde, hora } from "@/pages/tiempo";
@@ -353,29 +353,38 @@ function Lista({
     <ListPane id="tickets">
       {/* El buscador y el filtro, en la misma fila. El campo se lleva lo que
           sobra y el botón mide lo suyo: los dos recortan la misma lista, y
-          ponerlos en dos renglones haría creer que son dos cosas. */}
-      <div className="flex shrink-0 items-center gap-2 p-3">
-        <InputGroup className="min-w-0 flex-1">
-          <InputField
-            index={0}
-            label="Search tickets"
-            labelHidden
-            icon={Search}
-            placeholder="Search tickets"
-            value={busqueda}
-            onChange={setBusqueda}
-            className="[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border"
-          />
-        </InputGroup>
+          ponerlos en dos renglones haría creer que son dos cosas.
 
-        <FilterMenu
-          groups={GRUPOS}
-          align="end"
-          variant="secondary"
-          value={filtros}
-          onValueChange={setFiltros}
-        />
-      </div>
+          Y en el escalón compacto. Son la barra de herramientas de una columna
+          angosta —no un formulario— y en el escalón normal quedaban más altos
+          que las filas que recortan. El escalón se pone una vez sobre el
+          renglón y no control por control: el campo, el panel y el botón lo leen
+          del `SizeProvider`, que es como las tablas de esta consola resuelven lo
+          mismo. */}
+      <SizeProvider size="compact">
+        <div className="flex shrink-0 items-center gap-2 p-3">
+          <InputGroup className="min-w-0 flex-1">
+            <InputField
+              index={0}
+              label="Search tickets"
+              labelHidden
+              icon={Search}
+              placeholder="Search tickets"
+              value={busqueda}
+              onChange={setBusqueda}
+              className="[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border"
+            />
+          </InputGroup>
+
+          <FilterMenu
+            groups={GRUPOS}
+            align="end"
+            variant="secondary"
+            value={filtros}
+            onValueChange={setFiltros}
+          />
+        </div>
+      </SizeProvider>
 
       <ScrollArea
         className="min-h-0 flex-1"

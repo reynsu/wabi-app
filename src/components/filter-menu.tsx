@@ -67,6 +67,7 @@ import { shapeMap } from "@/lib/shape-context";
 import {
   SizeProvider,
   useSize,
+  useSizeVariant,
   useTypeScale,
   type SizeVariant,
 } from "@/lib/size-context";
@@ -852,6 +853,11 @@ function FilterMenu({
   // outside the `SizeProvider` this very component mounts. What's portalled does
   // read it from the provider — React context crosses the portal.
   const classes = useSize(size);
+  /* El escalón resuelto, no el que llegó por prop: sin `size`, el botón sigue
+     al `SizeProvider` que lo rodea, y el tamaño de ícono de `labelHidden` tiene
+     que seguir al mismo. Leyendo sólo la prop, un embudo adentro de una región
+     compacta salía del tamaño grande. */
+  const escalon = useSizeVariant(size);
   const scale = useTypeScale(size);
 
   const commit = useCallback(
@@ -1113,7 +1119,7 @@ function FilterMenu({
               leadingIcon={labelHidden ? undefined : ListFilter}
               size={
                 labelHidden && triggerCount === 0
-                  ? size === "compact"
+                  ? escalon === "compact"
                     ? "icon-compact"
                     : "icon"
                   : size
