@@ -2,15 +2,17 @@ import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { sileo } from "sileo";
 import {
-  CalendarRange,
+  CalendarClock,
   Download,
-  FileChartColumn,
   FileText,
   Loader,
   Search,
   Tag,
+  UserPen,
 } from "lucide-react";
 
+import { BotonDeAlta } from "@/components/boton-de-alta";
+import { FilaDestellante } from "@/components/fila-destellante";
 import {
   AnimatedEmpty,
   AnimatedEmptyDescription,
@@ -45,19 +47,22 @@ import { descargar } from "@/lib/descargar";
 import { SizeProvider, useTypeScale } from "@/lib/size-context";
 import { spring } from "@/lib/springs";
 import { cn } from "@/lib/utils";
+import { useCuentasDOC, type CuentaDOC } from "@/pages/cuentas-doc";
+import { useAltaDeReporte } from "@/pages/NuevoReporte";
 import {
   ESTADOS_DE_REPORTE,
   ORDEN_ESTADOS,
-  ORDEN_TIPOS,
-  TIPOS_DE_REPORTE,
-  archivoDeReporte,
-  csvDeReporte,
+  ORDEN_TIPOS_DOC,
+  TIPOS_DE_REPORTE_DOC,
+  archivoDeReporteDOC,
+  csvDeReporteDOC,
+  quienPidio,
   sePuedeBajar,
-  tramoDePeriodo,
-  useReportes,
-  type Reporte,
-} from "@/pages/reportes";
-import { fechaDia } from "@/pages/tiempo";
+  tramoDePedido,
+  useReportesDOC,
+  type ReporteDOC,
+} from "@/pages/reportes-admin";
+import { fechaLarga, haceCuanto } from "@/pages/tiempo";
 import { useUsuarios, type Usuario } from "@/pages/usuarios";
 import {
   AIRE_FILA,
@@ -66,23 +71,29 @@ import {
   SANGRIA,
 } from "@/pages/tabla";
 
-/* La pantalla de Email Reports: las semanas que la casa ya cerró.
+/* La pantalla de Admin › Reports: lo que se le pidió a esta consola.
 
-   Es el mismo mueble que Policies, Provisioning y Email Search —header con la
-   búsqueda y el panel de filtros; la tabla debajo con su cabecera flotando sobre
-   el scroller; el pie con el rango y el pager— porque son cuatro maneras de
-   mirar el correo de la misma consola, y cambiar de fila del sidebar no debería
-   cambiar de mueble.
+   Es el mismo mueble que Policies, DOC Accounts, Provisioning, Email Search y
+   Email Reports —header con la búsqueda y el panel de filtros; la tabla debajo
+   con su cabecera flotando sobre el scroller; el pie con el rango y el pager—:
+   son seis maneras de mirar la misma consola, y cambiar de fila del sidebar no
+   debería cambiar de mueble.
 
-   Seis columnas, y la sexta no tiene título porque no muestra un dato: es lo que
-   se puede hacer con la fila. Una columna de acciones con un rótulo promete un
-   dato que no está. Es la misma decisión que toma Policies con su menú.
+   Cinco columnas, y la quinta no tiene título porque no muestra un dato: es lo
+   que se puede hacer con la fila. Una columna de acciones con un rótulo promete
+   un dato que no está. Es la misma decisión que toman Policies y Email Reports.
 
-   Lo que esta tabla tiene y las otras no es que **sus filas se repiten el
-   nombre**: dos reportes de julio se llaman los dos "KC-B July 2026 Report". No
-   es un error del fixture —el nombre dice de qué mes es— y es la razón de que la
-   columna del período exista: es lo único que distingue una fila de la de
-   abajo. */
+   Lo que separa esta tabla de la de Email › Reports —que a primera vista es la
+   misma— es de dónde viene la fila. Allá el reporte es una semana que cerró
+   sola, así que la tabla se ordena por la ventana que cubre y no hay a quién
+   preguntarle por qué existe. Acá cada fila es alguien que entró y pidió algo:
+   la tabla se ordena por el pedido, el tipo tiene columna propia —porque es lo
+   que se eligió al pedir— y quién lo pidió es una pregunta que el panel sabe
+   hacer.
+
+   Y no hay columna de período: un reporte pedido no cubre una ventana, es una
+   foto de la casa al momento de pedirla. Una columna que dijera lo mismo que la
+   del pedido sería un ancho gastado en repetir. */
 
 /* ─────────────────────────── El movimiento ───────────────────────────
 
@@ -115,7 +126,20 @@ const entraCelda = {
 /* Los conteos salen de la lista que se está mirando y no de una constante: un
    panel que dice un número y devuelve otro miente sobre lo que va a hacer. */
 
-const opcionesEstado = (filas: Reporte[]): FilterOption[] =>
+/* El tipo es lo primero que se pregunta acá, al revés que en Email › Reports:
+   allá hay un solo tipo y el atributo está para el día que haya dos; acá los
+   tres son lo que se pidió, y "mostrame los de IDs" es la pregunta con la que
+   uno abre el panel. Va con el punto de color del tipo, como los estados: el
+   panel distingue un valor por el color con el que ese valor ya se distingue. */
+const opcionesTipo = (filas: ReporteDOC[]): FilterOption[] =>
+  ORDEN_TIPOS_DOC.map((value) => ({
+    value,
+    label: TIPOS_DE_REPORTE_DOC[value].label,
+    icon: punto(TIPOS_DE_REPORTE_DOC[value].tinte),
+    hint: String(filas.filter((r) => r.tipo === value).length),
+  }));
+
+const opcionesEstado = (filas: ReporteDOC[]): FilterOption[] =>
   ORDEN_ESTADOS.map((value) => ({
     value,
     label: ESTADOS_DE_REPORTE[value].label,
@@ -123,39 +147,46 @@ const opcionesEstado = (filas: Reporte[]): FilterOption[] =>
     hint: String(filas.filter((r) => r.estado === value).length),
   }));
 
-const opcionesTipo = (filas: Reporte[]): FilterOption[] =>
-  ORDEN_TIPOS.map((value) => ({
-    value,
-    label: TIPOS_DE_REPORTE[value].label,
-    hint: String(filas.filter((r) => r.tipo === value).length),
-  }));
+/* Quién pidió. Las opciones salen de los pedidos que hay y no del padrón de
+   cuentas DOC: la tabla tiene quince cuentas y sólo siete pidieron algo, y ocho
+   opciones que devuelven cero son ocho maneras de vaciar la tabla sin querer.
 
-/* Los tramos del período. Escritos como tramos y no como un calendario porque
-   el panel de esta consola no tiene uno: lo que hay son atributos de lista y de
-   texto —ver `filter-menu.tsx`—, y los mismos cuatro cortes los ofrecen Accounts,
-   Provisioning y Policies. Un rango con dos fechas exactas es otro control; ver
-   la nota al pie de este archivo. */
-const OPCIONES_PERIODO: FilterOption[] = [
+   Ordenadas por cuántos pidió cada uno: la lista de arriba a abajo dice quién
+   usa esto, que es la mitad de la pregunta que uno viene a hacer al panel. */
+const opcionesQuien = (
+  filas: ReporteDOC[],
+  cuentas: CuentaDOC[],
+): FilterOption[] => {
+  const cuantos = new Map<string, number>();
+  for (const r of filas) {
+    cuantos.set(r.pedidoPor, (cuantos.get(r.pedidoPor) ?? 0) + 1);
+  }
+
+  return [...cuantos.entries()]
+    .sort(([, a], [, b]) => b - a)
+    .map(([value, cuantas]) => ({
+      value,
+      label: quienPidio(value, cuentas),
+      hint: String(cuantas),
+    }));
+};
+
+/* Los tramos del pedido. Los mismos cuatro cortes que ofrecen Accounts,
+   Provisioning, Policies y Email › Reports: es la misma pregunta hecha en cinco
+   pantallas, y un corte distinto en una sola las volvería incomparables. */
+const OPCIONES_PEDIDO: FilterOption[] = [
   { value: "30d", label: "Last 30 days" },
   { value: "90d", label: "Last 90 days" },
   { value: "year", label: "This year" },
   { value: "older", label: "Before this year" },
 ];
 
-const grupos = (filas: Reporte[]): FilterGroup[] => [
+const grupos = (filas: ReporteDOC[], cuentas: CuentaDOC[]): FilterGroup[] => [
   {
     label: "The report",
     attributes: [
-      { id: "name", label: "Report", icon: FileText, type: "text" },
-      /* De qué es. Hoy hay un solo tipo, así que elegirlo no saca ninguna fila:
-         el atributo está para el día que haya dos, y para que quien mire el
-         panel sepa que esa dimensión existe. */
-      {
-        id: "type",
-        label: "Type",
-        icon: Tag,
-        options: opcionesTipo(filas),
-      },
+      { id: "name", label: "Name", icon: FileText, type: "text" },
+      { id: "type", label: "Type", icon: Tag, options: opcionesTipo(filas) },
       {
         id: "status",
         label: "Status",
@@ -165,21 +196,27 @@ const grupos = (filas: Reporte[]): FilterGroup[] => [
     ],
   },
   {
-    label: "The record",
+    label: "The request",
     attributes: [
-      /* `single`, como los tramos de Accounts, Provisioning y Policies: "este
-         mes o este año" es "este año". Elegir uno reemplaza al anterior.
-
-         Y uno solo, aunque la fila tenga dos fechas: el período y el alta son el
-         mismo hecho —un reporte se arma el día que su ventana cierra—, así que
-         dos filtros de fecha serían dos maneras de preguntar lo mismo con la
-         posibilidad de contradecirse. Manda la ventana, que es lo que el reporte
-         dice cubrir. */
+      /* Quién lo pidió no tiene columna: lo que se recorre con la vista es qué
+         se pidió y en qué anda, y una sexta columna con quince nombres repetidos
+         le sacaría ancho al nombre, que es lo que se lee. La pregunta existe
+         igual —es del panel— y la respuesta está en la celda del pedido, que la
+         dice cuando se la señala. Es lo mismo que hace Policies con el creador
+         de una regla. */
       {
-        id: "period",
-        label: "Period",
-        icon: CalendarRange,
-        options: OPCIONES_PERIODO,
+        id: "requester",
+        label: "Requested by",
+        icon: UserPen,
+        options: opcionesQuien(filas, cuentas),
+      },
+      /* `single`, como los tramos de las otras cuatro tablas: "este mes o este
+         año" es "este año". Elegir uno reemplaza al anterior. */
+      {
+        id: "requested",
+        label: "Requested",
+        icon: CalendarClock,
+        options: OPCIONES_PEDIDO,
         single: true,
       },
     ],
@@ -188,31 +225,31 @@ const grupos = (filas: Reporte[]): FilterGroup[] => [
 
 /** De qué valores dispone cada reporte para cada atributo del panel. Entre
  *  atributos, Y; entre los valores de un mismo atributo, O. */
-const CAMPOS: Record<string, (r: Reporte) => string[]> = {
+const CAMPOS: Record<string, (r: ReporteDOC) => string[]> = {
   type: (r) => [r.tipo],
   status: (r) => [r.estado],
-  period: (r) => [tramoDePeriodo(r)],
+  requester: (r) => [r.pedidoPor],
+  requested: (r) => [tramoDePedido(r)],
 };
 
 const contiene = (donde: string[], que: string) =>
   donde.some((d) => d.toLowerCase().includes(que.toLowerCase()));
 
-function pasa(reporte: Reporte, busqueda: string, filtros: FilterSelection) {
+function pasa(
+  reporte: ReporteDOC,
+  quien: string,
+  busqueda: string,
+  filtros: FilterSelection,
+) {
   const texto = busqueda.trim().toLowerCase();
-  /* La barra busca en lo que se lee: el nombre, el estado y las dos fechas del
-     período **escritas como se ven**. Buscar "Jul 23" es lo que uno escribe
-     antes de acordarse de que hay un panel, y contra el día suelto —`2026-07-23`—
-     no encontraría nada. */
+  /* La barra busca en lo que se lee, más quién lo pidió: "todo lo que pidió
+     Sabrina" es algo que uno escribe antes de acordarse de que hay un panel, y
+     es la única de las cuatro cosas que no tiene columna. El nombre ya trae el
+     tipo y el día, así que buscar "Blocked" o "06/25" cae ahí. */
   if (
     texto &&
     !contiene(
-      [
-        reporte.nombre,
-        TIPOS_DE_REPORTE[reporte.tipo].label,
-        ESTADOS_DE_REPORTE[reporte.estado].label,
-        fechaDia(reporte.desde),
-        fechaDia(reporte.hasta),
-      ],
+      [reporte.nombre, ESTADOS_DE_REPORTE[reporte.estado].label, quien],
       texto,
     )
   ) {
@@ -236,21 +273,31 @@ function pasa(reporte: Reporte, busqueda: string, filtros: FilterSelection) {
    títulos y la del cuerpo—. Con `table-fixed` el ancho sale de acá y no del
    contenido, que es lo único que las mantiene alineadas estando separadas.
 
-   El período se lleva más que el nombre aunque el nombre vaya primero: son dos
-   fechas enteras con un guión en el medio —"Jul 23, 2026 – Jul 30, 2026"— y
-   apretado eso se parte en dos renglones o se recorta justo en el año, que es la
-   parte que lo desambigua. El nombre, en cambio, se repite entre filas y se lee
-   de un vistazo.
+   El nombre se lleva la porción más grande: es el tipo y el día juntos —"Blocked
+   Communication Report — 09/05/2026"— y es lo que se lee y lo que se busca.
+
+   El tipo va detrás y repite la cabeza del nombre. No es de más: el nombre es
+   cómo se llama el archivo cuando cae en la carpeta, y el tipo es la dimensión
+   por la que esta tabla se agrupa —lo que el panel pregunta y lo que decide qué
+   columnas trae el archivo—. Uno se lee de corrido; el otro se recorre con la
+   vista.
+
+   El estado se lleva más ancho del que su badge necesita, y el pedido menos del
+   que le sobraba. Es a propósito: el badge no llena su columna —termina donde
+   termina la palabra— así que el ancho que le sigue es el aire que separa la
+   pastilla de "2 mo ago". Con la columna justa, las dos quedaban pegadas y se
+   leían como una sola cosa —"Completed 2 mo ago"— en vez de como dos datos, que
+   es lo que son: en qué anda, y de cuándo es. El pedido paga ese aire sin
+   sentirlo: "10 mo ago" es lo más largo que escribe.
 
    La de acciones va en píxeles y no en porcentaje: es lo único de la tabla que
    no muestra un dato sino un botón, y un botón mide lo que mide en cualquier
    ancho de ventana. Son los 28 del botón más la sangría del borde. */
 const COLUMNAS = [
-  { id: "name", ancho: "26%" },
-  { id: "accounts", ancho: "11%" },
-  { id: "period", ancho: "28%" },
-  { id: "status", ancho: "14%" },
-  { id: "created", ancho: "16%" },
+  { id: "name", ancho: "38%" },
+  { id: "type", ancho: "26%" },
+  { id: "status", ancho: "21%" },
+  { id: "requested", ancho: "15%" },
   { id: "acciones", ancho: "60px" },
 ];
 
@@ -264,45 +311,10 @@ function Columnas() {
   );
 }
 
-/**
- * Cuentas — cuántas cubre el reporte.
- *
- * El dígito adentro de una baldosita gris, del alto exacto del badge de Status.
- * Es lo que le da cuerpo: un número solo, alineado a la izquierda de una celda
- * de cien píxeles, deja noventa vacíos —y eso, y no el número, es lo que hacía
- * que la columna se leyera plana entre dos bloques—.
- *
- * La baldosa **no** es un badge, y las dos diferencias son a propósito: el radio
- * es el chico —`rounded-md` contra el `rounded-lg` del badge— y no lleva color
- * nunca. Un badge dice en qué estado está algo; esto dice cuántos son, y las dos
- * cosas viven en la misma fila a dos columnas de distancia.
- *
- * El cero no cambia de forma, sólo se vacía de tinta: la baldosa sigue ahí y el
- * número se apaga. Diez de cada cuarenta semanas no tuvieron altas, y una fila
- * que pierde su baldosa se lee como una fila a la que le falta un dato.
- */
-function Cuentas({ reporte }: { reporte: Reporte }) {
-  const escala = useTypeScale();
-  const cuantas = reporte.cuentas.length;
-
-  return (
-    <span
-      className={cn(
-        "inline-flex h-5 min-w-5 items-center justify-center rounded-md px-1.5 tabular-nums",
-        cuantas > 0
-          ? "bg-muted text-foreground"
-          : "bg-muted/50 text-muted-foreground",
-      )}
-      style={{ fontSize: escala.caption }}
-    >
-      {cuantas}
-    </span>
-  );
-}
-
-/** Cuántos reportes entran en una página. Los mismos que políticas, buzones y
- *  correos: es el mismo mueble mirado con otros ojos, y dos largos de página
- *  distintos harían que el pager cambie de significado al cambiar de sección. */
+/** Cuántos reportes entran en una página. Los mismos que políticas, cuentas,
+ *  buzones y correos: es el mismo mueble mirado con otros ojos, y dos largos de
+ *  página distintos harían que el pager cambie de significado al cambiar de
+ *  sección. */
 const POR_PAGINA = 40;
 
 /* ─────────────────────────── La bajada ─────────────────────────── */
@@ -311,49 +323,45 @@ const POR_PAGINA = 40;
  *
  *  No hay servidor detrás, y sin demora la bajada sería instantánea: se toca el
  *  botón y el archivo ya está. Eso no es lo que va a pasar el día que haya una
- *  API —un reporte de un año son varios megas— y una pantalla diseñada contra
- *  una bajada instantánea no tiene dónde poner lo que pasa mientras. Es la misma
- *  decisión, con el mismo número, que el alta de políticas y la de anuncios. */
+ *  API, y una pantalla diseñada contra una bajada instantánea no tiene dónde
+ *  poner lo que pasa mientras. Es la misma decisión, con el mismo número, que la
+ *  bajada de Email › Reports y las altas de políticas, buzones y cuentas. */
 const DEMORA_MS = 900;
 
-/**
- * Entregar el archivo.
- *
- * El CSV lo arma el modelo —ver `csvDeReporte`— y el navegador lo recibe por
- * `descargar`, que es lo mismo que hace Admin › Reports: acá adentro sólo queda
- * la espera, que es de esta pantalla.
- *
- * Es una bajada de verdad y no un aviso de que se bajó algo: la fila promete un
- * archivo con lo que dice la fila, y un toast de éxito sobre una carpeta vacía
- * es lo peor que puede hacer una pantalla que se llama Reports.
- */
-async function bajar(reporte: Reporte, usuarios: Usuario[]) {
+async function bajar(
+  reporte: ReporteDOC,
+  usuarios: Usuario[],
+  cuentas: CuentaDOC[],
+) {
   await new Promise((listo) => setTimeout(listo, DEMORA_MS));
 
-  descargar(archivoDeReporte(reporte), csvDeReporte(reporte, usuarios));
+  descargar(
+    archivoDeReporteDOC(reporte),
+    csvDeReporteDOC(reporte, usuarios, cuentas),
+  );
 }
 
 /**
  * BajarReporte — lo único que se puede hacer con una fila.
  *
- * Un botón suelto y no un menú, al revés que en Policies: allá son dos acciones
- * —corregir y sacar— y dos íconos por fila en cuarenta filas son una columna de
- * ruido. Acá es una sola, y esconder una acción única detrás de un menú es
- * pedir dos clics para lo mismo.
+ * Un botón suelto y no un menú, igual que en Email › Reports y al revés que en
+ * Policies: allá son dos acciones —corregir y sacar— y esconder una sola detrás
+ * de un menú es pedir dos clics para lo mismo. Un reporte pedido no se corrige:
+ * lo que se pidió, se pidió.
  *
  * Aparece con el hover de la fila y se queda mientras se está bajando y con el
  * foco de teclado: si no, tabular hasta acá sería tabular hacia algo invisible.
  *
- * Y no aparece cuando no hay nada que bajar. Un reporte que se está armando
+ * Y no aparece cuando no hay nada que bajar. Un reporte que está en la cola
  * todavía no tiene archivo y uno que falló no lo va a tener: el botón
  * deshabilitado diría "esto se puede hacer, pero no ahora", y lo que pasa es que
  * no hay qué bajar. El estado de la fila ya lo explica.
  */
-function BajarReporte({ reporte }: { reporte: Reporte }) {
+function BajarReporte({ reporte }: { reporte: ReporteDOC }) {
   const usuarios = useUsuarios();
-  /* Vive en el botón y no en la pantalla, al revés que el alta de una política:
-     bajar un reporte no apaga nada más que este botón, y dos filas se pueden
-     estar bajando a la vez. */
+  const cuentas = useCuentasDOC();
+  /* Vive en el botón y no en la pantalla: bajar un reporte no apaga nada más
+     que este botón, y dos filas se pueden estar bajando a la vez. */
   const [bajando, setBajando] = useState(false);
 
   if (!sePuedeBajar(reporte)) return null;
@@ -363,20 +371,18 @@ function BajarReporte({ reporte }: { reporte: Reporte }) {
     setBajando(true);
     try {
       /* El toast se cuelga de la promesa y cuenta los tres momentos en un solo
-         aviso: se está preparando, quedó bajado, no se pudo. Es lo que hace
-         `sileo` con `promise`, y es donde va este relato —la fila no tiene lugar
-         para contarlo y un cartel adentro de la tabla taparía la lista—. */
-      await sileo.promise(bajar(reporte, usuarios), {
+         aviso: se está preparando, quedó bajado, no se pudo. Es donde va este
+         relato —la fila no tiene lugar para contarlo y un cartel adentro de la
+         tabla taparía la lista—. */
+      await sileo.promise(bajar(reporte, usuarios, cuentas), {
         /* Sin artículos: Sileo capitaliza el título palabra por palabra, y
            "Preparing the report…" sale "Preparing The Report…". */
         loading: { title: "Preparing report…" },
         success: () => ({
           title: "Report downloaded",
-          /* Qué ventana bajó, que es lo que no dice el nombre del archivo hasta
-             abrirlo —y lo que distingue este reporte del otro del mismo mes—. */
-          description: `${fechaDia(reporte.desde)} – ${fechaDia(reporte.hasta)}, ${
-            reporte.cuentas.length
-          } account${reporte.cuentas.length === 1 ? "" : "s"}.`,
+          /* Qué trae, que es lo que el nombre del archivo no dice hasta
+             abrirlo. Sale del tipo, que es lo que decide sus columnas. */
+          description: TIPOS_DE_REPORTE_DOC[reporte.tipo].ayuda,
         }),
         error: () => ({
           title: "Nothing was downloaded",
@@ -411,34 +417,59 @@ function BajarReporte({ reporte }: { reporte: Reporte }) {
 
 /* ─────────────────────────── La pantalla ─────────────────────────── */
 
-export function EmailReports() {
+/** `tabId` es el de la pestaña que la monta: la ficha del pedido se pone en
+ *  **su** board, no en el de la que esté puesta. Las pestañas que no se miran
+ *  siguen montadas, y escribir contra "la activa" le pondría la ficha en la cara
+ *  a otra. */
+export function AdminReports({ tabId }: { tabId?: string }) {
   return (
     /* Una región densa entera, como las otras tablas: el buscador, el panel y la
        tabla leen el escalón de acá y no lo reciben cada uno por su cuenta. */
     <SizeProvider size="compact">
-      <Pantalla />
+      <Pantalla tabId={tabId} />
     </SizeProvider>
   );
 }
 
-function Pantalla() {
+function Pantalla({ tabId }: { tabId?: string }) {
+  /* El pedido vive en el riel y no en un diálogo: elegir qué pedir es
+     justamente cuando hace falta poder mirar los que ya están. Ver
+     `NuevoReporte`. */
+  const alta = useAltaDeReporte(tabId);
   const [busqueda, setBusqueda] = useState("");
   const [filtros, setFiltros] = useState<FilterSelection>({});
   const escala = useTypeScale();
   const [medirCabecera, altoCabecera] = useMeasuredHeight<HTMLDivElement>();
 
-  const todos = useReportes();
+  const todos = useReportesDOC();
+  const cuentas = useCuentasDOC();
 
-  const encontrados = useMemo(
-    () => todos.filter((reporte) => pasa(reporte, busqueda, filtros)),
-    [todos, busqueda, filtros],
+  /* Quién pidió cada uno se resuelve una vez por fila y se usa tres veces —la
+     búsqueda, el `title` de la celda y el panel—: resolverlo adentro de cada uso
+     sería recorrer la tabla de cuentas tres veces por fila. Es lo mismo que hace
+     Policies con el alcance de una regla. */
+  const conQuien = useMemo(
+    () =>
+      todos.map((reporte) => ({
+        reporte,
+        quien: quienPidio(reporte.pedidoPor, cuentas),
+      })),
+    [todos, cuentas],
   );
 
-  const GRUPOS = useMemo(() => grupos(todos), [todos]);
+  const encontrados = useMemo(
+    () =>
+      conQuien.filter(({ reporte, quien }) =>
+        pasa(reporte, quien, busqueda, filtros),
+      ),
+    [conQuien, busqueda, filtros],
+  );
+
+  const GRUPOS = useMemo(() => grupos(todos, cuentas), [todos, cuentas]);
 
   /* La página, con la clave de lo que estaba filtrado cuando se la eligió:
      cambiar el filtro vuelve a la primera, y la página se acota contra el total.
-     Es el mismo hook que usan Email Search, Provisioning y Policies. */
+     Es el mismo hook que usan las otras cinco tablas. */
   const clave = `${busqueda}|${JSON.stringify(filtros)}`;
   const { pagina, paginas, desde, filas, dir, ancla, irA } = usePaginacion(
     encontrados,
@@ -464,13 +495,13 @@ function Pantalla() {
             className="font-medium tracking-tight"
             style={{ fontSize: escala.title }}
           >
-            Email Reports
+            Reports
           </h1>
           <p
             className="text-muted-foreground"
             style={{ fontSize: escala.caption }}
           >
-            Every week the house closed &mdash; and the accounts it opened in it.
+            What this console was asked for &mdash; and who asked for it.
           </p>
         </div>
 
@@ -496,10 +527,23 @@ function Pantalla() {
             onValueChange={setFiltros}
           />
 
-          {/* Sin acción propia, a diferencia de Policies: un reporte no se
-              escribe, se cierra solo cuando la semana termina. Un botón que
-              dijera "New report" prometería elegir una ventana, y las ventanas
-              no se eligen. */}
+          {/* La acción de la pantalla, y la única que crea algo: el resto de la
+              barra busca y filtra, que es mirar. Va última, contra el borde, que
+              es donde este sistema deja la acción.
+
+              Existe acá y no en Email › Reports porque allá un reporte se cierra
+              solo cuando la semana termina, y un botón prometería elegir una
+              ventana que nadie elige. Un reporte de esta tabla **se pide**: eso
+              es lo que separa las dos pantallas, y el botón es dónde se ve.
+
+              De hielo y no `primary`, como el de Announcements y el de DOC
+              Accounts: es la misma acción —crear lo que la tabla lista— y el
+              negro sólido pesa demasiado en una barra que al lado tiene un campo
+              y un panel de filtros. El sustantivo va sin el "New": el `+` ya lo
+              dice. */}
+          <BotonDeAlta onClick={alta.abrir} disponible={alta.disponible}>
+            Report
+          </BotonDeAlta>
         </div>
       </motion.header>
 
@@ -507,7 +551,7 @@ function Pantalla() {
         <AnimatedEmpty>
           <AnimatedEmptyHeader>
             <AnimatedEmptyMedia variant="icon">
-              <FileChartColumn />
+              <FileText />
             </AnimatedEmptyMedia>
             <AnimatedEmptyTitle>No reports</AnimatedEmptyTitle>
             <AnimatedEmptyDescription>
@@ -529,14 +573,13 @@ function Pantalla() {
               <Columnas />
               <TableHeader>
                 <TableRow>
-                  <TableHead>Report</TableHead>
-                  <TableHead>Accounts</TableHead>
-                  <TableHead>Period covered</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Created</TableHead>
-                  {/* Sin rótulo a la vista, pero con nombre para quien la lee
-                      de a una celda: una columna anónima en un lector de
-                      pantalla es una celda que no se sabe qué contesta. */}
+                  <TableHead>Requested</TableHead>
+                  {/* Sin rótulo a la vista, pero con nombre para quien la lee de
+                      a una celda: una columna anónima en un lector de pantalla
+                      es una celda que no se sabe qué contesta. */}
                   <TableHead>
                     <span className="sr-only">Actions</span>
                   </TableHead>
@@ -554,11 +597,20 @@ function Pantalla() {
             <Table className={cn("table-fixed", SANGRIA, AIRE_FILA)}>
               <Columnas />
               <TableBody>
-                {filas.map((reporte, i) => {
+                {filas.map(({ reporte, quien }, i) => {
                   const estado = ESTADOS_DE_REPORTE[reporte.estado];
+                  const tipo = TIPOS_DE_REPORTE_DOC[reporte.tipo];
+                  const tocada = reporte.id === alta.recienPedido;
 
                   return (
-                    <TableRow key={reporte.id} index={i}>
+                    <FilaDestellante
+                      key={reporte.id}
+                      index={i}
+                      destella={tocada}
+                    >
+                      {/* Cómo se llama: el tipo y el día del pedido. Es lo que
+                          va a decir el archivo cuando esté bajado, y por eso es
+                          la primera columna y la más ancha. */}
                       <TableCell className="text-foreground">
                         <motion.span
                           variants={entraCelda}
@@ -569,37 +621,28 @@ function Pantalla() {
                         </motion.span>
                       </TableCell>
 
-                      {/* Cuántas cuentas cubre. El número y nada más: la columna
-                          contesta "¿esta semana tuvo altas?" —que es lo que se
-                          recorre— y quiénes fueron está en el archivo, que es
-                          para lo que está el botón del final. */}
-                      <TableCell>
-                        <motion.span variants={entraCelda} className="block">
-                          <Cuentas reporte={reporte} />
-                        </motion.span>
-                      </TableCell>
-
-                      {/* Qué semana cubre. Las dos fechas enteras con año: es lo
-                          único que distingue esta fila de la de abajo, que se
-                          llama igual, así que acá no se abrevia nada. */}
+                      {/* De qué es. Texto y no un badge: el badge de la fila es
+                          el del estado, y dos pastillas a dos columnas de
+                          distancia se leen como dos estados. Lo que el tipo
+                          aporta es por dónde se agrupa la tabla, y para eso
+                          alcanza con la palabra. El `title` trae qué contiene,
+                          que es lo que no entra en la celda. */}
                       <TableCell>
                         <motion.span
                           variants={entraCelda}
-                          className="block truncate tabular-nums"
+                          className="block truncate"
+                          title={tipo.ayuda}
                         >
-                          {fechaDia(reporte.desde)} &ndash;{" "}
-                          {fechaDia(reporte.hasta)}
+                          {tipo.label}
                         </motion.span>
                       </TableCell>
 
-                      {/* `variant="dot"`, el mismo de la Communication Status
-                          de Accounts Search: el contorno y el punto de color, y
-                          no una pastilla pintada. Son dos tablas de la misma
-                          consola diciendo en qué anda algo, y dos maneras de
-                          escribir un estado se leen como dos clases de dato. El
-                          color queda donde importa —el punto— y la etiqueta va
-                          en la tinta del texto, que es lo que la deja legible
-                          también cuando el estado es el rojo de "Failed". */}
+                      {/* `variant="dot"`, el mismo de Email › Reports y de la
+                          Communication Status de Accounts: el contorno y el
+                          punto de color, y no una pastilla pintada. Son tablas
+                          de la misma consola diciendo en qué anda algo, y dos
+                          maneras de escribir un estado se leen como dos clases
+                          de dato. */}
                       <TableCell>
                         <motion.span variants={entraCelda} className="block">
                           <Badge variant="dot" color={estado.color}>
@@ -608,15 +651,23 @@ function Pantalla() {
                         </motion.span>
                       </TableCell>
 
-                      {/* Cuándo se armó, con el día entero y no en relativo: es
-                          la misma fecha, escrita igual, que la Date Added de
-                          Accounts y la Created on de Policies. */}
+                      {/* Cuándo se lo pidió, en relativo y no con la fecha: el
+                          día exacto ya está en el nombre, dos columnas a la
+                          izquierda, y repetirlo sería escribir "06/25/2026" dos
+                          veces en la misma fila. Lo que le falta al nombre es
+                          cuán reciente es, que es justamente lo que esto dice.
+
+                          El `title` trae el momento entero y quién lo pidió:
+                          quién no tiene columna —lo pregunta el panel— pero la
+                          fila tiene que poder contestarlo cuando se la señala.
+                          Es lo mismo que hace Policies con el creador. */}
                       <TableCell>
                         <motion.span
                           variants={entraCelda}
                           className="block truncate tabular-nums"
+                          title={`${fechaLarga(reporte.pedidoEl)} · ${quien}`}
                         >
-                          {fechaDia(reporte.creadoEl)}
+                          {haceCuanto(reporte.pedidoEl)}
                         </motion.span>
                       </TableCell>
 
@@ -637,7 +688,7 @@ function Pantalla() {
                           <BajarReporte reporte={reporte} />
                         </motion.span>
                       </TableCell>
-                    </TableRow>
+                    </FilaDestellante>
                   );
                 })}
               </TableBody>
@@ -670,12 +721,18 @@ function Pantalla() {
 
 /* ─────────────────────────── Lo que falta ───────────────────────────
 
-   El período se pregunta por tramos —"los últimos 30 días"— y no eligiendo dos
-   fechas en un calendario. No es una simplificación de esta pantalla: el panel
-   de filtros de esta consola sabe hacer dos cosas, elegir de una lista y escribir
-   texto, y un rango de fechas es una tercera. Ponerlo acá es agregarle una clase
-   de atributo a `filter-menu.tsx`, que lo comparten cuatro pantallas, y un
-   calendario, que esta app todavía no tiene.
+   **La cola no avanza.** Lo que se pide nace `pending` y se queda ahí: no hay
+   nada que lo pase a `processing` y de ahí a `completed`, así que la fila recién
+   pedida nunca llega a tener botón de bajar. Es correcto —eso es lo que pasa
+   cuando no hay servidor— pero deja el recorrido a medias: se ve entrar el
+   pedido y no se ve salir el archivo.
 
-   Los cuatro tramos son los mismos que ofrecen Accounts, Provisioning y Policies,
-   así que mientras tanto la pregunta se hace igual en todas. */
+   Fingirlo con un `setTimeout` que lo dé por terminado a los cinco segundos
+   sería inventar una cola que no existe, y una pantalla que miente sobre cuánto
+   tarda algo es peor que una que no lo cuenta. Cuando haya una API, esto lo
+   contesta ella.
+
+   **Pedir sobre algo.** Hoy un pedido es sólo un tipo: la foto es de la casa
+   entera y al momento de pedirla. Acotarlo —una ventana, un puñado de cuentas—
+   es agregarle campos a la ficha y una columna a esta tabla, y hasta que la casa
+   lo pida no se inventan. */

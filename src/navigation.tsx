@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import type { IconComponent } from "@/lib/icon-context";
+import { AdminReports } from "@/pages/AdminReports";
 import { Announcements } from "@/pages/Announcements";
 import { DocAccounts } from "@/pages/DocAccounts";
 import { EmailReports } from "@/pages/EmailReports";
@@ -126,7 +127,9 @@ export const NAV: NavGroup[] = [
       hoja("admin/doc-accounts", "DOC Accounts", IdCard, "Admin", (tabId) => (
         <DocAccounts tabId={tabId} />
       )),
-      hoja("admin/reports", "Reports", FileText, "Admin"),
+      hoja("admin/reports", "Reports", FileText, "Admin", (tabId) => (
+        <AdminReports tabId={tabId} />
+      )),
       hoja("admin/whats-new", "What's New", Sparkles, "Admin", () => <Releases />),
       hoja("admin/faq", "FAQ", CircleQuestionMark, "Admin"),
     ],

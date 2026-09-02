@@ -40,7 +40,13 @@ import { DIA, HOY, TIPOS, useUsuarios, type Usuario } from "@/pages/usuarios";
  *  Son los cuatro que tiene la cola que los arma, y van en el orden en que un
  *  reporte los recorre: espera, se arma, y termina bien o mal. Ese orden es el
  *  del panel de filtros —una lista de estados alfabética obliga a reconstruir
- *  mentalmente en qué punto está cada uno—. */
+ *  mentalmente en qué punto está cada uno—.
+ *
+ *  Los comparte Admin › Reports, que también arma reportes y también los pone
+ *  en una cola. Es la misma pregunta —¿en qué anda esto?— hecha en dos
+ *  pantallas, y dos listas de estados serían dos verdes distintos y dos órdenes
+ *  distintos para el mismo hecho. Viven acá porque acá nacieron; el día que una
+ *  tercera pantalla los use, se mudan a un archivo propio. */
 export const ESTADOS_DE_REPORTE = {
   pending: { label: "Pending", tinte: "#a3a3a3", color: "gray" },
   processing: { label: "Processing", tinte: "#3b82f6", color: "blue" },
@@ -60,8 +66,14 @@ export const ORDEN_ESTADOS = Object.keys(
 /** Si hay algo que bajar. Sólo lo terminado: un reporte que se está armando no
  *  tiene archivo todavía, y uno que falló no lo va a tener. El botón de la fila
  *  lo pregunta acá en vez de comparar contra un estado a mano, que es lo que
- *  hace que el día que haya un cuarto estado no se olvide ninguna pantalla. */
-export const sePuedeBajar = (reporte: Reporte) => reporte.estado === "completed";
+ *  hace que el día que haya un cuarto estado no se olvide ninguna pantalla.
+ *
+ *  Pide el estado y no el reporte entero: las dos pantallas que bajan reportes
+ *  —ésta y Admin › Reports— tienen filas de forma distinta y la pregunta es la
+ *  misma. Acotarla al `Reporte` de acá obligaría a la otra a escribirla otra
+ *  vez, que es justamente lo que este helper existe para evitar. */
+export const sePuedeBajar = (reporte: { estado: EstadoDeReporte }) =>
+  reporte.estado === "completed";
 
 /* ─────────────────────────── De qué es ─────────────────────────── */
 
