@@ -302,22 +302,34 @@ export const momentoDe = (desde: string) =>
    Un `Record` y no una lista: lo que se guarda es "esta cuenta quedó así", y una
    copia de la fila entera se despegaría del fixture el día que se le corrija un
    correo. */
+/** Lo que una edición puede cambiar: todo lo que la ficha pide.
+ *
+ *  Todo y no algunas: a diferencia de una política —donde quién la escribió y
+ *  cuándo son historia y no se editan—, acá no hay ningún campo que sea un
+ *  hecho pasado. Hasta la fecha del acceso se corrige: es *desde cuándo puede
+ *  hacer lo que la fila dice*, y cuando cambia el rol cambia con él. */
+export interface CorreccionDOC {
+  nombre: string;
+  email: string;
+  rol: RolDOC;
+  organizaciones: Organizacion[];
+  desde: string;
+  estado: EstadoDOC;
+}
+
 interface Tienda {
-  estados: Record<string, EstadoDOC>;
   /** Lo que la consola dio de alta. Aparte del fixture y no mezclado con él: son
    *  de dos naturalezas —lo que estaba y lo que hicimos—, y el día que las
    *  cuentas vengan de una API lo primero se borra y esto se queda. */
   creadas: CuentaDOC[];
+  /** Lo que la consola corrigió, por id. Vale para las dos clases de cuenta: las
+   *  escritas no se pueden tocar donde viven —se vuelven a armar en cada
+   *  pintada— y las creadas podrían, pero un solo camino es un solo lugar donde
+   *  puede fallar. */
+  editadas: Record<string, CorreccionDOC>;
 }
 
-const useTiendaDOC = create<Tienda>()(() => ({ estados: {}, creadas: [] }));
-
-/** Sacarle el acceso a una cuenta, o devolvérselo.
- *
- *  Se exporta la acción suelta y no el hook: la llaman una tabla y un menú, y
- *  ninguno de los dos necesita volver a pintarse porque exista. */
-export const cambiarEstadoDOC = (id: string, estado: EstadoDOC) =>
-  useTiendaDOC.setState((t) => ({ estados: { ...t.estados, [id]: estado } }));
+const useTiendaDOC = create<Tienda>()(() => ({ creadas: [], editadas: {} }));
 
 /** Cuánto tarda en darse de alta una cuenta.
  *
@@ -360,8 +372,11 @@ export async function crearCuentaDOC(datos: AltaDOC): Promise<CuentaDOC> {
   await demora();
 
   const email = datos.email.trim().toLowerCase();
-  const { creadas } = useTiendaDOC.getState();
-  const yaHay = [...CUENTAS, ...creadas].some(
+  const { creadas, editadas } = useTiendaDOC.getState();
+  /* Contra la lista armada y no contra el fixture crudo: una cuenta a la que le
+     corrigieron el correo tiene el nuevo, y preguntar por el viejo dejaría
+     entrar un repetido. */
+  const yaHay = armar(creadas, editadas).some(
     (c) => c.email.toLowerCase() === email,
   );
   if (yaHay) {
@@ -386,6 +401,50 @@ export async function crearCuentaDOC(datos: AltaDOC): Promise<CuentaDOC> {
   return cuenta;
 }
 
+/**
+ * Corregir una cuenta. Devuelve la que quedó.
+ *
+ * Es la misma función que el alta con otro nombre, y a propósito: dar de alta y
+ * corregir son el mismo formulario con el mismo contenido, uno vacío y el otro
+ * lleno. Lo único que cambia es que acá ya hay una fila y hay que saber cuál.
+ *
+ * Falla por lo mismo —un correo repetido— con la excepción evidente: **la propia
+ * cuenta no cuenta**. Sin eso, guardar una cuenta sin tocarle el correo diría
+ * que ese correo ya existe, que es exactamente lo que uno acaba de mirar.
+ */
+export async function editarCuentaDOC(
+  id: string,
+  cambios: CorreccionDOC,
+): Promise<CuentaDOC> {
+  await demora();
+
+  const email = cambios.email.trim().toLowerCase();
+  const { creadas, editadas } = useTiendaDOC.getState();
+  const yaHay = armar(creadas, editadas).some(
+    (c) => c.id !== id && c.email.toLowerCase() === email,
+  );
+  if (yaHay) {
+    throw new Error(`${email} already has an account.`);
+  }
+
+  const correccion: CorreccionDOC = {
+    ...cambios,
+    nombre: cambios.nombre.trim(),
+    email,
+  };
+  useTiendaDOC.setState({ editadas: { ...editadas, [id]: correccion } });
+
+  const quedo = armar(creadas, {
+    ...editadas,
+    [id]: correccion,
+  }).find((c) => c.id === id);
+  /* No puede no estar —se acaba de escribir contra un id que salió de la
+     lista—, pero el tipo no lo sabe y una aserción acá sería una promesa que
+     nadie puede sostener el día que el id llegue de otro lado. */
+  if (!quedo) throw new Error("That account no longer exists.");
+  return quedo;
+}
+
 /* ─────────────────────────── El armado ─────────────────────────── */
 
 /** Cómo se lee dónde trabaja. La primera y cuántas más, que es lo que entra en
@@ -401,30 +460,41 @@ export function dondeTrabaja(cuenta: CuentaDOC) {
  *  El id sale del correo y no de un contador: es lo único que no se repite —dos
  *  personas se llaman igual en esta lista— y lo que hace que el estado guardado
  *  siga pegado a la cuenta correcta si alguien reordena el fixture. */
+/** Las cuentas de ahora, armadas: las escritas más las que dio de alta la
+ *  consola, con las correcciones encima y de la más nueva a la más vieja.
+ *
+ *  El id sale del correo **original** y no del corregido: es la `key` de la fila
+ *  y el blanco del destello, así que cambiarle el correo a alguien no puede
+ *  convertirlo en otra cuenta. */
+function armar(
+  creadas: CuentaDOC[],
+  editadas: Record<string, CorreccionDOC>,
+): CuentaDOC[] {
+  return [
+    ...CUENTAS.map((c) => ({ ...c, id: `doc/${c.email}` })),
+    ...creadas,
+  ]
+    .map((c) => ({ ...c, ...(editadas[c.id] ?? {}) }))
+    /* Lo último primero, como el resto de las tablas de esta consola.
+
+       Los `desde` se comparan como texto: en ISO el orden alfabético es el
+       cronológico, y eso vale igual para los que llevan hora —`2026-05-13` es
+       anterior a `2026-05-13T09:30`, que es lo correcto—.
+
+       Cuando dos accesos empiezan el mismo día, desempata el nombre. Sin eso,
+       dos filas con la misma fecha quedarían en el orden en que estén escritas
+       en el fixture, que no significa nada y cambia el día que alguien las
+       reordene. */
+    .sort(
+      (a, b) =>
+        b.desde.localeCompare(a.desde) || a.nombre.localeCompare(b.nombre),
+    );
+}
+
+/** Las cuentas de ahora. Se vuelven a armar cuando la consola crea o corrige
+ *  una. */
 export function useCuentasDOC(): CuentaDOC[] {
-  const estados = useTiendaDOC((t) => t.estados);
   const creadas = useTiendaDOC((t) => t.creadas);
-  return useMemo(
-    () =>
-      [
-        ...CUENTAS.map((c) => ({ ...c, id: `doc/${c.email}` })),
-        ...creadas,
-      ]
-        .map((c) => ({ ...c, estado: estados[c.id] ?? c.estado }))
-        /* Lo último primero, como el resto de las tablas de esta consola.
-           
-           Los `desde` se comparan como texto: en ISO el orden alfabético es el
-           cronológico, y eso vale igual para los que llevan hora —`2026-05-13`
-           es anterior a `2026-05-13T09:30`, que es lo correcto—.
-           
-           Cuando dos accesos empiezan el mismo día, desempata el nombre. Sin
-           eso, dos filas con la misma fecha quedarían en el orden en que estén
-           escritas en el fixture, que no significa nada y cambia el día que
-           alguien las reordene. */
-        .sort(
-          (a, b) =>
-            b.desde.localeCompare(a.desde) || a.nombre.localeCompare(b.nombre),
-        ),
-    [estados, creadas],
-  );
+  const editadas = useTiendaDOC((t) => t.editadas);
+  return useMemo(() => armar(creadas, editadas), [creadas, editadas]);
 }

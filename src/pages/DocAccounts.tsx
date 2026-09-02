@@ -316,13 +316,18 @@ const POR_PAGINA = 40;
  * anuncio—, y una fila que desaparece deja esas firmas sin dueño. A una cuenta
  * se le saca el acceso, no se la borra.
  *
- * Y hoy tampoco está sacárselo. El dominio sabe hacerlo —`cambiarEstadoDOC`, en
- * `cuentas-doc.ts`, con la tienda que lo guarda— y la columna de estado ya lo
- * muestra; lo que falta es desde dónde se decide, que es la misma ficha de
- * edición que el ítem de abajo todavía no abre. Se engancha ahí cuando exista,
- * no como un tercer ítem suelto.
+ * Sacarle el acceso tampoco es un ítem: es un campo de la cuenta —activa o
+ * desactivada—, así que vive adentro de la ficha de edición que abre el ítem de
+ * abajo, al lado del rol y de las organizaciones. Un tercer ítem acá sería la
+ * misma decisión tomada desde dos lugares.
  */
-function AccionesDeCuenta({ cuenta }: { cuenta: CuentaDOC }) {
+function AccionesDeCuenta({
+  cuenta,
+  onEditar,
+}: {
+  cuenta: CuentaDOC;
+  onEditar: (cuenta: CuentaDOC) => void;
+}) {
   return (
     <DropdownMenu>
       <DropdownTrigger
@@ -375,11 +380,15 @@ function AccionesDeCuenta({ cuenta }: { cuenta: CuentaDOC }) {
               );
           }}
         />
-        {/* Todavía no hace nada: lo que falta es dónde se edita una cuenta —el
-            rol, las organizaciones, desde cuándo—, y eso es una ficha entera, no
-            un handler. El ítem está para que la fila tenga su entrada; el
-            `onSelect` se engancha acá cuando esa ficha exista. */}
-        <MenuItem index={1} icon={Pencil} label="Edit account" />
+        {/* Abre la misma ficha que "+ Account", con la cuenta adentro. No es
+            una pantalla parecida: es el mismo formulario con el mismo contenido,
+            uno vacío y el otro lleno. */}
+        <MenuItem
+          index={1}
+          icon={Pencil}
+          label="Edit account"
+          onSelect={() => onEditar(cuenta)}
+        />
       </DropdownContent>
     </DropdownMenu>
   );
@@ -670,7 +679,10 @@ function Pantalla({ tabId }: { tabId?: string }) {
                           variants={entraCelda}
                           className="flex justify-end"
                         >
-                          <AccionesDeCuenta cuenta={cuenta} />
+                          <AccionesDeCuenta
+                            cuenta={cuenta}
+                            onEditar={alta.editar}
+                          />
                         </motion.span>
                       </TableCell>
                     </FilaAnimada>

@@ -13,7 +13,7 @@ import { Popover } from "@base-ui/react/popover";
 import { CalendarDays, Check, ChevronDown, IdCard, Search, X } from "lucide-react";
 
 import { DateTimePicker } from "@/components/calendar";
-import { AIRE, CAMPO_PUESTO, Campo, Corte } from "@/components/ficha";
+import { AIRE, CAMPO_PUESTO, Campo, Corte, Segmentado } from "@/components/ficha";
 import { Button } from "@/components/ui/button";
 import {
   DropdownContent,
@@ -27,10 +27,15 @@ import type { WidgetDefinition } from "@/components/widget";
 import { SizeProvider, useTypeScale } from "@/lib/size-context";
 import { cn } from "@/lib/utils";
 import {
+  ESTADOS_DOC,
+  ORDEN_ESTADOS_DOC,
   ORDEN_ROLES,
   ORGANIZACIONES,
   ROLES_DOC,
   crearCuentaDOC,
+  editarCuentaDOC,
+  type CuentaDOC,
+  type EstadoDOC,
   type Organizacion,
   type RolDOC,
 } from "@/pages/cuentas-doc";
@@ -79,6 +84,10 @@ interface Borrador {
   rol: RolDOC | null;
   organizaciones: Organizacion[];
   desde: string;
+  /** Si puede entrar. Sólo se ve corrigiendo: una cuenta que se da de alta nace
+   *  activa —dar de alta a alguien es dejarlo entrar—, y un campo que en el alta
+   *  tiene siempre el mismo valor es un campo que no pregunta nada. */
+  estado: EstadoDOC;
 }
 
 /** Hoy, como día suelto. Sale del `HOY` fijo del fixture y no de un `new Date()`
@@ -93,6 +102,7 @@ const VACIO: Borrador = {
   email: "",
   rol: null,
   organizaciones: [],
+  estado: "active",
   /* Arranca hoy, que es cuando alguien entra. Es el único campo de la ficha que
      nace con algo: los otros no tienen un valor que se pueda adivinar, y éste sí
      —el noventa por ciento de las altas son para hoy—. */
@@ -103,6 +113,28 @@ const VACIO: Borrador = {
  *  altas: lo suficiente para encontrarla con la vista, no tanto como para que
  *  quede distinta del resto. */
 const DESTELLO_MS = 2000;
+
+/** El nombre partido para poder editarlo.
+ *
+ *  El modelo lo guarda entero —es lo que la casa sabe de una persona—, así que
+ *  corregirlo pide volver a partirlo, y no hay manera de hacerlo bien: se corta
+ *  en el primer espacio y lo que sigue es el apellido. "Rubén Ferrari" vuelve
+ *  bien; "María José Pérez" vuelve como nombre "María" y apellido "José Pérez",
+ *  que se ve raro en los campos aunque lo guardado no cambie —los dos se vuelven
+ *  a juntar igual—.
+ *
+ *  Guardar los tres pedazos en el modelo arreglaría la vista y agregaría dos
+ *  campos que ninguna pantalla lee. Se elige la vista rara sobre el dato de
+ *  más; el día que la casa necesite ordenar por apellido, se da vuelta. */
+const partirNombre = (entero: string) => {
+  const corte = entero.trim().indexOf(" ");
+  return corte === -1
+    ? { nombre: entero.trim(), apellido: "" }
+    : {
+        nombre: entero.slice(0, corte).trim(),
+        apellido: entero.slice(corte + 1).trim(),
+      };
+};
 
 /** El nombre entero, armado con los dos campos. Es lo que la casa guarda de una
  *  persona: la ficha lo pide partido porque así se escribe un nombre, y
@@ -121,10 +153,22 @@ export function useBorradorDeCuenta() {
   return {
     b,
     limpiar: () => setB(VACIO),
+    /* Cargar una cuenta adentro del borrador. Es lo único que separa corregir de
+       dar de alta: el mismo formulario, con algo escrito. */
+    cargar: (c: CuentaDOC) =>
+      setB({
+        ...partirNombre(c.nombre),
+        email: c.email,
+        rol: c.rol,
+        organizaciones: [...c.organizaciones],
+        desde: c.desde,
+        estado: c.estado,
+      }),
     escribir: (campo: "nombre" | "apellido" | "email" | "desde") =>
       (valor: string) =>
         setB((x) => ({ ...x, [campo]: valor })),
     elegirRol: (rol: RolDOC) => setB((x) => ({ ...x, rol })),
+    elegirEstado: (estado: EstadoDOC) => setB((x) => ({ ...x, estado })),
     /* Una organización se pone y se saca con el mismo gesto: la casilla no tiene
        dos acciones, tiene dos estados. */
     alternarOrganizacion: (org: Organizacion) =>
@@ -143,7 +187,11 @@ type Draft = ReturnType<typeof useBorradorDeCuenta>;
  *  está en curso. Se lo pasa el hook que la sostiene —ver `useAltaDeCuenta` al
  *  final—, que es quien tiene la promesa. */
 interface Curso {
-  crear: () => void;
+  /** A cuál cuenta le está haciendo esto, o `null` si la está creando. Es lo
+   *  único que separa las dos caras de la ficha, y por eso viaja como un dato y
+   *  no como un booleano `esEdicion`: el que corrige necesita **cuál**. */
+  corrigiendo: CuentaDOC | null;
+  guardar: () => void;
   cerrar: () => void;
   enviando: boolean;
 }
@@ -581,6 +629,25 @@ function Organizaciones({ d, enviando }: { d: Draft; enviando: boolean }) {
   );
 }
 
+/** Si puede entrar. Un segmentado y no un menú: son dos valores de una palabra,
+ *  que es exactamente para lo que este control existe en esta consola —el
+ *  Allow/Block de una política—. Y no lleva color: quitar un acceso es una
+ *  decisión, no un peligro, y el rojo acá haría que "Deactivated" se lea como un
+ *  error de la cuenta y no como algo que alguien decidió. */
+function Estado({ d }: { d: Draft }) {
+  return (
+    <Segmentado
+      className="w-full"
+      valor={d.b.estado}
+      onElegir={d.elegirEstado}
+      opciones={ORDEN_ESTADOS_DOC.map((value) => ({
+        value,
+        label: ESTADOS_DOC[value].label,
+      }))}
+    />
+  );
+}
+
 /* ─────────────────────────── La ficha ─────────────────────────── */
 
 /** Los seis campos cortos, de a dos. El rótulo lo pone `Campo`, así que acá sólo
@@ -588,6 +655,7 @@ function Organizaciones({ d, enviando }: { d: Draft; enviando: boolean }) {
 const PAR = "grid grid-cols-2 gap-x-3 gap-y-5";
 
 function FichaDeCuenta({ d, curso }: { d: Draft; curso: Curso }) {
+  const corrigiendo = curso.corrigiendo;
   const escala = useTypeScale();
   /* La caja de los campos: de ella cuelga el calendario y de ella saca su ancho.
      El calendario se abre afuera del árbol del DOM, así que las dos cosas —de
@@ -625,10 +693,16 @@ function FichaDeCuenta({ d, curso }: { d: Draft; curso: Curso }) {
           className="font-medium tracking-tight"
           style={{ fontSize: escala.title }}
         >
-          New account
+          {corrigiendo ? "Edit account" : "New account"}
         </h2>
+        {/* Corrigiendo, el subtítulo dice **a quién**: la hoja llega llena y sin
+            eso no hay nada que diga cuál de las quince filas se está tocando —el
+            nombre está en un campo, que es donde uno escribe, no donde uno
+            lee—. */}
         <p className="text-muted-foreground" style={{ fontSize: escala.caption }}>
-          Who gets in, what they can do, and from when.
+          {corrigiendo
+            ? corrigiendo.email
+            : "Who gets in, what they can do, and from when."}
         </p>
       </div>
 
@@ -689,6 +763,17 @@ function FichaDeCuenta({ d, curso }: { d: Draft; curso: Curso }) {
         <Campo rotulo="Organizations">
           <Organizaciones d={d} enviando={curso.enviando} />
         </Campo>
+
+        {/* Sólo al corregir: una cuenta que se da de alta nace activa, y un
+            campo que en el alta tiene siempre el mismo valor es un campo que no
+            pregunta nada. Acá vive lo que el menú de la fila no hace —sacar y
+            devolver el acceso—: es un campo de la cuenta y no una acción
+            suelta. */}
+        {corrigiendo && (
+          <Campo rotulo="Status">
+            <Estado d={d} />
+          </Campo>
+        )}
       </div>
 
       <Corte />
@@ -706,9 +791,9 @@ function FichaDeCuenta({ d, curso }: { d: Draft; curso: Curso }) {
           size="compact"
           disabled={!listo}
           loading={curso.enviando}
-          onClick={curso.crear}
+          onClick={curso.guardar}
         >
-          Create account
+          {corrigiendo ? "Save changes" : "Create account"}
         </Button>
         <Button
           variant="ghost"
@@ -716,7 +801,9 @@ function FichaDeCuenta({ d, curso }: { d: Draft; curso: Curso }) {
           disabled={curso.enviando}
           onClick={curso.cerrar}
         >
-          Discard
+          {/* "Discard" descarta un borrador; corrigiendo no hay borrador que
+              descartar sino cambios que no se guardan. */}
+          {corrigiendo ? "Cancel" : "Discard"}
         </Button>
       </div>
     </div>
@@ -734,7 +821,7 @@ const CELDA = "doc-accounts/nueva";
 const celdaDeAlta = (d: Draft, curso: Curso): WidgetDefinition[] => [
   {
     id: CELDA,
-    label: "New account",
+    label: curso.corrigiendo ? "Edit account" : "New account",
     icon: IdCard,
     crudo: true,
     glance: () => <FichaDeCuenta d={d} curso={curso} />,
@@ -752,6 +839,10 @@ const celdaDeAlta = (d: Draft, curso: Curso): WidgetDefinition[] => [
  */
 export function useAltaDeCuenta(tabId?: string) {
   const d = useBorradorDeCuenta();
+  /* A cuál cuenta se le está corrigiendo, o `null` si se está creando una.
+     Vive acá y no en el borrador: el borrador es lo que se escribió, y esto es
+     contra qué se va a guardar. */
+  const [corrigiendo, setCorrigiendo] = useState<CuentaDOC | null>(null);
 
   /* **Si la ficha está abierta lo sabe el board, no este hook.** Una copia en un
      `useState` de acá se desincroniza en cuanto el riel se cierra por otro lado
@@ -765,8 +856,10 @@ export function useAltaDeCuenta(tabId?: string) {
   });
 
   const [enviando, setEnviando] = useState(false);
-  /* La que se acaba de crear, para que la tabla pueda señalarla cuando aparece.
-     Se limpia sola: es un destello, no un estado. */
+  /* La que se acaba de tocar, para que la tabla pueda señalarla. Vale para las
+     dos: una fila corregida se busca con la vista igual que una nueva, y más
+     todavía acá, donde la tabla se ordena por una fecha que la corrección pudo
+     haber movido. Se limpia sola: es un destello, no un estado. */
   const [recienCreada, setRecienCreada] = useState<string | null>(null);
   const reloj = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -791,50 +884,62 @@ export function useAltaDeCuenta(tabId?: string) {
   }, [tabId, editarBoard]);
 
   /**
-   * El alta, de punta a punta.
+   * Guardar, de punta a punta.
+   *
+   * Una sola función para las dos cosas: lo que cambia es contra qué se escribe
+   * y qué dice el aviso. Partirla en dos sería copiar el mismo `try` con los
+   * mismos tres estados y las mismas dos maneras de salir mal.
    *
    * La ficha no se cierra antes de tiempo: se cierra cuando la cuenta quedó. Si
    * falla, lo escrito sigue ahí —volver a tipear un nombre y un correo porque el
    * servidor dijo que no es el peor final posible para esta pantalla—.
    */
-  const crear = useCallback(async () => {
+  const guardar = useCallback(async () => {
     const nombre = nombreCompleto(d.b);
     if (!nombre || !d.b.email.trim() || !d.b.rol || enviando) return;
+
+    const datos = {
+      nombre,
+      email: d.b.email,
+      rol: d.b.rol,
+      organizaciones: d.b.organizaciones,
+      desde: d.b.desde,
+    };
 
     setEnviando(true);
     try {
       /* El toast se cuelga de la promesa y cuenta los tres momentos en un solo
-         aviso: se está creando, quedó creada, no se pudo. */
-      const creada = await sileo.promise(
-        crearCuentaDOC({
-          nombre,
-          email: d.b.email,
-          rol: d.b.rol,
-          organizaciones: d.b.organizaciones,
-          desde: d.b.desde,
-        }),
+         aviso: se está guardando, quedó guardada, no se pudo. */
+      const quedo = await sileo.promise(
+        corrigiendo
+          ? editarCuentaDOC(corrigiendo.id, { ...datos, estado: d.b.estado })
+          : crearCuentaDOC(datos),
         {
           /* Sin artículos: Sileo capitaliza el título palabra por palabra, y
-             "Creating the account…" sale "Creating The Account…". */
-          loading: { title: "Creating account…" },
+             "Saving the account…" sale "Saving The Account…". */
+          loading: { title: corrigiendo ? "Saving account…" : "Creating account…" },
           success: (hecha) => ({
-            title: "Account created",
+            title: corrigiendo ? "Account saved" : "Account created",
             /* Qué puede hacer, que es lo que no se ve desde la tabla sin ir a
-               buscar la fila: el título ya dijo que existe. */
-            description: `${hecha.email} can sign in as ${ROLES_DOC[hecha.rol].label}.`,
+               buscar la fila: el título ya dijo que quedó. Corrigiendo, además,
+               es lo que uno acaba de cambiar nueve de cada diez veces. */
+            description:
+              hecha.estado === "deactivated"
+                ? `${hecha.email} can no longer sign in.`
+                : `${hecha.email} can sign in as ${ROLES_DOC[hecha.rol].label}.`,
           }),
           error: (falla) => ({
-            title: "Nothing was created",
+            title: corrigiendo ? "Nothing was saved" : "Nothing was created",
             description:
               falla instanceof Error
                 ? falla.message
-                : "The account couldn't be created — try again.",
+                : "The account couldn't be saved — try again.",
           }),
         },
       );
 
       cerrar();
-      setRecienCreada(creada.id);
+      setRecienCreada(quedo.id);
       if (reloj.current) clearTimeout(reloj.current);
       reloj.current = setTimeout(() => setRecienCreada(null), DESTELLO_MS);
     } catch {
@@ -844,37 +949,70 @@ export function useAltaDeCuenta(tabId?: string) {
       setEnviando(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [d.b, enviando, cerrar]);
+  }, [d.b, enviando, cerrar, corrigiendo]);
 
   /* Mientras está abierta, la ficha se vuelve a armar con cada tecla: el board
      guarda nodos, no estado. */
   useEffect(() => {
     if (!tabId || !abierta) return;
-    mostrarWidgets(tabId, celdaDeAlta(d, { cerrar, crear, enviando }));
-  }, [tabId, abierta, d, cerrar, crear, enviando, mostrarWidgets]);
+    mostrarWidgets(tabId, celdaDeAlta(d, { cerrar, guardar, enviando, corrigiendo }));
+  }, [tabId, abierta, d, cerrar, guardar, enviando, corrigiendo, mostrarWidgets]);
 
   /* Y cuando se cierra —por la ×, por Discard, o porque el alta terminó— el
      borrador se limpia. Un borrador que sobrevive escondido vuelve a aparecer
      media hora después con una cuenta que ya nadie se acuerda de haber
      empezado. */
   useEffect(() => {
-    if (!abierta) d.limpiar();
+    if (abierta) return;
+    d.limpiar();
+    /* Y se olvida contra qué estaba guardando. Sin esto, el siguiente clic en
+       "+ Account" abriría una hoja vacía que al guardar pisaría la cuenta que se
+       estaba corrigiendo hace media hora. */
+    setCorrigiendo(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [abierta]);
 
   /** Abrir es poner la ficha y abrir el riel, en ese orden: si el riel se abre
-   *  antes, hay un cuadro con el board vacío. */
-  const abrir = useCallback(() => {
-    if (!tabId) return;
-    mostrarWidgets(tabId, celdaDeAlta(d, { cerrar, crear, enviando }));
-    abrirBoard(tabId);
-  }, [tabId, d, cerrar, crear, enviando, mostrarWidgets, abrirBoard]);
+   *  antes, hay un cuadro con el board vacío.
+   *
+   *  Con una cuenta, la ficha llega llena y guarda contra ella; sin ella, vacía.
+   *  Es la misma ficha: dar de alta y corregir son el mismo formulario con el
+   *  mismo contenido, uno vacío y el otro lleno. */
+  const abrirCon = useCallback(
+    (cuenta: CuentaDOC | null) => {
+      if (!tabId) return;
+      /* El orden importa: primero se dice contra qué se guarda y qué hay
+         escrito, y recién después se pone la ficha. Al revés, el primer cuadro
+         mostraría la hoja vacía y los campos aparecerían un instante después. */
+      setCorrigiendo(cuenta);
+      if (cuenta) d.cargar(cuenta);
+      else d.limpiar();
+      mostrarWidgets(
+        tabId,
+        celdaDeAlta(d, { cerrar, guardar, enviando, corrigiendo: cuenta }),
+      );
+      abrirBoard(tabId);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tabId, d, cerrar, guardar, enviando, mostrarWidgets, abrirBoard],
+  );
 
   return {
     abierta,
     enviando,
     recienCreada,
-    abrir,
+    /** Abrir la ficha vacía, para dar de alta.
+     *
+     *  No toma parámetros y `abrirCon` no se exporta, a propósito: colgada
+     *  directo de un `onClick`, una función que acepta una cuenta recibe el
+     *  evento del clic y trata de leerle el nombre. Eso pasó, y el síntoma no
+     *  se parece a la causa —el botón deja de abrir nada, sin que la fila ni el
+     *  formulario tengan nada raro—. La firma es lo que lo hace imposible. */
+    abrir: () => abrirCon(null),
+    /** Abrir la ficha sobre una cuenta que ya existe, para corregirla. Es la
+     *  misma ficha: quien la llama —el menú de una fila— no tiene por qué saber
+     *  que es el mismo formulario. */
+    editar: (cuenta: CuentaDOC) => abrirCon(cuenta),
     /* Para la pantalla que no tiene board —una copia sin `tabId`—: sin lugar
        donde poner la ficha, el botón no promete algo que no va a pasar. */
     disponible: tabId !== undefined,
