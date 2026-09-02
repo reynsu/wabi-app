@@ -118,6 +118,38 @@ export const claveDeAlcance = (politica: Politica): ClaveDeAlcance => {
   return alcance.clase === "tipo" ? alcance.tipo : alcance.clase;
 };
 
+/** Los grupos que se pueden elegir al escribir una regla. Las cuentas sueltas no
+ *  están en esta lista a propósito: son cuarenta y ocho nombres, y un menú de
+ *  cuarenta y ocho no es un selector sino una tabla mal puesta. Una excepción
+ *  para una persona se escribe nombrándola en Targets, que es lo que la ficha
+ *  ofrece al lado. */
+export const GRUPOS: ClaveDeAlcance[] = ["todas", "resident", "friends", "casa"];
+
+/** La vuelta de `claveDeAlcance`: de la opción elegida al alcance guardado.
+ *
+ *  `cuenta` y `objetivos` no se eligen —no están en `GRUPOS`— pero llegan acá
+ *  igual cuando la regla que se está corrigiendo ya era una de esas y nadie la
+ *  movió: entonces se conserva lo que traía. Una regla escrita nombre por nombre
+ *  no se muda de grupo desde un desplegable. */
+export const alcanceDe = (
+  clave: ClaveDeAlcance,
+  original?: Alcance,
+): Alcance => {
+  switch (clave) {
+    case "todas":
+      return { clase: "todas" };
+    case "casa":
+      return { clase: "casa" };
+    case "resident":
+      return { clase: "tipo", tipo: "resident" };
+    case "friends":
+      return { clase: "tipo", tipo: "friends" };
+    case "cuenta":
+    case "objetivos":
+      return original ?? { clase: "todas" };
+  }
+};
+
 /** Sobre quiénes rige, escrito para la columna. Los objetivos ganan cuando los
  *  hay —el primero y cuántos más, que es lo que entra en una celda— y si no,
  *  el grupo de siempre. */
@@ -393,13 +425,21 @@ const diasDespues = (dia: string, dias: number) => {
    correcciones sobre lo que ya existía (`editadas`) y lo que se sacó
    (`borradas`). */
 
-/** Lo que una edición puede cambiar: lo que la política dice y sobre quién.
- *  Cuándo se la escribió y quién la escribió son historia, y la historia no se
- *  edita desde una tabla. */
+/** Lo que una edición puede cambiar: **todo lo que la ficha pregunta**. Cuándo
+ *  se la escribió y quién la escribió son historia, y la historia no se edita
+ *  desde una tabla.
+ *
+ *  Son cinco campos y no tres desde que corregir usa la misma ficha que escribir
+ *  —ver `NuevaPolitica`—: una hoja que muestra las direcciones y los objetivos
+ *  de una regla tiene que poder guardarlos, o los estaría mostrando para nada.
+ *  Antes eran tres porque el diálogo que corregía preguntaba otras cosas que la
+ *  ficha, y entre los dos no había una sola idea de qué es editable. */
 export interface Correccion {
   nombre: string;
   tipo: TipoDePolitica;
   alcance: Alcance;
+  direcciones: string[];
+  objetivos: Objetivo[];
 }
 
 /** Lo que la ficha de alta manda. No lleva tipo: una regla hecha de remitentes
@@ -489,20 +529,58 @@ export async function crearPolitica(datos: Alta): Promise<Politica> {
   return politica;
 }
 
-export function editarPolitica(id: string, correccion: Correccion) {
+/**
+ * Corregir una política. Devuelve la que quedó.
+ *
+ * Es la misma función que el alta con otro nombre, y a propósito: escribir una
+ * regla y corregirla son el mismo formulario con el mismo contenido, uno vacío y
+ * el otro lleno. Lo único que cambia es que acá ya hay una fila y hay que saber
+ * cuál. Es la misma decisión que tomaron las cuentas DOC.
+ *
+ * `async` por lo mismo que el alta: del otro lado va a haber una red, y quien la
+ * llama tiene que poder esperarla, mostrar que está en curso y enterarse si
+ * falla.
+ *
+ * Falla por lo mismo —un nombre repetido, que deja dos filas que nadie puede
+ * distinguir— con la excepción evidente: **la propia política no cuenta**. Sin
+ * eso, guardar una regla sin tocarle el nombre diría que ese nombre ya existe,
+ * que es exactamente el que uno acaba de mirar.
+ */
+export async function editarPolitica(
+  id: string,
+  correccion: Correccion,
+): Promise<Politica> {
+  await demora();
+
+  const nombre = correccion.nombre.trim();
+  const yaHay = armar(usuariosDeAhora(), hechoHastaAhora()).some(
+    (p) => p.id !== id && p.nombre.toLowerCase() === nombre.toLowerCase(),
+  );
+  if (yaHay) {
+    throw new Error(`A policy called "${nombre}" already exists.`);
+  }
+
+  const limpia: Correccion = { ...correccion, nombre };
   const { creadas, editadas } = hechoHastaAhora();
   /* Lo escrito desde la consola se corrige en su lugar; lo derivado no se puede
      tocar donde vive —se vuelve a armar en cada pintada—, así que su corrección
      se guarda aparte y se aplica al armar. */
   if (creadas.some((p) => p.id === id)) {
     useTiendaDePoliticas.setState({
-      creadas: creadas.map((p) => (p.id === id ? { ...p, ...correccion } : p)),
+      creadas: creadas.map((p) => (p.id === id ? { ...p, ...limpia } : p)),
     });
-    return;
+  } else {
+    useTiendaDePoliticas.setState({ editadas: { ...editadas, [id]: limpia } });
   }
-  useTiendaDePoliticas.setState({
-    editadas: { ...editadas, [id]: correccion },
-  });
+
+  const quedo = armar(usuariosDeAhora(), hechoHastaAhora()).find(
+    (p) => p.id === id,
+  );
+  /* No puede no estar —se acaba de escribir contra un id que salió de la
+     lista—, pero el tipo no lo sabe y una aserción acá sería una promesa que
+     nadie puede sostener el día que el id llegue de otro lado. */
+  if (!quedo) throw new Error("That policy no longer exists.");
+  return quedo;
 }
 
 export function borrarPolitica(id: string) {

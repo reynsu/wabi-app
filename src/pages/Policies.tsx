@@ -20,6 +20,8 @@ import {
   AnimatedEmptyMedia,
   AnimatedEmptyTitle,
 } from "@/components/animated-empty";
+import { BotonDeAlta } from "@/components/boton-de-alta";
+import { FilaDestellante } from "@/components/fila-destellante";
 import { punto } from "@/components/color-dot";
 import {
   FilterMenu,
@@ -52,7 +54,7 @@ import { SizeProvider, useTypeScale } from "@/lib/size-context";
 import { spring } from "@/lib/springs";
 import { cn } from "@/lib/utils";
 import { PolicyTargets } from "@/components/policy-targets";
-import { EditorDePolitica, BorrarPolitica } from "@/pages/EditorDePolitica";
+import { BorrarPolitica } from "@/pages/BorrarPolitica";
 import { useAltaDePolitica } from "@/pages/NuevaPolitica";
 import {
   ALCANCES,
@@ -92,7 +94,14 @@ import {
    La diferencia con Provisioning es qué se puede hacer con una fila. Un buzón
    se suspende —un estado, tres valores, y eso se edita en la celda—. Una
    política se reescribe entera o se saca, y eso no entra en una celda: va al
-   menú de la fila, y de ahí a un diálogo. */
+   menú de la fila.
+
+   Y de ahí a dos lugares distintos, que es lo que separa las dos acciones.
+   Reescribirla abre **la misma ficha del riel con la que se escribe una nueva**,
+   llena: retocar una regla es cuando más falta hace poder mirar las otras, y un
+   formulario para escribir y otro para corregir eran dos ideas distintas de qué
+   es editable en una regla. Sacarla abre un diálogo, porque es lo único de esta
+   pantalla que no se puede deshacer y no se hace de paso. */
 
 /* ─────────────────────────── El movimiento ───────────────────────────
 
@@ -118,21 +127,6 @@ const entraTabla = {
 const entraCelda = {
   oculto: { opacity: 0, filter: "blur(5px)" },
   visible: { opacity: 1, filter: "blur(0px)", transition: spring.slow },
-} as const;
-
-const FilaAnimada = motion.create(TableRow);
-
-/* El destello: la fila que acaba de existir —o la que se acaba de corregir—
-   llega encendida y se apaga sola. Es lo que cierra el diálogo: se aceptó, el
-   diálogo se fue, y sin esto hay que buscar con la vista cuál de las cuarenta
-   filas es la que uno tocó. Es el mismo violeta lavado con el que esta consola
-   marca lo suyo. */
-const DESTELLO = {
-  encendida: { backgroundColor: "oklch(0.966 0.022 292)" },
-  apagada: {
-    backgroundColor: "oklch(0.966 0.022 292 / 0)",
-    transition: { duration: 1.1, delay: 0.35 },
-  },
 } as const;
 
 /* ─────────────────────────── Los filtros ─────────────────────────── */
@@ -293,6 +287,11 @@ const POR_PAGINA = 40;
    dato de una celda, como el estado de un buzón—, y dos íconos por fila en
    cuarenta filas es una columna de ruido.
 
+   "Edit" abre la ficha del riel con la regla adentro —la misma con la que se
+   escribe una nueva—; "Delete" abre el diálogo que pregunta. Las dos salen de
+   este menú y van a dos muebles distintos a propósito: una se queda al costado
+   mientras se la trabaja, la otra se cierra apenas se contesta.
+
    El disparador aparece con el hover de la fila y se queda mientras el menú está
    abierto, igual que el chevron del estado en Provisioning. Con el foco de
    teclado también: si no, tabular hasta acá sería tabular hacia algo invisible. */
@@ -380,19 +379,19 @@ function Pantalla({ tabId }: { tabId?: string }) {
   const todas = usePoliticas();
   const usuarios = useUsuarios();
 
-  /* Qué está abierto: el editor —escribiendo una nueva o corrigiendo una— y la
-     confirmación de borrado. Es estado de la vista, así que vive acá: dos
-     pestañas de esta pantalla tienen que poder estar mirando cosas distintas. */
-  const [editando, setEditando] = useState<Politica | null>(null);
-  const [borrando, setBorrando] = useState<Politica | null>(null);
-  /* La fila que se acaba de tocar, para el destello. Se guarda el id y no la
-     fila: la fila se vuelve a armar y la de antes ya no es la misma.
+  /* Lo único que esta pantalla abre por su cuenta: la confirmación de borrado.
+     Es estado de la vista, así que vive acá —dos pestañas de esta pantalla
+     tienen que poder estar mirando cosas distintas—.
 
-     Son dos fuentes porque son dos caminos: corregir una es del diálogo, y
-     escribir una nueva es de la ficha del riel, que la señala cuando su alta
-     termina. */
-  const [corregida, setCorregida] = useState<string | null>(null);
-  const recien = corregida ?? alta.recienCreada;
+     Corregir ya no está acá. Era un diálogo propio con su `editando`, y ahora es
+     la misma ficha del riel que escribe una nueva: quien la abre y quién guarda
+     el destello es `useAltaDePolitica`, que ya lo hacía para el alta. */
+  const [borrando, setBorrando] = useState<Politica | null>(null);
+  /* La fila que se acaba de tocar, para el destello. Una sola fuente desde que
+     corregir y escribir son el mismo camino: antes eran dos —el diálogo y la
+     ficha—, y dos fuentes para un mismo destello son dos maneras de que una se
+     olvide de apagarlo. */
+  const recien = alta.recienCreada;
 
   /* El alcance escrito se calcula una vez por fila y se usa tres veces —la
      columna, la búsqueda y el `title`—: resolverlo adentro de cada uso sería
@@ -483,17 +482,20 @@ function Pantalla({ tabId }: { tabId?: string }) {
           />
 
           {/* La acción de la pantalla, y la única que crea algo: el resto de la
-              barra busca y filtra, que es mirar. Va `primary` y última, contra
-              el borde, que es donde este sistema deja la acción. El glifo es el
-              mismo con el que la fila del sidebar nombra la sección. */}
-          <Button
-            variant="primary"
-            leadingIcon={ShieldCheck}
-            onClick={alta.abrir}
-            disabled={!alta.disponible}
-          >
-            New policy
-          </Button>
+              barra busca y filtra, que es mirar. Va última, contra el borde, que
+              es donde este sistema deja la acción.
+
+              De hielo y no `primary`: es la misma acción que en Announcements,
+              DOC Accounts y Reports —crear lo que la tabla lista— y el negro
+              sólido pesa demasiado en una barra que al lado tiene un campo y un
+              panel de filtros. El glifo es el `+` y no el escudo de la sección:
+              el de la sección ya está a la vista dos veces —la fila del sidebar
+              y la pestaña— y lo que el botón tiene que decir es qué hace. Con el
+              signo delante, el "New" delante del sustantivo sería la misma
+              palabra escrita dos veces. */}
+          <BotonDeAlta onClick={alta.abrir} disponible={alta.disponible}>
+            Policy
+          </BotonDeAlta>
         </div>
       </motion.header>
 
@@ -552,20 +554,28 @@ function Pantalla({ tabId }: { tabId?: string }) {
                      ella y no sobre `politica.alcance`, que el compilador vuelve
                      a ensanchar al leerla dos veces. */
                   const suyo = politica.alcance;
+                  /* La ficha de una cuenta se abre sólo cuando la regla **rige
+                     de verdad** sobre esa cuenta, y no apenas su alcance lo
+                     diga: con objetivos nombrados manda la lista y el alcance es
+                     el que quedó de antes. Es la misma regla que aplican
+                     `claveDeAlcance` y `aQuienesRige`, que es de donde sale el
+                     texto de esta misma celda.
+
+                     Sin la primera condición, corregir una excepción y nombrarle
+                     un objetivo dejaba la celda mostrando la cuenta vieja
+                     mientras el resto de la pantalla —el panel, el resumen de la
+                     ficha— ya decía la nueva. Antes no podía pasar: el diálogo
+                     que corregía no tocaba los objetivos. */
                   const cuenta =
-                    suyo.clase === "cuenta"
+                    politica.objetivos.length === 0 && suyo.clase === "cuenta"
                       ? usuarios.find((u) => u.id === suyo.cuenta)
                       : undefined;
 
                   return (
-                    <FilaAnimada
+                    <FilaDestellante
                       key={politica.id}
                       index={i}
-                      /* Sin destello, `initial`/`animate` en el mismo valor: la
-                         fila no anima nada y el envoltorio no cuesta nada. */
-                      initial={tocada ? "encendida" : false}
-                      animate={tocada ? "apagada" : undefined}
-                      variants={DESTELLO}
+                      destella={tocada}
                     >
                       {/* Qué dice la regla, y nada más. El tipo no se pinta en
                           la fila: es una palabra de cinco valores que sirve para
@@ -650,12 +660,12 @@ function Pantalla({ tabId }: { tabId?: string }) {
                           className="flex justify-end"
                         >
                           <AccionesDePolitica
-                            onEditar={() => setEditando(politica)}
+                            onEditar={() => alta.editar(politica)}
                             onBorrar={() => setBorrando(politica)}
                           />
                         </motion.span>
                       </TableCell>
-                    </FilaAnimada>
+                    </FilaDestellante>
                   );
                 })}
               </TableBody>
@@ -683,20 +693,9 @@ function Pantalla({ tabId }: { tabId?: string }) {
         </motion.footer>
       )}
 
-      {/* Los dos diálogos, montados sólo cuando hay algo que decidir: uno
-          corrige y el otro pregunta antes de sacar. Escribir una nueva no está
-          acá: eso es la ficha del riel. */}
-      {editando && (
-        <EditorDePolitica
-          politica={editando}
-          onListo={(id) => {
-            setEditando(null);
-            setCorregida(id);
-          }}
-          onCancelar={() => setEditando(null)}
-        />
-      )}
-
+      {/* El único diálogo, montado sólo cuando hay algo que decidir: la pregunta
+          antes de sacar una. Escribir una regla y corregirla no están acá: las
+          dos son la ficha del riel. */}
       {borrando && (
         <BorrarPolitica
           politica={borrando}
