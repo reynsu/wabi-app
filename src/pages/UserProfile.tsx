@@ -9,13 +9,13 @@ import {
   KeyRound,
   Mail,
   MessagesSquare,
+  Layers,
   MoreHorizontal,
   ChartSpline,
   Clock,
   PieChart,
   Save,
   ShieldAlert,
-  SlidersHorizontal,
   Waypoints,
   Wrench,
 } from "lucide-react";
@@ -800,12 +800,34 @@ function Perfil({
               cuelgan del mismo rincón, así que van pegadas entre sí y separadas
               del selector por el `gap-6` de la caja de afuera. */}
           <div className="flex items-center gap-2">
-            {/* Qué se mira de la cuenta. En su propio botón y con su nombre a
-                la vista: adentro del menú de acciones las tres filas
-                necesitaban un rótulo para no leerse como cosas que se le hacen
-                a la cuenta, y un rótulo adentro de un menú es una etiqueta que
-                hay que abrir para encontrar. Acá el nombre está siempre, y el
-                menú se queda con las tres opciones y nada más.
+            {/* Qué se mira de la cuenta. En su propio botón y no adentro del
+                menú de acciones: ahí las tres filas necesitaban un rótulo para
+                no leerse como cosas que se le *hacen* a la cuenta, y un rótulo
+                adentro de un menú es una etiqueta que hay que abrir para
+                encontrar.
+
+                **Sin la palabra.** Decía "Display", y eso es como se llaman los
+                ajustes de visualización en cualquier app —densidad, columnas,
+                tema—: acá no ajusta nada, abre contenido. Quien lo leyera
+                esperando "cómo se ve esto" encontraba "otras tres cosas para
+                mirar". Y ninguna palabra corta lo dice bien: "Views" y
+                "Insights" son categorías inventadas para el envoltorio, no
+                nombres de nada que exista en esta consola. Sin palabra, el menú
+                dice sus tres nombres y no hay nada que pueda prometer de más.
+
+                El glifo tampoco es el de antes. Eran los deslizadores, que son
+                el glifo universal de un panel de ajustes y la mitad de por qué
+                "Display" se leía como se leía. Son capas: lo que estas tres
+                cosas tienen en común es que son la misma cuenta mirada por
+                debajo —qué hizo, cuándo, con quién—, contra lo que la cuenta
+                *es* (la cabecera) y lo que *tiene* (las secciones). No es el
+                glifo de un panel —`PanelRight` ya es el de abrir el riel, en
+                `window-controls`— ni el de un gráfico, que sería una de las tres
+                filas haciéndose pasar por las tres.
+
+                Queda al lado de otro botón de ícono, el de acciones, y eso está
+                bien mientras los glifos no se parezcan: uno son capas y el otro
+                tres puntos. Dos elipsis seguidas serían el problema.
 
                 Todavía no muestran nada: las tres vistas no están escritas, así
                 que por ahora las filas dicen que van a existir. Es lo mismo que
@@ -815,11 +837,12 @@ function Perfil({
                 render={
                   <Button
                     variant="secondary"
-                    leadingIcon={SlidersHorizontal}
+                    size="icon"
+                    aria-label="Account views"
                   />
                 }
               >
-                Display
+                <Layers />
               </DropdownTrigger>
 
               <DropdownContent side="bottom" align="end" className="w-auto">
