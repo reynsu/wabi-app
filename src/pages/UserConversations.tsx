@@ -10,9 +10,9 @@ import {
   History,
   Image as ImageIcon,
   Lock,
+  MessageSquareMore,
   MessageSquareOff,
   Mic,
-  MoreHorizontal,
   Paperclip,
   Save,
   Search,
@@ -632,10 +632,20 @@ function Hilo({ conversacion }: { conversacion: Conversacion }) {
           {/* Lo que se le hace al hilo, en un menú y no en tres botones sueltos.
               Son cosas que se le hacen a la conversación y no cosas que la
               pantalla ofrece —son infrecuentes y pesarían más que los dos
-              controles que tienen al lado—, y el glifo de "más" es como esta app
-              ya dice "acá hay más de lo que se ve". Es el mismo disparador, con
-              el mismo `align="end"`, que el menú de la cuenta en el header del
-              perfil.
+              controles que tienen al lado—, y cuelga con el mismo `align="end"`
+              que el menú de la cuenta en el header del perfil.
+
+              Lo que **no** comparte con ése es el glifo. Los tres puntos son como
+              esta app dice "acá hay más de lo que se ve", así que los dos menús
+              habían terminado con el mismo: uno encima del otro, a treinta
+              píxeles de distancia, dos botones idénticos que hacen cosas
+              distintas —el de arriba actúa sobre la cuenta entera, éste sobre un
+              hilo—. Y a ese tamaño no hay manera de distinguirlos: lo único que
+              los separa es dónde están.
+
+              La burbuja con puntos dice de qué son estas acciones sin que haya
+              que abrirlas, que es justo lo que los tres puntos no pueden decir.
+              Sigue diciendo "hay más acá" —los puntos están— y agrega sobre qué.
 
               **Ninguna de las tres hace nada todavía**: ver la nota al pie. */}
           <DropdownMenu>
@@ -648,7 +658,7 @@ function Hilo({ conversacion }: { conversacion: Conversacion }) {
                 />
               }
             >
-              <MoreHorizontal />
+              <MessageSquareMore />
             </DropdownTrigger>
 
             {/* Ancho propio, con piso. Los 288px que trae el panel son para un
