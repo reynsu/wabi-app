@@ -106,13 +106,19 @@ export interface CuentaDOC {
    *  cuántas más. */
   organizaciones: Organizacion[];
   rol: RolDOC;
-  /** Desde cuándo tiene este acceso. Día suelto —`2026-05-13`— como el alta de
-   *  una cuenta o de un buzón.
+  /** Desde cuándo tiene este acceso.
    *
    *  Es **la fecha del acceso y no la del alta de la persona**: a alguien que
    *  cambia de rol se le mueve, porque lo que la columna dice es desde cuándo
    *  puede hacer lo que la fila dice que puede hacer. De ahí que haya fechas más
-   *  nuevas que la de gente que está hace años. */
+   *  nuevas que la de gente que está hace años.
+   *
+   *  Un día suelto —`2026-05-13`— o un momento —`2026-05-13T09:30`—. Las dos
+   *  formas conviven porque las dos cosas se dicen de verdad: un acceso que
+   *  empezó "ese día" y uno que empezó a una hora. La ficha de alta pide las dos
+   *  con el mismo campo y sólo guarda la hora cuando alguien la eligió; sin eso,
+   *  cada cuenta tendría un `00:00` que nadie fechó. Quien muestra el día usa
+   *  `diaDe`. */
   desde: string;
   estado: EstadoDOC;
 }
@@ -268,6 +274,25 @@ const CUENTAS: Omit<CuentaDOC, "id">[] = [
   },
 ];
 
+/** El día de un `desde`, tenga hora o no. Es lo que muestra la columna y por lo
+ *  que pregunta el filtro: la hora, cuando la hay, es una precisión del acceso y
+ *  no algo que se recorra en una tabla. */
+export const diaDe = (desde: string) => desde.slice(0, 10);
+
+/** El momento entero, escrito, para cuando hay lugar —el `title` de la celda—.
+ *  `null` cuando el acceso no tiene hora: un "12:00 AM" agregado a un día que
+ *  nadie fechó a esa hora es una precisión inventada. */
+const CON_HORA = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+export const momentoDe = (desde: string) =>
+  desde.includes("T") ? CON_HORA.format(new Date(desde)) : null;
+
 /* ─────────────────────────── La tienda ─────────────────────────── */
 
 /* A una cuenta se le saca el acceso y se le devuelve desde el menú de la fila,
@@ -279,9 +304,13 @@ const CUENTAS: Omit<CuentaDOC, "id">[] = [
    correo. */
 interface Tienda {
   estados: Record<string, EstadoDOC>;
+  /** Lo que la consola dio de alta. Aparte del fixture y no mezclado con él: son
+   *  de dos naturalezas —lo que estaba y lo que hicimos—, y el día que las
+   *  cuentas vengan de una API lo primero se borra y esto se queda. */
+  creadas: CuentaDOC[];
 }
 
-const useTiendaDOC = create<Tienda>()(() => ({ estados: {} }));
+const useTiendaDOC = create<Tienda>()(() => ({ estados: {}, creadas: [] }));
 
 /** Sacarle el acceso a una cuenta, o devolvérselo.
  *
@@ -289,6 +318,73 @@ const useTiendaDOC = create<Tienda>()(() => ({ estados: {} }));
  *  ninguno de los dos necesita volver a pintarse porque exista. */
 export const cambiarEstadoDOC = (id: string, estado: EstadoDOC) =>
   useTiendaDOC.setState((t) => ({ estados: { ...t.estados, [id]: estado } }));
+
+/** Cuánto tarda en darse de alta una cuenta.
+ *
+ *  No hay servidor detrás, y sin demora el alta sería instantánea: se toca el
+ *  botón y la fila ya está. Eso no es lo que va a pasar el día que haya una API,
+ *  y una pantalla diseñada contra un alta instantánea no tiene dónde poner lo
+ *  que pasa mientras. Es la misma decisión, con el mismo número, que el alta de
+ *  políticas, la de buzones y la de anuncios. */
+const DEMORA_MS = 900;
+
+const demora = () => new Promise((listo) => setTimeout(listo, DEMORA_MS));
+
+/** Lo que la ficha manda. El nombre llega armado —la ficha lo pide en tres
+ *  campos y los junta— porque lo que la casa guarda de una persona es cómo se
+ *  llama, y partirlo en tres campos que sólo se vuelven a juntar para mostrarlos
+ *  es guardar la forma del formulario en vez del dato. */
+export interface AltaDOC {
+  nombre: string;
+  email: string;
+  rol: RolDOC;
+  organizaciones: Organizacion[];
+  desde: string;
+}
+
+/**
+ * Dar de alta una cuenta. Devuelve la que quedó.
+ *
+ * Es `async` y no una escritura a secas porque del otro lado va a haber una red:
+ * quien la llama tiene que poder esperarla, mostrar que está en curso y
+ * enterarse si falla.
+ *
+ * Falla cuando ya hay una cuenta con ese correo. No es una restricción inventada
+ * para tener un error: el correo **es** la identidad de una fila en esta tabla
+ * —hay dos personas con el mismo nombre—, así que dos cuentas con el mismo
+ * correo son dos filas que nadie puede distinguir. Se chequea después de la
+ * espera, contra la lista de ese momento, que es donde estaría la que se coló
+ * mientras tanto.
+ */
+export async function crearCuentaDOC(datos: AltaDOC): Promise<CuentaDOC> {
+  await demora();
+
+  const email = datos.email.trim().toLowerCase();
+  const { creadas } = useTiendaDOC.getState();
+  const yaHay = [...CUENTAS, ...creadas].some(
+    (c) => c.email.toLowerCase() === email,
+  );
+  if (yaHay) {
+    throw new Error(`${email} already has an account.`);
+  }
+
+  const cuenta: CuentaDOC = {
+    /* El id sale del correo, como el de las escritas: es lo único que no se
+       repite, y así el estado que se le guarde encima sigue pegado a la cuenta
+       correcta. */
+    id: `doc/${email}`,
+    nombre: datos.nombre.trim(),
+    email,
+    organizaciones: datos.organizaciones,
+    rol: datos.rol,
+    desde: datos.desde,
+    /* Nace activa: dar de alta a alguien es dejarlo entrar. Una cuenta que nace
+       desactivada es un formulario que no hizo nada. */
+    estado: "active",
+  };
+  useTiendaDOC.setState({ creadas: [...creadas, cuenta] });
+  return cuenta;
+}
 
 /* ─────────────────────────── El armado ─────────────────────────── */
 
@@ -299,23 +395,36 @@ export function dondeTrabaja(cuenta: CuentaDOC) {
   return { primera, mas: resto.length };
 }
 
-/** Las cuentas de ahora: las escritas, con el estado que la consola les haya
- *  dejado encima.
+/** Las cuentas de ahora: las escritas más las que dio de alta la consola, con el
+ *  estado que se les haya dejado encima, y de la más nueva a la más vieja.
  *
  *  El id sale del correo y no de un contador: es lo único que no se repite —dos
  *  personas se llaman igual en esta lista— y lo que hace que el estado guardado
  *  siga pegado a la cuenta correcta si alguien reordena el fixture. */
 export function useCuentasDOC(): CuentaDOC[] {
   const estados = useTiendaDOC((t) => t.estados);
+  const creadas = useTiendaDOC((t) => t.creadas);
   return useMemo(
     () =>
-      CUENTAS.map((c) => {
-        const id = `doc/${c.email}`;
-        return { ...c, id, estado: estados[id] ?? c.estado };
-      }).sort((a, b) => a.nombre.localeCompare(b.nombre)),
-    [estados],
+      [
+        ...CUENTAS.map((c) => ({ ...c, id: `doc/${c.email}` })),
+        ...creadas,
+      ]
+        .map((c) => ({ ...c, estado: estados[c.id] ?? c.estado }))
+        /* Lo último primero, como el resto de las tablas de esta consola.
+           
+           Los `desde` se comparan como texto: en ISO el orden alfabético es el
+           cronológico, y eso vale igual para los que llevan hora —`2026-05-13`
+           es anterior a `2026-05-13T09:30`, que es lo correcto—.
+           
+           Cuando dos accesos empiezan el mismo día, desempata el nombre. Sin
+           eso, dos filas con la misma fecha quedarían en el orden en que estén
+           escritas en el fixture, que no significa nada y cambia el día que
+           alguien las reordene. */
+        .sort(
+          (a, b) =>
+            b.desde.localeCompare(a.desde) || a.nombre.localeCompare(b.nombre),
+        ),
+    [estados, creadas],
   );
-  /* Por nombre y no por fecha, al revés que las otras tablas de esta consola:
-     un directorio se recorre buscando a una persona, y para eso el orden que
-     sirve es el alfabético. Las otras se recorren buscando lo último que pasó. */
 }

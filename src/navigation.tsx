@@ -123,8 +123,8 @@ export const NAV: NavGroup[] = [
     id: "admin",
     label: "Admin",
     items: [
-      hoja("admin/doc-accounts", "DOC Accounts", IdCard, "Admin", () => (
-        <DocAccounts />
+      hoja("admin/doc-accounts", "DOC Accounts", IdCard, "Admin", (tabId) => (
+        <DocAccounts tabId={tabId} />
       )),
       hoja("admin/reports", "Reports", FileText, "Admin"),
       hoja("admin/whats-new", "What's New", Sparkles, "Admin", () => <Releases />),

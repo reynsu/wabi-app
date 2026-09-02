@@ -109,14 +109,19 @@ export function Campo({
   rotulo,
   ayuda,
   children,
+  /** Para cuando la ficha acomoda sus campos en una grilla y uno tiene que
+   *  ocupar más de una columna. El campo no decide dónde va —eso es de la
+   *  hoja—, pero es el que lleva la clase que lo dice. */
+  className,
 }: {
   rotulo: string;
   ayuda?: string;
   children: ReactNode;
+  className?: string;
 }) {
   const escala = useTypeScale();
   return (
-    <div className={cn("flex min-w-0 flex-col", AIRE.rotulo)}>
+    <div className={cn("flex min-w-0 flex-col", AIRE.rotulo, className)}>
       <div className="flex min-w-0 flex-col gap-0.5">
         <span className="font-medium" style={{ fontSize: escala.caption }}>
           {rotulo}

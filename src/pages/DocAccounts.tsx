@@ -22,6 +22,7 @@ import {
   AnimatedEmptyMedia,
   AnimatedEmptyTitle,
 } from "@/components/animated-empty";
+import { BotonDeAlta } from "@/components/boton-de-alta";
 import { punto } from "@/components/color-dot";
 import {
   FilterMenu,
@@ -60,10 +61,13 @@ import {
   ORDEN_ROLES,
   ORGANIZACIONES,
   ROLES_DOC,
+  diaDe,
   dondeTrabaja,
+  momentoDe,
   useCuentasDOC,
   type CuentaDOC,
 } from "@/pages/cuentas-doc";
+import { useAltaDeCuenta } from "@/pages/NuevaCuentaDOC";
 import { fechaDia, tramoAlta } from "@/pages/tiempo";
 import {
   AIRE_FILA,
@@ -114,6 +118,21 @@ const entraTabla = {
 const entraCelda = {
   oculto: { opacity: 0, filter: "blur(5px)" },
   visible: { opacity: 1, filter: "blur(0px)", transition: spring.slow },
+} as const;
+
+const FilaAnimada = motion.create(TableRow);
+
+/* El destello: la fila que acaba de existir llega encendida y se apaga sola. Es
+   lo que cierra el alta —la ficha se fue, y sin esto hay que buscar con la vista
+   cuál de las quince filas es la que uno acaba de crear, que además cae ordenada
+   por nombre y no arriba de todo—. Es el mismo violeta lavado con el que esta
+   consola marca lo suyo. */
+const DESTELLO = {
+  encendida: { backgroundColor: "oklch(0.966 0.022 292)" },
+  apagada: {
+    backgroundColor: "oklch(0.966 0.022 292 / 0)",
+    transition: { duration: 1.1, delay: 0.35 },
+  },
 } as const;
 
 /* ─────────────────────────── Los filtros ─────────────────────────── */
@@ -215,7 +234,7 @@ const CAMPOS: Record<string, (c: CuentaDOC) => string[]> = {
      cualquiera de las que toca. */
   org: (c) => [...c.organizaciones],
   status: (c) => [c.estado],
-  effective: (c) => [tramoAlta(c.desde)],
+  effective: (c) => [tramoAlta(diaDe(c.desde))],
 };
 
 const contiene = (donde: string[], que: string) =>
@@ -368,17 +387,25 @@ function AccionesDeCuenta({ cuenta }: { cuenta: CuentaDOC }) {
 
 /* ─────────────────────────── La pantalla ─────────────────────────── */
 
-export function DocAccounts() {
+/** `tabId` es el de la pestaña que la monta: la ficha de alta se pone en **su**
+ *  board, no en el de la que esté puesta. Las pestañas que no se miran siguen
+ *  montadas, y escribir contra "la activa" le pondría la ficha en la cara a
+ *  otra. */
+export function DocAccounts({ tabId }: { tabId?: string }) {
   return (
     /* Una región densa entera, como las otras tablas: el buscador, el panel y la
        tabla leen el escalón de acá y no lo reciben cada uno por su cuenta. */
     <SizeProvider size="compact">
-      <Pantalla />
+      <Pantalla tabId={tabId} />
     </SizeProvider>
   );
 }
 
-function Pantalla() {
+function Pantalla({ tabId }: { tabId?: string }) {
+  /* El alta vive en el riel y no en un diálogo: dar de alta a alguien es
+     justamente cuando hace falta poder mirar las cuentas que ya están. Ver
+     `NuevaCuentaDOC`. */
+  const alta = useAltaDeCuenta(tabId);
   const [busqueda, setBusqueda] = useState("");
   const [filtros, setFiltros] = useState<FilterSelection>({});
   const escala = useTypeScale();
@@ -452,6 +479,21 @@ function Pantalla() {
             value={filtros}
             onValueChange={setFiltros}
           />
+
+          {/* La acción de la pantalla, y la única que crearía algo: el resto de
+              la barra busca y filtra, que es mirar. Va última, contra el borde,
+              que es donde este sistema deja la acción, y es el mismo botón de
+              hielo con el que Announcements crea el suyo.
+
+              Todavía no hace nada: lo que falta es dónde se da de alta una
+              cuenta —quién es, con qué rol, en qué organizaciones—, y eso es una
+              ficha entera, no un handler. Es la misma que va a abrir el "Edit
+              account" del menú de la fila: dar de alta y corregir son el mismo
+              formulario con el mismo contenido, uno vacío y el otro lleno. El
+              `onClick` se engancha acá cuando exista. */}
+          <BotonDeAlta onClick={alta.abrir} disponible={alta.disponible}>
+            Account
+          </BotonDeAlta>
         </div>
       </motion.header>
 
@@ -511,8 +553,18 @@ function Pantalla() {
                   const estado = ESTADOS_DOC[cuenta.estado];
                   const donde = dondeTrabaja(cuenta);
 
+                  /* Sin destello, `initial`/`animate` en el mismo valor: la
+                     fila no anima nada y el envoltorio no cuesta nada. */
+                  const tocada = cuenta.id === alta.recienCreada;
+
                   return (
-                    <TableRow key={cuenta.id} index={i}>
+                    <FilaAnimada
+                      key={cuenta.id}
+                      index={i}
+                      initial={tocada ? "encendida" : false}
+                      animate={tocada ? "apagada" : undefined}
+                      variants={DESTELLO}
+                    >
                       {/* Quién es. En la tinta del texto y con algo de peso: es
                           la primera columna y es por donde se recorre la lista
                           buscando a alguien. */}
@@ -579,13 +631,20 @@ function Pantalla() {
 
                       {/* Desde cuándo. Con el día entero y no en relativo: es la
                           misma fecha, escrita igual, que la Date Added de
-                          Accounts y la Created on de Policies. */}
+                          Accounts y la Created on de Policies.
+
+                          La hora, cuando el acceso tiene una, va en el `title` y
+                          no en la celda: es una precisión del acceso y no algo
+                          que se recorra en una tabla, y puesta acá sería la
+                          única columna con dos formatos según quién dio de alta
+                          la cuenta. */}
                       <TableCell>
                         <motion.span
                           variants={entraCelda}
                           className="block truncate tabular-nums"
+                          title={momentoDe(cuenta.desde) ?? undefined}
                         >
-                          {fechaDia(cuenta.desde)}
+                          {fechaDia(diaDe(cuenta.desde))}
                         </motion.span>
                       </TableCell>
 
@@ -614,7 +673,7 @@ function Pantalla() {
                           <AccionesDeCuenta cuenta={cuenta} />
                         </motion.span>
                       </TableCell>
-                    </TableRow>
+                    </FilaAnimada>
                   );
                 })}
               </TableBody>

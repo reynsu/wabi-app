@@ -4,7 +4,6 @@ import {
   CalendarCheck,
   Eye,
   MegaphoneOff,
-  Plus,
   Search,
   Type,
   UserPen,
@@ -19,6 +18,7 @@ import {
   AnimatedEmptyTitle,
 } from "@/components/animated-empty";
 import { AnnouncementRecipients } from "@/components/announcement-recipients";
+import { BotonDeAlta } from "@/components/boton-de-alta";
 import {
   FilterMenu,
   type FilterGroup,
@@ -27,7 +27,6 @@ import {
 } from "@/components/filter-menu";
 import { Pagination } from "@/components/pagination";
 import { Rango } from "@/components/pager-range";
-import { Button } from "@/components/ui/button";
 import { InputField, InputGroup } from "@/components/ui/input-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -62,7 +61,6 @@ import { tabDePerfil } from "@/pages/perfil-tab";
 import { fechaDia, tramoAlta } from "@/pages/tiempo";
 import { TarjetaUsuario } from "@/pages/Users";
 import { cambiarEstado, type Usuario } from "@/pages/usuarios";
-import { useTemaOscuro } from "@/stores/tema";
 import { useWorkspace } from "@/stores/workspace";
 import {
   AIRE_FILA,
@@ -394,60 +392,6 @@ function Engagement({ anuncio }: { anuncio: Anuncio }) {
   );
 }
 
-/* ─────────────────────────── El alta ─────────────────────────── */
-
-/**
- * BotonDeAlta — la acción de la pantalla, y la única que crearía algo.
- *
- * De hielo: un velo de gris muy liviano sobre un `ghost`, y **dos cantos de un
- * píxel** —uno oscuro por fuera y uno claro por dentro—. Son las dos aristas las
- * que hacen el efecto, no el relleno: es lo que separa un vidrio de una mancha,
- * y se lee limpio sin subir de tono. El negro sólido del `primary` pesaba
- * demasiado para una barra que al lado tiene un campo y un panel de filtros.
- *
- * Las sombras van por `style` y no en clases: son cuatro capas que cambian
- * enteras entre los dos temas, y escritas como utilidades arbitrarias —con sus
- * guiones bajos y sus paréntesis escapados— no hay manera de leerlas. El tema se
- * pregunta acá, como lo hacen las tarjetas de papel.
- *
- * El velo lleva `backdrop-blur`, que hoy no tiene qué desenfocar: esta barra
- * está apoyada sobre un plano liso. Va puesto igual —el día que algo scrollee
- * por debajo, funciona solo— y lo que hace el efecto mientras tanto son el velo
- * y los dos cantos.
- *
- * Todavía no hace nada: lo que falta es dónde se escribe un anuncio —a quiénes,
- * con qué texto—, y eso es una ficha entera, no un handler. El `onClick` se
- * engancha acá cuando esa ficha exista.
- */
-function BotonDeAlta({
-  onAbrir,
-  disponible,
-}: {
-  onAbrir: () => void;
-  disponible: boolean;
-}) {
-  const oscuro = useTemaOscuro();
-
-  return (
-    <Button
-      variant="ghost"
-      leadingIcon={Plus}
-      /* `text-foreground` porque el `ghost` nace en el gris secundario: sobre el
-         velo, la etiqueta va a la misma tinta que el resto de la barra. */
-      className="bg-foreground/[0.04] text-foreground backdrop-blur-md dark:bg-foreground/[0.08]"
-      onClick={onAbrir}
-      disabled={!disponible}
-      style={{
-        boxShadow: oscuro
-          ? "0 0 0 1px rgb(0 0 0 / 0.55), inset 0 0 0 1px rgb(255 255 255 / 0.14)"
-          : "0 0 0 1px rgb(0 0 0 / 0.10), inset 0 0 0 1px rgb(255 255 255 / 0.90)",
-      }}
-    >
-      Announcement
-    </Button>
-  );
-}
-
 /* ─────────────────────────── La pantalla ─────────────────────────── */
 
 /** `tabId` es el de la pestaña que la monta: la ficha de alta se pone en **su**
@@ -576,7 +520,9 @@ function Pantalla({ tabId }: { tabId?: string }) {
               engancha acá cuando esa ficha exista. */}
           {/* Va última, contra el borde, que es donde este sistema deja la
               acción: el resto de la barra busca y filtra, que es mirar. */}
-          <BotonDeAlta onAbrir={alta.abrir} disponible={alta.disponible} />
+          <BotonDeAlta onClick={alta.abrir} disponible={alta.disponible}>
+            Announcement
+          </BotonDeAlta>
         </div>
       </motion.header>
 
