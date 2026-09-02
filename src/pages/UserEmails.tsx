@@ -21,6 +21,7 @@ import {
   type FilterOption,
   type FilterSelection,
 } from "@/components/filter-menu";
+import { Adjuntos } from "@/components/adjuntos";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { InputField, InputGroup } from "@/components/ui/input-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -41,7 +42,6 @@ import {
   emailsDe,
   entregaDe,
   loEscribioLaCuenta,
-  type Adjunto,
   type Carpeta,
   type Email,
 } from "@/pages/emails";
@@ -633,50 +633,6 @@ function Lista({
   );
 }
 
-/* ─────────────────────────── El correo ─────────────────────────── */
-
-function Adjuntos({ adjuntos }: { adjuntos: Adjunto[] }) {
-  const escala = useTypeScale();
-  const shape = useShape();
-
-  return (
-    /* La regla de arriba va punteada y más lavada que la que separa la cabecera
-       del cuerpo, y las dos cosas dicen lo mismo: esto no es una parte nueva del
-       correo sino lo que el cuerpo venía diciendo. Arriba el corte es entre dos
-       clases de cosa —quién lo manda y qué dice—, y ahí una línea llena está
-       bien; acá el adjunto es la última frase del mismo mensaje, y una línea
-       llena lo cortaba como si empezara otra cosa.
-
-       Es la misma punteada con la que las fichas del riel parten una hoja —ver
-       `Corte` en `ficha.tsx`—, por el mismo motivo: separa partes de la misma
-       hoja, no dos superficies distintas. */
-    <div className="flex flex-wrap gap-2 border-t border-dashed border-border/60 pt-4">
-      {adjuntos.map((a) => (
-        /* No son botones: no hay de dónde bajarlos. Decir que hay algo colgado
-           y cuánto pesa es todo lo que esta pantalla puede prometer hoy, y un
-           botón que no descarga es peor que ninguno. */
-        <span
-          key={a.nombre}
-          className={cn(
-            "flex items-center gap-2 border border-border px-2.5 py-1.5",
-            shape.item,
-          )}
-          style={{ fontSize: escala.caption }}
-        >
-          <Paperclip
-            size={12}
-            strokeWidth={1.5}
-            className="shrink-0 text-muted-foreground"
-          />
-          <span className="truncate">{a.nombre}</span>
-          <span className="shrink-0 tabular-nums text-muted-foreground">
-            {a.tamano}
-          </span>
-        </span>
-      ))}
-    </div>
-  );
-}
 
 function Vista({ email, usuario }: { email: Email; usuario: Usuario }) {
   const escala = useTypeScale();

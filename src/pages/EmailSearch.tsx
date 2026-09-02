@@ -20,6 +20,10 @@ import {
   AnimatedEmptyMedia,
   AnimatedEmptyTitle,
 } from "@/components/animated-empty";
+/* Con otro nombre: en este archivo `Adjuntos` ya es el badge que dice cuántos
+   trae una fila de la tabla, y son dos cosas distintas —cuántos hay, y cuáles
+   son—. */
+import { Adjuntos as AdjuntosDelCorreo } from "@/components/adjuntos";
 import { punto } from "@/components/color-dot";
 import { LateralPreview } from "@/components/lateral-preview";
 import { Pagination } from "@/components/pagination";
@@ -62,7 +66,6 @@ import {
   entregaDe,
   loEscribioLaCuenta,
   todosLosEmails,
-  type Adjunto,
   type Email,
   type EmailConDueno,
 } from "@/pages/emails";
@@ -180,39 +183,6 @@ const entraMarca = {
 const MarcaAnimada = motion.create(Badge);
 
 /* ─────────────────────────── El vistazo ─────────────────────────── */
-
-/* Los adjuntos, como en la sección Emails del perfil: una tira de chips con el
-   nombre y el peso. No son botones —no hay de dónde bajarlos— y un botón que no
-   descarga es peor que ninguno. */
-function AdjuntosDelCorreo({ adjuntos }: { adjuntos: Adjunto[] }) {
-  const escala = useTypeScale();
-  const shape = useShape();
-
-  return (
-    <div className="flex flex-wrap gap-2 border-t border-border pt-4">
-      {adjuntos.map((a) => (
-        <span
-          key={a.nombre}
-          className={cn(
-            "flex items-center gap-2 border border-border px-2.5 py-1.5",
-            shape.item,
-          )}
-          style={{ fontSize: escala.caption }}
-        >
-          <Paperclip
-            size={12}
-            strokeWidth={1.5}
-            className="shrink-0 text-muted-foreground"
-          />
-          <span className="truncate">{a.nombre}</span>
-          <span className="shrink-0 tabular-nums text-muted-foreground">
-            {a.tamano}
-          </span>
-        </span>
-      ))}
-    </div>
-  );
-}
 
 /* El correo abierto en el riel.
  *
