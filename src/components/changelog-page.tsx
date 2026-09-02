@@ -70,6 +70,113 @@ import { useSizeVariant, useTypeScale } from "@/lib/size-context";
 import { spring } from "@/lib/springs";
 import { cn } from "@/lib/utils";
 
+/* ── The header's wash ─────────────────────────────────────────────────── */
+
+/**
+ * The three blobs behind the title, and their drift.
+ *
+ * The header used to be the page's plane and nothing else, which reads flat at
+ * this size: a wide band with three centred lines and a hairline under it. This
+ * is the least a band can do to stop being a flat rectangle — two very light
+ * violets and a cool grey, blurred past recognition, sliding.
+ *
+ * It isn't a surface step, and that matters: the ladder in this system goes
+ * *up*, so a header that wanted a plane of its own would have to invent a step
+ * below the page (see the note on the header). A tint isn't a step — the plane
+ * underneath is still `surface-1`, and what's on top of it is colour with no
+ * edge, no shadow and nothing to read as another sheet.
+ *
+ * **The violet is the system's**, hue 292 — the one the row flash uses to mark
+ * what this console just did, and the one the link in a rail form is written
+ * in. A gradient in some other purple would be a second violet in an app that
+ * has one.
+ *
+ * Three and not one: a single blob is a spotlight, and a spotlight has a
+ * centre you can point at. Three overlapping at different sizes and speeds
+ * never resolve into a shape, which is what keeps it a wash instead of a
+ * graphic.
+ *
+ * The drift is `x`/`y`/`scale` on each blob and not an animated
+ * `background-position`: transforms are the cheap ones, and — the reason that
+ * decides it — `MotionConfig reducedMotion="user"` turns transforms off for
+ * anybody who asked their system for less motion. Written as background
+ * keyframes it would keep moving for them. It's slow on purpose: at twenty-odd
+ * seconds a cycle nobody watching the page catches it moving, which is the
+ * difference between a background that breathes and one that performs.
+ */
+function HeaderWash() {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "pointer-events-none absolute inset-0 overflow-hidden",
+        // Light: a violet barely off the page's white, and a grey that is only
+        // just cool. Dark: the same two hues carried down the ladder — a wash
+        // that keeps its light values would glow like a panel left on.
+        "[--wash-violet:oklch(0.93_0.045_292)] [--wash-lilac:oklch(0.95_0.03_310)] [--wash-grey:oklch(0.94_0.006_292)]",
+        "dark:[--wash-violet:oklch(0.38_0.05_292)] dark:[--wash-lilac:oklch(0.36_0.04_310)] dark:[--wash-grey:oklch(0.34_0.008_292)]",
+      )}
+    >
+      {[
+        // Left of the title, the largest and the slowest: it's the one that
+        // sets the band's colour, so it's also the one that has to be hardest
+        // to catch moving.
+        {
+          tinte: "var(--wash-violet)",
+          clase: "-top-1/2 -left-[10%] h-[220%] w-[55%]",
+          x: [0, 34, 0],
+          y: [0, -18, 0],
+          escala: [1, 1.08, 1],
+          duracion: 26,
+        },
+        // Right, smaller and a touch warmer, so the two ends of the band aren't
+        // the same colour and the eye reads a field instead of a stripe.
+        {
+          tinte: "var(--wash-lilac)",
+          clase: "-top-[60%] right-[-5%] h-[220%] w-[45%]",
+          x: [0, -26, 0],
+          y: [0, 22, 0],
+          escala: [1, 1.12, 1],
+          duracion: 21,
+        },
+        // The grey sits over the middle, where the words are. It's what keeps
+        // the two violets from meeting behind the title and turning the centre
+        // into the brightest part of the band.
+        {
+          tinte: "var(--wash-grey)",
+          clase: "-bottom-[80%] left-[25%] h-[200%] w-[50%]",
+          x: [0, -18, 0],
+          y: [0, -14, 0],
+          escala: [1, 1.06, 1],
+          duracion: 31,
+        },
+      ].map((blob) => (
+        <motion.span
+          key={blob.clase}
+          className={cn("absolute rounded-full blur-3xl", blob.clase)}
+          style={{
+            // A radial and not a flat fill: a blurred solid still has an edge
+            // where the blur runs out, and three of those edges crossing is a
+            // shape. Fading to nothing inside the blob means there's nowhere
+            // for an edge to be.
+            backgroundImage: `radial-gradient(closest-side, ${blob.tinte}, transparent)`,
+          }}
+          animate={{ x: blob.x, y: blob.y, scale: blob.escala }}
+          transition={{
+            duration: blob.duracion,
+            repeat: Infinity,
+            // `mirror` and not `loop`: a loop has to jump from the last
+            // keyframe back to the first, and at this size the jump is the only
+            // thing about the animation anybody would notice.
+            repeatType: "mirror",
+            ease: "easeInOut",
+          }}
+        />
+      ))}
+    </span>
+  );
+}
+
 /* ── The four kinds ────────────────────────────────────────────────────── */
 
 interface ChangeKindStyle {
@@ -197,9 +304,20 @@ function ChangelogPage({
     >
       {/* The header is separated by a hairline and by air, and not by a plane
           of its own: the surface ladder in this system goes *up*, and a band
-          that has to recede would have to invent a step below the page. */}
-      <header className="border-b border-border px-6 py-14 text-center @xl:py-20">
-        <div className="mx-auto flex max-w-2xl flex-col items-center gap-4">
+          that has to recede would have to invent a step below the page. What it
+          does carry is a wash — colour with no edge, which tints the plane
+          without pretending to be another one. See `HeaderWash`.
+
+          `isolate` so the wash stacks against this header and not against
+          whatever the page is sitting in, and `overflow-hidden` because the
+          blobs are drawn wider than the band on purpose: a blob that ends
+          inside the frame has a visible end. */}
+      <header className="relative isolate overflow-hidden border-b border-border px-6 py-14 text-center @xl:py-20">
+        <HeaderWash />
+
+        {/* `relative` puts the words over the wash without giving them a
+            z-index to argue about. */}
+        <div className="relative mx-auto flex max-w-2xl flex-col items-center gap-4">
           {eyebrow && <Badge variant="dot">{eyebrow}</Badge>}
           <h1
             className="font-medium tracking-tight text-balance"
