@@ -18,6 +18,7 @@ import {
 
 import type { IconComponent } from "@/lib/icon-context";
 import { Announcements } from "@/pages/Announcements";
+import { DocAccounts } from "@/pages/DocAccounts";
 import { EmailReports } from "@/pages/EmailReports";
 import { EmailSearch } from "@/pages/EmailSearch";
 import { MessageSearch } from "@/pages/MessageSearch";
@@ -122,7 +123,9 @@ export const NAV: NavGroup[] = [
     id: "admin",
     label: "Admin",
     items: [
-      hoja("admin/doc-accounts", "DOC Accounts", IdCard, "Admin"),
+      hoja("admin/doc-accounts", "DOC Accounts", IdCard, "Admin", () => (
+        <DocAccounts />
+      )),
       hoja("admin/reports", "Reports", FileText, "Admin"),
       hoja("admin/whats-new", "What's New", Sparkles, "Admin", () => <Releases />),
       hoja("admin/faq", "FAQ", CircleQuestionMark, "Admin"),
