@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import type { IconComponent } from "@/lib/icon-context";
+import { Announcements } from "@/pages/Announcements";
 import { EmailSearch } from "@/pages/EmailSearch";
 import { MessageSearch } from "@/pages/MessageSearch";
 import { SupportTickets } from "@/pages/SupportTickets";
@@ -106,7 +107,9 @@ export const NAV: NavGroup[] = [
   {
     id: "sueltas",
     items: [
-      hoja("announcements", "Announcements", Megaphone),
+      hoja("announcements", "Announcements", Megaphone, undefined, (tabId) => (
+        <Announcements tabId={tabId} />
+      )),
       hoja("tickets", "Tickets", Wrench, undefined, (tabId) => (
         <SupportTickets tabId={tabId} />
       )),
