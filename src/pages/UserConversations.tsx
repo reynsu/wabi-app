@@ -496,6 +496,50 @@ function Lista({
   );
 }
 
+/* ─────────────────────────── El filtro del hilo ───────────────────────────
+
+   Los atributos por los que se va a poder recortar **un hilo abierto**, que no
+   son los mismos por los que se recorta la lista de hilos: allá se elige cuál
+   leer y acá se busca adentro del que ya se está leyendo. De ahí que pregunte
+   quién lo dijo y no cuál falta leer.
+
+   **Todavía no recortan nada.** Están declarados y el menú los muestra, pero lo
+   que se elija no toca los mensajes: ver la nota al pie de este archivo. Se
+   declaran igual porque un menú de filtros que abre un panel vacío no es un
+   control a medio hacer, es uno roto. */
+
+const OPCIONES_QUIEN: FilterOption[] = [
+  { value: "cuenta", label: "The account" },
+  { value: "contacto", label: "The contact" },
+];
+
+const GRUPOS_DEL_HILO: FilterGroup[] = [
+  {
+    label: "The message",
+    attributes: [
+      { id: "quien", label: "Sent by", icon: CircleDot, options: OPCIONES_QUIEN },
+      {
+        id: "contenido",
+        label: "Contains",
+        icon: Paperclip,
+        options: OPCIONES_CONTENIDO,
+      },
+    ],
+  },
+  {
+    label: "The record",
+    attributes: [
+      {
+        id: "cuando",
+        label: "Sent",
+        icon: CalendarClock,
+        options: OPCIONES_ACTIVIDAD,
+        single: true,
+      },
+    ],
+  },
+];
+
 /* ─────────────────────────── El hilo ─────────────────────────── */
 
 /* El mueble del hilo: la cabecera de con quién es, la caja que scrollea y el
@@ -503,12 +547,27 @@ function Lista({
    que usa el vistazo del riel en Messages Search. */
 function Hilo({ conversacion }: { conversacion: Conversacion }) {
   const escala = useTypeScale();
-  const shape = useShape();
+  /* Lo que se escribió y lo que se marcó. Vive acá porque los dos controles son
+     de esta cabecera, y no en la sección: dos hilos abiertos en dos pestañas
+     tienen que poder estar buscando cosas distintas.
+
+     **No recorta nada todavía.** Los dos controles se comportan como controles
+     —se escribe en uno, se elige en el otro— y lo elegido no llega a los
+     mensajes: ver la nota al pie. Con estado y no inertes a propósito: un campo
+     en el que no se puede escribir no se lee como algo que falta terminar, se
+     lee como algo roto. */
+  const [busqueda, setBusqueda] = useState("");
+  const [filtros, setFiltros] = useState<FilterSelection>({});
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      {/* Con quién es el hilo. El mismo alto y el mismo aire que el buscador
-          de la lista, así las dos columnas arrancan a la misma altura. */}
+      {/* Buscar adentro del hilo abierto. El mismo alto y el mismo aire que el
+          buscador de la lista —y el mismo par de controles, en el mismo orden—,
+          así las dos columnas arrancan a la misma altura y se recorren igual.
+
+          Contra el borde derecho y sin nada a la izquierda: con quién es el hilo
+          ya lo dice la fila encendida de la lista, dos centímetros más allá, y
+          repetirlo acá era decir dos veces lo mismo a la misma altura. */}
       <motion.header
         /* La cabecera del hilo no espera turno: es lo que contesta al clic
            —"abriste esta"— y llegar tarde a su propia respuesta la haría ver
@@ -517,30 +576,28 @@ function Hilo({ conversacion }: { conversacion: Conversacion }) {
         initial={{ opacity: 0, y: -4 }}
         animate={{ opacity: 1, y: 0 }}
         transition={spring.fast}
-        className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3"
+        className="flex shrink-0 items-center justify-end gap-2 border-b border-border px-4 py-3"
       >
-        <Avatar
-          size="sm"
-          className={cn("shrink-0", shape.item, "after:rounded-[inherit]")}
-        >
-          <AvatarFallback
-            className="rounded-[inherit]"
-            style={{ fontSize: escala.caption }}
-          >
-            {iniciales(conversacion.contacto)}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="truncate" style={{ fontSize: escala.body }}>
-            {conversacion.contacto}
-          </span>
-          <span
-            className="truncate text-muted-foreground"
-            style={{ fontSize: escala.caption }}
-          >
-            {conversacion.relacion}
-          </span>
-        </div>
+        <InputGroup className="w-56">
+          <InputField
+            index={0}
+            label="Search this conversation"
+            labelHidden
+            icon={Search}
+            placeholder="Search this conversation"
+            value={busqueda}
+            onChange={setBusqueda}
+            className="[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border"
+          />
+        </InputGroup>
+
+        <FilterMenu
+          groups={GRUPOS_DEL_HILO}
+          align="end"
+          variant="secondary"
+          value={filtros}
+          onValueChange={setFiltros}
+        />
       </motion.header>
 
       <ScrollArea
@@ -617,3 +674,28 @@ export function UserConversations({
     </div>
   );
 }
+
+/* ─────────────────────────── Lo que falta ───────────────────────────
+
+   **Buscar y filtrar adentro del hilo.** Los dos controles de la cabecera están
+   puestos y se comportan como controles —se escribe en uno, se elige en el
+   otro— y lo que dicen no llega a los mensajes: `MessageThread` sigue recibiendo
+   `conversacion.mensajes` entero.
+
+   Están así a propósito y no a medias por descuido. Lo que falta no es cablear
+   un `filter`: es decidir qué hace la pantalla con lo encontrado, y eso son dos
+   diseños distintos que no se parecen en nada.
+
+   - **Recortar** el hilo a los mensajes que pasan deja una conversación con
+     agujeros, y una conversación con agujeros no se entiende: la gracia de un
+     hilo es que cada mensaje contesta al anterior. Habría que marcar dónde falta
+     algo, y eso es una pieza que no existe.
+   - **Señalar** —dejar el hilo entero y encender los que pasan, con un "3 de 12"
+     y flechas para saltar de uno a otro— es lo que hace un buscador de chat de
+     verdad, y pide que `MessageThread` sepa recibir un conjunto de ids marcados
+     y desplazarse hasta uno.
+
+   La segunda es la que corresponde, y es la que hay que escribir. Mientras
+   tanto los atributos ya están declarados —`GRUPOS_DEL_HILO`— y reusan las
+   mismas opciones que el panel de la lista, así que el día que se escriba no hay
+   que inventar el vocabulario otra vez. */
