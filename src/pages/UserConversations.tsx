@@ -651,11 +651,25 @@ function Hilo({ conversacion }: { conversacion: Conversacion }) {
               <MoreHorizontal />
             </DropdownTrigger>
 
-            {/* `w-auto`: los 288px que trae el panel son para un menú de
-                navegación, donde filas de largos distintos se alinean con un
-                ancho parejo; acá son tres acciones cortas y ese ancho deja media
-                caja vacía. */}
-            <DropdownContent side="bottom" align="end" className="w-auto">
+            {/* Ancho propio, con piso. Los 288px que trae el panel son para un
+                menú de navegación, donde filas de largos distintos se alinean
+                con un ancho parejo; acá son tres acciones cortas y ese ancho
+                deja media caja vacía.
+
+                Pero `w-auto` a secas lo encoge hasta la palabra más larga que
+                tiene adentro, y con etiquetas de un verbo —"Save", "Block"— sale
+                una columna más angosta que el botón del que cuelga: se lee como
+                un recorte y no como un panel. El `min-w` del anclaje no alcanza,
+                porque el ancla es un botón de ícono de 28px.
+
+                Los mismos 144px que usa el menú de una fila de Policies, y por
+                el mismo motivo: le dan el ancho de un menú y siguen sin ser el
+                de una barra lateral. */}
+            <DropdownContent
+              side="bottom"
+              align="end"
+              className="w-auto min-w-36"
+            >
               {/* Lo que se le hace al registro, arriba y separado de lo que se le
                   hace a la comunicación: no son la misma clase de acción. Es el
                   mismo reparto que el menú de la cuenta.
