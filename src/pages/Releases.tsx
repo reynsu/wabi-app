@@ -16,6 +16,7 @@ const RELEASES: Release[] = [
       {
         kind: "feature",
         items: [
+          "A sign-in screen: the console asks who you are before it opens.",
           "Admin › DOC Accounts: the table, and an account created straight from it.",
           "Admin › Reports: what the console was asked for, and who asked for it — with a report requested from the rail.",
           "Announcements, with the compose form on the rail.",

@@ -7,6 +7,7 @@ import {
   CircleQuestionMark,
   LayoutGrid,
   LifeBuoy,
+  LogOut,
   Moon,
   Plus,
   Sparkles,
@@ -38,6 +39,8 @@ import {
 import { TravelTooltipItem } from "@/components/travel-tooltip";
 import { WindowControls } from "@/components/window-controls";
 import { WidgetDragProvider } from "@/components/widget-drag";
+import { Login } from "@/pages/Login";
+import { useSesion } from "@/stores/sesion";
 import { WidgetRail, type WidgetRailControl } from "@/components/widget-rail";
 import { WorkspaceOutlet } from "@/components/workspace-outlet";
 import type { WidgetDefinition } from "@/components/widget";
@@ -97,6 +100,10 @@ function Shell() {
   const tabs = useWorkspace((w) => w.tabs);
   const preview = usePreviewActivo();
   const board = useBoardActivo();
+
+  /* Quién entró. Es lo único que decide si se ve la consola o la puerta. */
+  const email = useSesion((s) => s.email);
+  const salir = useSesion((s) => s.salir);
   const editarBoard = useBoards((b) => b.editarBoard);
   const dark = useTema((t) => t.oscuro);
   const alternarTema = useTema((t) => t.alternar);
@@ -127,6 +134,16 @@ function Shell() {
   };
 
   const rielVisible = board.open || preview !== null;
+
+  /* Antes de la consola, la puerta. Va acá —afuera del `SidebarProvider`— y no
+     como una fila del sidebar: no es una sección de la app sino lo que hay en
+     su lugar mientras no haya nadie adentro.
+
+     Se devuelve antes de armar nada más: el shell entero, con sus pestañas, sus
+     boards y sus tiendas, no tiene por qué montarse para que alguien escriba un
+     correo. Y al salir se desmonta con todo lo que tenía abierto, que es lo que
+     uno espera de cerrar sesión. */
+  if (email === null) return <Login />;
 
   return (
     <SidebarProvider
@@ -182,6 +199,26 @@ function Shell() {
                 icon={LifeBuoy}
                 label="Support & feedback"
                 onSelect={() => irA("support")}
+              />
+
+              {/* Salir, separado y último. Es lo único de este menú que no lleva
+                  a ningún lado adentro de la app: saca de ella. Va acá y no en
+                  el pie del sidebar porque este menú es el de la marca —quién
+                  es esta consola y para quién— y cerrar sesión es la última
+                  fila de esa conversación.
+
+                  Sin decir con qué correo se entró, que sería lo útil: `MenuItem`
+                  no tiene un rótulo secundario, y agregárselo es tocar una pieza
+                  del registry que usan diez menús para que uno diga una línea
+                  más. Cuando haya de dónde sacar un nombre —hoy sólo hay el
+                  correo que alguien escribió— el lugar es el header del sidebar,
+                  no esta fila. */}
+              <DropdownSeparator />
+              <MenuItem
+                index={3}
+                icon={LogOut}
+                label="Sign out"
+                onSelect={salir}
               />
             </DropdownContent>
           </DropdownMenu>
