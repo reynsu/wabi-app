@@ -633,6 +633,33 @@ const entraBaldosa = {
   visible: { opacity: 1, scale: 1, transition: spring.moderate },
 } as const;
 
+/* La carpeta bajo el puntero.
+ *
+ * Dos cosas a la vez y las dos dicen lo mismo —"esto se abre"—: **el glifo se
+ * abre** y crece un poco.
+ *
+ * El glifo abierto no es un dibujo nuevo: es el mismo `FolderOpen` que el
+ * encabezado de un mes desplegado usa en la vista de lista. Allá dice "este mes
+ * está abierto"; acá, adelantado al puntero, dice "este mes se va a abrir". Un
+ * ícono inventado para el hover sería un tercer estado de carpeta que hay que
+ * aprender; éste ya se conoce de la otra vista.
+ *
+ * Y crece ocho por ciento, que es poco a propósito: la baldosa ya se pinta con
+ * `bg-hover`, así que lo que falta no es señalar cuál está debajo del puntero
+ * —eso ya está dicho— sino que la carpeta reaccione. Un salto grande en una
+ * grilla de catorce mueve a las vecinas de lugar aunque no cambien de tamaño.
+ *
+ * Con el escalón corto, que es el de las reacciones a un gesto en esta app: el
+ * galón del mes que se pliega usa el mismo. Llegar tarde a la propia respuesta
+ * la haría ver lenta.
+ *
+ * Sólo las carpetas, y no los archivos: una carpeta se abre y un archivo se
+ * baja, que no es lo mismo, y las dos cosas nunca están en la misma grilla. */
+const carpetaEncima = {
+  quieta: { scale: 1 },
+  encima: { scale: 1.08, transition: spring.fast },
+} as const;
+
 /**
  * Un reporte, como un archivo.
  *
@@ -746,26 +773,39 @@ function BaldosaDeArchivo({
 function BaldosaDeMes({ mes, onAbrir }: { mes: MesDeReportes; onAbrir: () => void }) {
   const escala = useTypeScale();
   const fallidos = fallidosDelMes(mes);
+  /* Si el puntero está encima. Hace falta como estado y no sólo como
+     `whileHover` porque no se mueve nada más que el glifo: **cambia de
+     dibujo**, y eso es React, no una transformación. Ver `carpetaEncima`. */
+  const [encima, setEncima] = useState(false);
 
   return (
-    <button
+    <motion.button
       type="button"
       onClick={onAbrir}
+      /* El gesto se escucha en el botón entero y no en el glifo: quien pasa por
+         el nombre del mes está apuntando al mismo mes. */
+      onHoverStart={() => setEncima(true)}
+      onHoverEnd={() => setEncima(false)}
+      animate={encima ? "encima" : "quieta"}
       className={cn(
         "flex cursor-pointer flex-col items-center gap-1.5 rounded-lg px-2 py-3",
         "text-left transition-colors duration-80 outline-none",
         "hover:bg-hover focus-visible:bg-hover",
       )}
     >
-      <span className="relative flex">
-        <Folder size={GLIFO} strokeWidth={1} className="text-muted-foreground" />
+      <motion.span variants={carpetaEncima} className="relative flex">
+        {encima ? (
+          <FolderOpen size={GLIFO} strokeWidth={1} className="text-muted-foreground" />
+        ) : (
+          <Folder size={GLIFO} strokeWidth={1} className="text-muted-foreground" />
+        )}
         {fallidos > 0 && (
           <span
             aria-label={`${fallidos} failed`}
             className="absolute right-0 bottom-0 size-2.5 rounded-full bg-[oklch(0.62_0.2_18)] ring-2 ring-surface-5"
           />
         )}
-      </span>
+      </motion.span>
 
       <span
         className="text-center text-foreground"
@@ -777,7 +817,7 @@ function BaldosaDeMes({ mes, onAbrir }: { mes: MesDeReportes; onAbrir: () => voi
           {mes.reportes.length} {mes.reportes.length === 1 ? "file" : "files"}
         </span>
       </span>
-    </button>
+    </motion.button>
   );
 }
 
