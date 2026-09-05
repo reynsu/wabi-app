@@ -32,7 +32,7 @@ import { Button } from "@/components/ui/button";
 import { InputField, InputGroup } from "@/components/ui/input-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { descargar } from "@/lib/descargar";
-import { SizeProvider, useTypeScale } from "@/lib/size-context";
+import { SizeProvider, useSize, useTypeScale } from "@/lib/size-context";
 import { spring } from "@/lib/springs";
 import { cn } from "@/lib/utils";
 import {
@@ -421,7 +421,7 @@ function FilaDeReporte({ reporte }: { reporte: Reporte }) {
           distingue esta fila de la de abajo, así que acá no se abrevia nada. */}
       <span
         className="min-w-0 flex-1 truncate tabular-nums text-foreground"
-        style={{ fontSize: escala.caption }}
+        style={{ fontSize: escala.body }}
       >
         {fechaDia(reporte.desde)} &ndash; {fechaDia(reporte.hasta)}
       </span>
@@ -444,7 +444,7 @@ function FilaDeReporte({ reporte }: { reporte: Reporte }) {
           opción del panel son el mismo color por construcción. */}
       <span
         className="flex shrink-0 items-center gap-1.5 text-muted-foreground"
-        style={{ fontSize: escala.caption }}
+        style={{ fontSize: escala.body }}
       >
         <span
           aria-hidden
@@ -477,6 +477,9 @@ function Pantalla() {
   const [busqueda, setBusqueda] = useState("");
   const [filtros, setFiltros] = useState<FilterSelection>({});
   const escala = useTypeScale();
+  /* Las medidas del escalón. De acá sale el tamaño del glifo de la carpeta, que
+     es el mismo que el de cualquier ícono de control en esta densidad. */
+  const medidas = useSize();
   /* Qué meses están plegados. Se guardan los plegados y no los abiertos: lo
      normal es que estén todos abiertos, así que el estado inicial es "ninguno"
      en vez de una lista que hay que mantener al día cuando cierre un mes nuevo.
@@ -607,12 +610,25 @@ function Pantalla() {
                         "bg-surface-5 px-2 pt-4 pb-1.5 text-left text-muted-foreground outline-none",
                         "hover:text-foreground focus-visible:text-foreground",
                       )}
-                      style={{ fontSize: escala.caption }}
+                      style={{ fontSize: escala.body }}
                     >
+                      {/* El glifo sale del escalón —14px en compacto— y no de
+                          un número escrito acá: es el mismo tamaño que tiene
+                          cualquier ícono de control en esta densidad, así que
+                          la carpeta pesa lo que pesa un ícono de esta app y no
+                          lo que a esta pantalla le pareció. */}
                       {abierto ? (
-                        <FolderOpen size={13} strokeWidth={1.5} className="shrink-0" />
+                        <FolderOpen
+                          size={medidas.icon}
+                          strokeWidth={1.5}
+                          className="shrink-0"
+                        />
                       ) : (
-                        <Folder size={13} strokeWidth={1.5} className="shrink-0" />
+                        <Folder
+                          size={medidas.icon}
+                          strokeWidth={1.5}
+                          className="shrink-0"
+                        />
                       )}
 
                       <span className="min-w-0 flex-1 truncate">{mes.nombre}</span>
@@ -702,7 +718,7 @@ function Pantalla() {
         <motion.footer
           variants={entraBloque}
           className="flex shrink-0 items-center gap-1.5 border-t border-border px-6 py-3 text-muted-foreground"
-          style={{ fontSize: escala.caption }}
+          style={{ fontSize: escala.body }}
         >
           <span className="tabular-nums">{encontrados.length}</span>
           {encontrados.length === 1 ? "report" : "reports"}
