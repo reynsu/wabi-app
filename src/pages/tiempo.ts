@@ -134,6 +134,24 @@ export const alMediodia = (dia: string) => new Date(`${dia}T12:00:00Z`);
 
 export const fechaDia = (dia: string) => FECHA_DIA.format(alMediodia(dia));
 
+/* El mismo día, sin el año.
+ *
+ * Es para cuando el año ya está escrito alrededor: la grilla de Email Reports
+ * pone los reportes adentro de una carpeta que se llama "July 2026", y repetir
+ * "2026" en las cinco baldosas es escribir cuatro veces lo que dice el
+ * encabezado.
+ *
+ * Vive acá y no en esa pantalla por lo mismo que `fechaDia`: dos formatos para
+ * el mismo día escritos en dos archivos son dos que se van a separar. Quien lo
+ * use tiene que poder decir dónde está el año; si no puede, va `fechaDia`. */
+const DIA_CORTO = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  timeZone: "UTC",
+});
+
+export const diaCorto = (dia: string) => DIA_CORTO.format(alMediodia(dia));
+
 /** En qué tramo de los que ofrece el panel de filtros cae una fecha de alta. Es
  *  la contracara de esa lista de opciones: los dos hablan de lo mismo, así que
  *  cambiar un corte acá y no allá es lo que hace que un filtro devuelva algo

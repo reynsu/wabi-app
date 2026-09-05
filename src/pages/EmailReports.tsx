@@ -4,11 +4,14 @@ import { sileo } from "sileo";
 import {
   CalendarRange,
   ChevronDown,
+  ChevronRight,
   Download,
   FileChartColumn,
   FileText,
   Folder,
   FolderOpen,
+  LayoutGrid,
+  List,
   Loader,
   Search,
   Tag,
@@ -22,6 +25,7 @@ import {
   AnimatedEmptyTitle,
 } from "@/components/animated-empty";
 import { punto } from "@/components/color-dot";
+import { Segmentado } from "@/components/ficha";
 import {
   FilterMenu,
   type FilterGroup,
@@ -47,9 +51,10 @@ import {
   sePuedeBajar,
   tramoDePeriodo,
   useReportes,
+  type MesDeReportes,
   type Reporte,
 } from "@/pages/reportes";
-import { fechaDia, haceCuanto } from "@/pages/tiempo";
+import { diaCorto, fechaDia, haceCuanto } from "@/pages/tiempo";
 import { useUsuarios, type Usuario } from "@/pages/usuarios";
 
 /* La pantalla de Email Reports: las semanas que la casa ya cerró.
@@ -329,14 +334,21 @@ async function bajar(reporte: Reporte, usuarios: Usuario[]) {
  * deshabilitado diría "esto se puede hacer, pero no ahora", y lo que pasa es que
  * no hay qué bajar. El estado de la fila ya lo explica.
  */
-function BajarReporte({ reporte }: { reporte: Reporte }) {
+/**
+ * Bajar un reporte, con lo que se cuenta mientras.
+ *
+ * En un hook y no adentro del botón porque son dos las cosas que bajan un
+ * reporte: el ícono de una fila de la lista y la baldosa entera en la grilla.
+ * Dos maneras de tocar lo mismo, y una sola manera de que pase —la misma espera,
+ * el mismo aviso, el mismo texto de error—. Copiado en dos lados, el día que el
+ * mensaje cambie va a cambiar en uno.
+ */
+function useBajada(reporte: Reporte) {
   const usuarios = useUsuarios();
-  /* Vive en el botón y no en la pantalla, al revés que el alta de una política:
-     bajar un reporte no apaga nada más que este botón, y dos filas se pueden
-     estar bajando a la vez. */
+  /* Vive en quien lo dispara y no en la pantalla, al revés que el alta de una
+     política: bajar un reporte no apaga nada más que ese control, y dos se
+     pueden estar bajando a la vez. */
   const [bajando, setBajando] = useState(false);
-
-  if (!sePuedeBajar(reporte)) return null;
 
   const alTocar = async () => {
     if (bajando) return;
@@ -369,6 +381,14 @@ function BajarReporte({ reporte }: { reporte: Reporte }) {
       setBajando(false);
     }
   };
+
+  return { bajando, alTocar };
+}
+
+function BajarReporte({ reporte }: { reporte: Reporte }) {
+  const { bajando, alTocar } = useBajada(reporte);
+
+  if (!sePuedeBajar(reporte)) return null;
 
   return (
     <Button
@@ -553,6 +573,312 @@ function FilaDeReporte({ reporte, indice }: { reporte: Reporte; indice: number }
   );
 }
 
+/* ─────────────────────────── La grilla ───────────────────────────
+ *
+ * La otra manera de ver lo mismo: un explorador de archivos. Arriba están los
+ * meses como carpetas, se toca uno y el mismo lienzo pasa a ser el de adentro,
+ * con una miga de pan para volver.
+ *
+ * **Se entra, no se despliega**, y ésa es la única diferencia de fondo con la
+ * lista. La lista puede tener los catorce meses abiertos a la vez porque una
+ * fila ocupa un renglón; una baldosa ocupa cien píxeles de alto, así que
+ * mostrarlos todos abiertos serían casi cuatro pantallas de scroll —medido—
+ * contra las dos de la lista. Entrando, en cambio, los catorce meses caben
+ * juntos sin scroll, que es algo que la lista nunca logró.
+ *
+ * Las dos vistas se eligen con el par de botones de la barra y comparten todo lo
+ * demás: la búsqueda, el panel de filtros, el vacío y el pie. Lo único que cambia
+ * es el dibujo.
+ */
+
+/** El ancho de una baldosa. `auto-fill` y no un número de columnas: el panel
+ *  cambia de ancho con el sidebar y con la pestaña, y un `grid-cols-6` fijo deja
+ *  una franja vacía a la derecha en el ancho que no le tocó. */
+const BALDOSAS =
+  "grid gap-1 [grid-template-columns:repeat(auto-fill,minmax(7.5rem,1fr))]";
+
+/** El glifo de una baldosa.
+ *
+ *  Cuarenta, y no el `icon` del escalón —catorce—, porque acá el ícono no es la
+ *  marquita al costado de un rótulo: **es el objeto**. En una grilla lo que se
+ *  recorre son los dibujos, y el rótulo se lee recién cuando uno se detuvo en
+ *  uno; con un glifo del tamaño de un ícono de control habría que leer las
+ *  catorce etiquetas para encontrar un mes, que es lo que la lista ya hace
+ *  mejor.
+ *
+ *  El trazo va en 1 y no en el 1.5 del resto de la app: el grosor de línea de
+ *  lucide no escala con el `size`, así que el mismo trazo que a catorce píxeles
+ *  se ve fino, a cuarenta se ve como un contorno grueso y el glifo termina
+ *  pesando más que el texto de al lado. */
+const GLIFO = 40;
+
+/* Las baldosas entran escalonadas, con el mismo reparto que las filas de un mes
+   en la lista y por la misma razón: entrar a una carpeta no es la pantalla
+   apareciendo de nuevo, es un bloque que llega. El turno es más corto que el de
+   la lista —veinte milisegundos contra cuarenta y cinco— porque son hasta
+   catorce baldosas y no cinco filas: con el escalón largo, la última carpeta
+   llegaría más de medio segundo después de la primera.
+
+   Y entran creciendo, no desde un costado. Las filas de la lista vienen desde la
+   izquierda porque se despliegan desde su encabezado, que está arriba a la
+   izquierda; una grilla no se despliega desde ningún lado, así que la baldosa
+   aparece donde va a quedarse. */
+const cascadaBaldosas = {
+  oculto: {},
+  visible: { transition: { delayChildren: 0.02, staggerChildren: 0.02 } },
+} as const;
+
+const entraBaldosa = {
+  oculto: { opacity: 0, scale: 0.96 },
+  visible: { opacity: 1, scale: 1, transition: spring.moderate },
+} as const;
+
+/**
+ * Un reporte, como un archivo.
+ *
+ * Lleva la ventana y no el nombre: los cinco de agosto se llaman todos "KC-B
+ * August 2026 Report", y lo que distingue una baldosa de la de al lado es la
+ * semana. El nombre del archivo entero va en el `title`, que es donde un
+ * explorador lo pone.
+ *
+ * **Y el ícono lleva el estado.** En un explorador de verdad el glifo dice de qué
+ * tipo es el archivo; acá los sesenta son el mismo CSV, así que el tipo no
+ * informa y lo único que varía es en qué anda. Por eso el punto de color va
+ * pegado al glifo como una insignia, y se calla en las terminadas por lo mismo
+ * que en la lista: lo que informa es su ausencia.
+ *
+ * La baldosa entera es el botón de bajar, al revés que en la lista —donde el
+ * botón es un ícono aparte que aparece con el puntero—. En una grilla no hay
+ * dónde poner ese ícono sin taparle la cara al archivo, y una baldosa de archivo
+ * que no se puede tocar es un dibujo. Cuando no hay nada que bajar deja de ser
+ * botón: un reporte que se está armando todavía no tiene archivo y uno que falló
+ * no lo va a tener, y la insignia ya lo explica.
+ */
+function BaldosaDeArchivo({
+  reporte,
+  /** El mes al que pertenece, sólo cuando la grilla está mostrando lo encontrado
+   *  y no una carpeta. Ver `GrillaDeReportes`: sin carpeta alrededor, "Jul 10 –
+   *  Jul 17" no dice de qué año es ni de dónde salió. */
+  carpeta,
+}: {
+  reporte: Reporte;
+  carpeta?: string;
+}) {
+  const escala = useTypeScale();
+  const estado = ESTADOS_DE_REPORTE[reporte.estado];
+  const hayQueDecirlo = reporte.estado !== "completed";
+  const { bajando, alTocar } = useBajada(reporte);
+  const sePuede = sePuedeBajar(reporte);
+
+  const adentro = (
+    <>
+      <span className="relative flex">
+        <FileText size={GLIFO} strokeWidth={1} className="text-muted-foreground" />
+        {hayQueDecirlo && (
+          <span
+            aria-label={estado.label}
+            className="absolute right-0 bottom-0 size-2.5 rounded-full ring-2 ring-surface-5"
+            style={{ background: estado.tinte }}
+          />
+        )}
+      </span>
+
+      {/* La ventana en un renglón, sin el año: lo dice la carpeta que está
+          alrededor. Medido con esta misma tipografía, el rótulo más largo
+          posible —"Sep 26 – Sep 30"— mide ochenta y seis píxeles y la columna
+          garantiza ciento veinte, así que entero no cuesta ninguna baldosa por
+          fila. `whitespace-nowrap` para que el día que alguien toque el
+          `minmax` el rótulo desborde a la vista y no se parta en silencio. */}
+      <span
+        className="whitespace-nowrap text-center text-foreground tabular-nums"
+        style={{ fontSize: escala.caption, lineHeight: 1.35 }}
+      >
+        {diaCorto(reporte.desde)} &ndash; {diaCorto(reporte.hasta)}
+        {carpeta && (
+          <>
+            <br />
+            <span className="text-muted-foreground">{carpeta}</span>
+          </>
+        )}
+      </span>
+    </>
+  );
+
+  const pinta = cn(
+    "flex flex-col items-center gap-1.5 rounded-lg px-2 py-3",
+    "transition-colors duration-80",
+    bajando && "opacity-60",
+  );
+
+  if (!sePuede) {
+    return (
+      <span title={archivoDeReporte(reporte)} className={pinta}>
+        {adentro}
+      </span>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      title={archivoDeReporte(reporte)}
+      aria-label={`Download ${reporte.nombre}, ${fechaDia(reporte.desde)} to ${fechaDia(reporte.hasta)}`}
+      aria-busy={bajando}
+      onClick={alTocar}
+      className={cn(
+        pinta,
+        "cursor-pointer outline-none hover:bg-hover focus-visible:bg-hover",
+      )}
+    >
+      {adentro}
+    </button>
+  );
+}
+
+/**
+ * Un mes, como una carpeta.
+ *
+ * Dice cuántos guarda y si alguno falló, que es lo mismo que dice el encabezado
+ * de un mes plegado en la lista: cuatro reportes que salieron no son noticia,
+ * uno que no salió sí, y sin eso habría que entrar a las catorce para
+ * encontrarlo.
+ */
+function BaldosaDeMes({ mes, onAbrir }: { mes: MesDeReportes; onAbrir: () => void }) {
+  const escala = useTypeScale();
+  const fallidos = fallidosDelMes(mes);
+
+  return (
+    <button
+      type="button"
+      onClick={onAbrir}
+      className={cn(
+        "flex cursor-pointer flex-col items-center gap-1.5 rounded-lg px-2 py-3",
+        "text-left transition-colors duration-80 outline-none",
+        "hover:bg-hover focus-visible:bg-hover",
+      )}
+    >
+      <span className="relative flex">
+        <Folder size={GLIFO} strokeWidth={1} className="text-muted-foreground" />
+        {fallidos > 0 && (
+          <span
+            aria-label={`${fallidos} failed`}
+            className="absolute right-0 bottom-0 size-2.5 rounded-full bg-[oklch(0.62_0.2_18)] ring-2 ring-surface-5"
+          />
+        )}
+      </span>
+
+      <span
+        className="text-center text-foreground"
+        style={{ fontSize: escala.caption, lineHeight: 1.35 }}
+      >
+        {mes.nombre}
+        <br />
+        <span className="text-muted-foreground tabular-nums">
+          {mes.reportes.length} {mes.reportes.length === 1 ? "file" : "files"}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+/**
+ * La grilla: carpetas, o los archivos de una.
+ *
+ * **Cuando hay algo buscado, no hay carpetas.** Lo encontrado se muestra plano,
+ * como hace cualquier explorador con los resultados de una búsqueda, y por una
+ * razón medida: buscando "Jul 10" la pantalla decía "2 reports" y dibujaba una
+ * carpeta cerrada. Hacer entrar a una carpeta para ver lo que la búsqueda ya
+ * encontró deshace la búsqueda.
+ *
+ * Sin carpeta alrededor, la baldosa se queda sin el año —que era la carpeta la
+ * que lo decía—, así que en ese modo cada una escribe abajo de qué mes salió.
+ * Es lo mismo que hace un explorador cuando muestra resultados de varias
+ * carpetas, y de paso contesta la pregunta que uno hace al ver un resultado:
+ * dónde estaba.
+ */
+function GrillaDeReportes({
+  meses,
+  buscando,
+}: {
+  meses: MesDeReportes[];
+  buscando: boolean;
+}) {
+  const escala = useTypeScale();
+  const medidas = useSize();
+  /* La clave del mes abierto, o nada si se está en la raíz. Se guarda aunque
+     haya una búsqueda puesta: al borrarla, se vuelve a la carpeta que se estaba
+     mirando en vez de a la raíz. */
+  const [adentro, setAdentro] = useState<string | null>(null);
+  const mes = buscando ? undefined : meses.find((m) => m.clave === adentro);
+
+  return (
+    <ScrollArea className="h-full" viewportClassName="scroll-fade">
+      <div className="flex flex-col gap-1 px-6 pb-6">
+        {/* La miga de pan. Ocupa el lugar también en la raíz —con "Reports"
+            solo— para que entrar a una carpeta no empuje la grilla hacia abajo.
+            Pegajosa, como el encabezado de un mes en la lista: es lo que evita
+            perder de vista en qué carpeta se está cuando se la recorre. */}
+        <div
+          className="sticky top-0 z-10 flex items-center gap-1 bg-surface-5 pt-4 pb-2 text-muted-foreground"
+          style={{ fontSize: escala.body }}
+        >
+          <button
+            type="button"
+            onClick={() => setAdentro(null)}
+            disabled={!mes}
+            className={cn(
+              "rounded px-1 outline-none",
+              mes
+                ? "cursor-pointer hover:text-foreground focus-visible:text-foreground"
+                : "text-foreground",
+            )}
+          >
+            Reports
+          </button>
+          {mes && (
+            <>
+              <ChevronRight size={medidas.icon} strokeWidth={1.5} aria-hidden />
+              <span className="px-1 text-foreground">{mes.nombre}</span>
+            </>
+          )}
+        </div>
+
+        {/* La `key` hace que el bloque se vuelva a montar al entrar, al salir y
+            al cambiar lo buscado, que es lo que reparte los turnos de nuevo. Sin
+            ella, entrar a una carpeta cambiaría el contenido de las baldosas sin
+            que ninguna llegue. */}
+        <motion.div
+          key={buscando ? "buscado" : (adentro ?? "raiz")}
+          variants={cascadaBaldosas}
+          initial="oculto"
+          animate="visible"
+          className={BALDOSAS}
+        >
+          {buscando
+            ? meses.flatMap((m) =>
+                m.reportes.map((r) => (
+                  <motion.div key={r.id} variants={entraBaldosa}>
+                    <BaldosaDeArchivo reporte={r} carpeta={m.nombre} />
+                  </motion.div>
+                )),
+              )
+            : mes
+              ? mes.reportes.map((r) => (
+                  <motion.div key={r.id} variants={entraBaldosa}>
+                    <BaldosaDeArchivo reporte={r} />
+                  </motion.div>
+                ))
+              : meses.map((m) => (
+                  <motion.div key={m.clave} variants={entraBaldosa}>
+                    <BaldosaDeMes mes={m} onAbrir={() => setAdentro(m.clave)} />
+                  </motion.div>
+                ))}
+        </motion.div>
+      </div>
+    </ScrollArea>
+  );
+}
+
 /* ─────────────────────────── La pantalla ─────────────────────────── */
 
 export function EmailReports() {
@@ -565,9 +891,16 @@ export function EmailReports() {
   );
 }
 
+/** Cómo se ven los resultados. */
+type Vista = "lista" | "grilla";
+
 function Pantalla() {
   const [busqueda, setBusqueda] = useState("");
   const [filtros, setFiltros] = useState<FilterSelection>({});
+  /* Lista, que es la que contesta la pregunta de todos los días —qué semana es
+     ésta y si está lista—. La grilla es para recorrer el archivo, que es lo que
+     uno hace de vez en cuando. */
+  const [vista, setVista] = useState<Vista>("lista");
   const escala = useTypeScale();
   /* Las medidas del escalón. De acá sale el tamaño del glifo de la carpeta, que
      es el mismo que el de cualquier ícono de control en esta densidad. */
@@ -600,6 +933,16 @@ function Pantalla() {
      carpetas no se peleen: lo encontrado se muestra en su mes y los meses que
      quedan sin nada no dibujan un encabezado para decir que ahí no hay nada. */
   const meses = useMemo(() => porMes(encontrados), [encontrados]);
+
+  /* Si se está buscando algo. La lista no lo necesita —los meses se encogen
+     solos— pero la grilla sí: con algo buscado deja de mostrar carpetas y
+     muestra lo encontrado plano. Ver `GrillaDeReportes`.
+
+     Un atributo del panel con la lista vacía no cuenta: el panel deja el id
+     puesto al sacarle todos los valores, y eso no filtra nada. */
+  const hayBusqueda =
+    busqueda.trim().length > 0 ||
+    Object.values(filtros).some((valores) => valores.length > 0);
 
   const GRUPOS = useMemo(() => grupos(todos), [todos]);
 
@@ -653,6 +996,32 @@ function Pantalla() {
             onValueChange={setFiltros}
           />
 
+          {/* Cómo se ven los resultados. Va después del panel de filtros y no
+              antes: primero se elige qué se mira y recién después cómo.
+
+              Sin rótulos porque son dos y son los dos de siempre —las rayas y
+              los cuadraditos—: "List" y "Grid" escritos al lado de un botón que
+              ya dice "Filters" son tres palabras en una barra que tiene que
+              leerse de un vistazo. El nombre sigue estando, en el
+              `aria-label`. */}
+          <Segmentado
+            valor={vista}
+            onElegir={setVista}
+            rotuloOculto
+            opciones={[
+              {
+                value: "lista",
+                label: "List view",
+                icon: <List size={medidas.icon} strokeWidth={1.5} />,
+              },
+              {
+                value: "grilla",
+                label: "Grid view",
+                icon: <LayoutGrid size={medidas.icon} strokeWidth={1.5} />,
+              },
+            ]}
+          />
+
           {/* Sin acción propia, a diferencia de Policies: un reporte no se
               escribe, se cierra solo cuando la semana termina. Un botón que
               dijera "New report" prometería elegir una ventana, y las ventanas
@@ -675,6 +1044,9 @@ function Pantalla() {
         </AnimatedEmpty>
       ) : (
         <motion.div variants={entraTabla} className="min-h-0 flex-1">
+          {vista === "grilla" ? (
+            <GrillaDeReportes meses={meses} buscando={hayBusqueda} />
+          ) : (
           <ScrollArea className="h-full" viewportClassName="scroll-fade">
             <div className="flex flex-col px-6 pb-6" role="list">
               {meses.map((mes) => {
@@ -802,6 +1174,7 @@ function Pantalla() {
               })}
             </div>
           </ScrollArea>
+          )}
         </motion.div>
       )}
 

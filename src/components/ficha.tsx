@@ -58,11 +58,21 @@ export function Segmentado<T extends string>({
   valor,
   opciones,
   onElegir,
+  /** Para los pares que ya se saben de memoria —las rayas y los cuadraditos de
+   *  lista o grilla—. El rótulo se sigue escribiendo, en el `aria-label`: lo que
+   *  se esconde es el texto a la vista, no el nombre de la opción, así que quien
+   *  no ve el ícono sigue oyendo qué elige.
+   *
+   *  Sólo para pares de íconos conocidos. Un segmentado de tres opciones sin
+   *  palabras es una adivinanza, y las fichas de esta app —de donde salió este
+   *  control— escriben todas su rótulo. */
+  rotuloOculto,
   className,
 }: {
   valor: T;
   opciones: { value: T; label: string; icon?: ReactNode; tinte?: string }[];
   onElegir: (v: T) => void;
+  rotuloOculto?: boolean;
   className?: string;
 }) {
   const escala = useTypeScale();
@@ -80,8 +90,16 @@ export function Segmentado<T extends string>({
             key={o.value}
             type="button"
             onClick={() => onElegir(o.value)}
+            aria-label={rotuloOculto ? o.label : undefined}
+            aria-pressed={rotuloOculto ? puesta : undefined}
             className={cn(
-              "inline-flex flex-1 cursor-pointer items-center justify-center gap-1 rounded-lg px-2 py-1 transition-colors duration-80",
+              "inline-flex cursor-pointer items-center justify-center gap-1 rounded-lg transition-colors duration-80",
+              /* Sin rótulo la opción es un cuadrado fijo y no una porción del
+                 ancho: `size-6` más el `p-0.5` del control dan veintiocho, que
+                 es el alto de un botón compacto —el de "Filters", que suele
+                 estar al lado—. Con `flex-1` y padding, el control quedaba dos
+                 píxeles más alto y se notaba en la barra. */
+              rotuloOculto ? "size-6 shrink-0" : "flex-1 px-2 py-1",
               puesta
                 ? "bg-card text-foreground shadow-surface-2"
                 : "text-muted-foreground hover:text-foreground",
@@ -90,7 +108,7 @@ export function Segmentado<T extends string>({
             style={{ fontSize: escala.caption }}
           >
             {o.icon}
-            {o.label}
+            {!rotuloOculto && o.label}
           </button>
         );
       })}
