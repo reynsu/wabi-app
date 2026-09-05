@@ -28,7 +28,6 @@ import {
   type FilterOption,
   type FilterSelection,
 } from "@/components/filter-menu";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { InputField, InputGroup } from "@/components/ui/input-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -274,30 +273,14 @@ function pasa(reporte: Reporte, busqueda: string, filtros: FilterSelection) {
    dos maneras de plegar un grupo en la misma app serían dos cosas que hay que
    aprender por separado.
 
-   Lo que la fila pierde contra la tabla vieja es el nombre y la fecha de
-   armado. El nombre lo dice el encabezado del mes —adentro de agosto, las cinco
-   filas decían lo mismo— y la fecha de armado es el cierre de la ventana, que
-   ya está en la fila: un reporte semanal se firma el día que su semana termina,
-   así que eran dos columnas para un solo hecho. */
-
-function Cuentas({ reporte }: { reporte: Reporte }) {
-  const escala = useTypeScale();
-  const cuantas = reporte.cuentas.length;
-
-  return (
-    <span
-      className={cn(
-        "inline-flex h-5 min-w-5 items-center justify-center rounded-md px-1.5 tabular-nums",
-        cuantas > 0
-          ? "bg-muted text-foreground"
-          : "bg-muted/50 text-muted-foreground",
-      )}
-      style={{ fontSize: escala.caption }}
-    >
-      {cuantas}
-    </span>
-  );
-}
+   Lo que la fila pierde contra la tabla vieja son tres columnas. El **nombre**
+   lo dice el encabezado del mes: adentro de agosto, las cinco filas decían lo
+   mismo. La **fecha de armado** es el cierre de la ventana, que ya está en la
+   fila —un reporte semanal se firma el día que su semana termina—, así que eran
+   dos columnas para un solo hecho. Y **cuántas cuentas cubre**: la fila queda
+   contestando una sola pregunta —de cuándo es este archivo y si está listo— y
+   el número vive donde importa, adentro del CSV y en el aviso que confirma la
+   bajada. */
 
 /* ─────────────────────────── La bajada ─────────────────────────── */
 
@@ -443,16 +426,33 @@ function FilaDeReporte({ reporte }: { reporte: Reporte }) {
         {fechaDia(reporte.desde)} &ndash; {fechaDia(reporte.hasta)}
       </span>
 
-      {/* Cuántas cuentas cubre. El número y nada más: contesta "¿esta semana
-          tuvo altas?" —que es lo que se recorre— y quiénes fueron está en el
-          archivo, que es para lo que está el botón del final. */}
-      <Cuentas reporte={reporte} />
+      {/* En qué anda: el punto de su color y la palabra, sin la pastilla.
 
-      {/* `variant="dot"`, el mismo de la Communication Status de Accounts: el
-          contorno y el punto de color, y no una pastilla pintada. */}
-      <Badge variant="dot" color={estado.color}>
+          Un badge dibuja un recuadro alrededor de una palabra que en cincuenta
+          y siete de sesenta filas dice lo mismo, y ese recuadro terminaba siendo
+          lo más fuerte de la fila —más que la semana, que es lo que se viene a
+          leer—. Sacado el contorno, el color queda donde importa y la palabra
+          baja al gris del texto secundario.
+
+          El punto se queda, y no es decorativo: es lo único que se recorre con
+          la vista para encontrar la semana que no salió. Sin palabra sería un
+          código de colores que hay que aprender; sin punto, sesenta renglones
+          grises iguales.
+
+          El tinte sale de `ESTADOS_DE_REPORTE` —el mismo con el que el panel de
+          filtros distingue cada estado—, así que el punto de la fila y el de la
+          opción del panel son el mismo color por construcción. */}
+      <span
+        className="flex shrink-0 items-center gap-1.5 text-muted-foreground"
+        style={{ fontSize: escala.caption }}
+      >
+        <span
+          aria-hidden
+          className="size-1.5 shrink-0 rounded-full"
+          style={{ background: estado.tinte }}
+        />
         {estado.label}
-      </Badge>
+      </span>
 
       {/* Contra el borde derecho, que es donde termina la fila: se la lee
           entera y recién entonces se decide. */}
@@ -532,7 +532,7 @@ function Pantalla() {
             className="text-muted-foreground"
             style={{ fontSize: escala.caption }}
           >
-            Every week the house closed &mdash; and the accounts it opened in it.
+            Every week the house closed, filed by the month it closed in.
           </p>
         </div>
 
