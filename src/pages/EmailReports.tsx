@@ -55,27 +55,35 @@ import { useUsuarios, type Usuario } from "@/pages/usuarios";
 
 /* La pantalla de Email Reports: las semanas que la casa ya cerró.
 
-   Es el mismo mueble que Policies, Provisioning y Email Search —header con la
-   búsqueda y el panel de filtros; la tabla debajo con su cabecera flotando sobre
-   el scroller; el pie con el rango y el pager— porque son cuatro maneras de
-   mirar el correo de la misma consola, y cambiar de fila del sidebar no debería
-   cambiar de mueble.
+   Comparte con Policies, Provisioning y Email Search el header —la búsqueda y el
+   panel de filtros, en el mismo rincón— porque son cuatro maneras de mirar el
+   correo de la misma consola. Lo que hay debajo **no** es su tabla, y ésa es la
+   única diferencia que importa.
 
-   Seis columnas, y la sexta no tiene título porque no muestra un dato: es lo que
-   se puede hacer con la fila. Una columna de acciones con un rótulo promete un
-   dato que no está. Es la misma decisión que toma Policies con su menú.
+   Las otras tres muestran cosas que existen ahora: buzones, mensajes, reglas.
+   Una tabla con su paginador es la forma correcta para eso. Ésta muestra
+   ventanas que se cerraron solas, una por semana, para siempre: la lista no
+   tiene fin y sus filas se repiten el nombre —dos reportes de julio se llaman
+   los dos "KC-B July 2026 Report"—. Un paginador ahí parte por número lo que se
+   recorre por fecha, y la columna del nombre repite la misma frase cuarenta
+   veces.
 
-   Lo que esta tabla tiene y las otras no es que **sus filas se repiten el
-   nombre**: dos reportes de julio se llaman los dos "KC-B July 2026 Report". No
-   es un error del fixture —el nombre dice de qué mes es— y es la razón de que la
-   columna del período exista: es lo único que distingue una fila de la de
-   abajo. */
+   Así que va agrupada por mes, con el mes como encabezado que se pliega, y sin
+   pager. Ver "La lista", más abajo. El mueble que sí comparte es el de la
+   sección Emails de un perfil, que es la otra lista larga de esta app que se
+   recorre por grupos. */
 
 /* ─────────────────────────── El movimiento ───────────────────────────
 
-   El mismo reparto que las otras tablas, y por la misma razón: abrir esto es una
-   reacción —alguien tocó una fila del sidebar— y no hay cascada entre filas, que
-   contaría un orden de llegada que no existió. */
+   Dos repartos y no uno, porque son dos cosas distintas.
+
+   El de la **pantalla** es el mismo de las otras tres: abrir esto es una
+   reacción —alguien tocó una fila del sidebar— y sus tres bloques entran
+   escalonados una sola vez.
+
+   El del **mes** es de cada mes y corre cada vez que se lo despliega, no sólo al
+   montar la pantalla: ver `cascadaMes`. Un mes que se abre no es la pantalla
+   apareciendo otra vez, es un bloque que llega. */
 
 const cascadaPantalla = {
   oculto: {},
@@ -92,9 +100,39 @@ const entraTabla = {
   visible: { opacity: 1, transition: spring.moderate },
 } as const;
 
-const entraCelda = {
-  oculto: { opacity: 0, filter: "blur(5px)" },
-  visible: { opacity: 1, filter: "blur(0px)", transition: spring.slow },
+/* ── El mes que se abre ───────────────────────────────────────────────────
+ *
+ * Cada mes reparte los turnos de sus propias semanas. Al montarse —la primera
+ * vez, y **cada vez que se lo despliega**— arranca en `oculto` y va a
+ * `visible`, así que sus filas entran siempre, vengan de un primer pintado o de
+ * haber estado plegadas. Sin esto el bloque aparecía de golpe: cinco filas que
+ * ya estaban ahí, dibujadas de una vez.
+ *
+ * El turno es el mismo que reparte la lista de correos de un perfil, y las
+ * filas entran desde la izquierda por lo mismo: se despliegan **desde** su
+ * encabezado, que está arriba y a la izquierda, así que venir de ahí es venir
+ * de donde uno acaba de tocar. Un `y` las traería desde debajo del mes que
+ * sigue, que no es de donde salieron.
+ *
+ * Los ocho píxeles y el escalón `moderate` no son elegidos acá: son los que
+ * usa esa lista, y dos maneras de desplegar un grupo en la misma app serían dos
+ * cosas que hay que aprender por separado. */
+const cascadaMes = {
+  oculto: {},
+  visible: { transition: { delayChildren: 0.03, staggerChildren: 0.045 } },
+} as const;
+
+const entraSemana = {
+  oculto: { opacity: 0, x: -8 },
+  visible: { opacity: 1, x: 0, transition: spring.moderate },
+} as const;
+
+/* El galón que gira. Es la única parte del encabezado que se mueve, y se mueve
+   con el escalón corto: es una reacción a un clic, y llegar tarde a la propia
+   respuesta la haría ver lenta. */
+const giraElGalon = {
+  abierto: { rotate: 0, transition: spring.fast },
+  plegado: { rotate: -90, transition: spring.fast },
 } as const;
 
 /* ─────────────────────────── Los filtros ─────────────────────────── */
@@ -390,7 +428,10 @@ function FilaDeReporte({ reporte }: { reporte: Reporte }) {
 
   return (
     <motion.div
-      variants={entraCelda}
+      /* La fila entra con el turno que le reparte su mes —ver `cascadaMes`— y
+         no con el de la pantalla: lo que la trae es haber desplegado el mes,
+         que puede pasar mil veces después del primer pintado. */
+      variants={entraSemana}
       className="group/fila flex min-h-9 items-center gap-3 rounded-lg pr-2 pl-5 transition-colors duration-80 hover:bg-hover"
     >
       {/* Qué semana cubre. Las dos fechas enteras con año: es lo único que
@@ -590,27 +631,59 @@ function Pantalla() {
                         {mes.reportes.length}
                       </span>
 
-                      {/* El chevron aparece con el puntero: en reposo la fila ya
-                          se lee como un encabezado, y catorce galones apuntando
-                          hacia abajo son una columna de ruido. */}
-                      <ChevronDown
-                        size={12}
-                        strokeWidth={1.5}
+                      {/* El galón gira entre abierto y plegado —ver
+                          `giraElGalon`—, que es lo que ata el gesto con lo que
+                          pasa debajo: se toca acá y el bloque sale de acá.
+
+                          Aparece con el puntero mientras el mes está abierto y
+                          se queda puesto cuando está plegado: en reposo la fila
+                          abierta ya se lee como un encabezado y catorce galones
+                          serían una columna de ruido, pero un mes plegado no
+                          tiene nada debajo que lo explique y el galón de costado
+                          es lo único que dice que ahí hay algo guardado. Es la
+                          misma regla que la lista de correos de un perfil. */}
+                      <motion.span
                         aria-hidden
+                        variants={giraElGalon}
+                        animate={abierto ? "abierto" : "plegado"}
                         className={cn(
-                          "shrink-0 transition-[transform,opacity] duration-80",
-                          "opacity-0 group-hover/mes:opacity-100 group-focus-visible/mes:opacity-100",
-                          !abierto && "-rotate-90",
+                          "flex shrink-0 transition-opacity duration-80",
+                          abierto
+                            ? "opacity-0 group-hover/mes:opacity-100 group-focus-visible/mes:opacity-100"
+                            : "opacity-100",
                         )}
-                      />
+                      >
+                        <ChevronDown size={12} strokeWidth={1.5} />
+                      </motion.span>
                     </button>
 
+                    {/* El cuerpo se monta y se desmonta, **sin
+                        `AnimatePresence`**. Lo tuvo la lista de correos de un
+                        perfil, animando la altura de `auto` a cero, y traía un
+                        bug que no vale la pena volver a pagar: `AnimatePresence`
+                        deja montado al que se va hasta que termine su salida, y
+                        volver a abrir el grupo mientras eso pasa le pide a
+                        framer resucitar un hijo con la misma clave que se está
+                        encogiendo. La medida del `height: "auto"` sale de ahí y
+                        el grupo aterriza en cero con las filas adentro: espacio
+                        reservado, contenido invisible.
+
+                        Así que sólo se anima la entrada. Plegar es instantáneo
+                        —lo que se pliega deja de estar, que es lo que uno
+                        pidió— y desplegar trae las semanas una detrás de otra.
+                        Sin salida no hay a quién resucitar. */}
                     {abierto && (
-                      <div id={idContenido} className="flex flex-col">
+                      <motion.div
+                        id={idContenido}
+                        variants={cascadaMes}
+                        initial="oculto"
+                        animate="visible"
+                        className="flex flex-col"
+                      >
                         {mes.reportes.map((reporte) => (
                           <FilaDeReporte key={reporte.id} reporte={reporte} />
                         ))}
-                      </div>
+                      </motion.div>
                     )}
                   </section>
                 );
