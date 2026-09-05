@@ -49,7 +49,7 @@ import {
   useReportes,
   type Reporte,
 } from "@/pages/reportes";
-import { fechaDia } from "@/pages/tiempo";
+import { fechaDia, haceCuanto } from "@/pages/tiempo";
 import { useUsuarios, type Usuario } from "@/pages/usuarios";
 
 /* La pantalla de Email Reports: las semanas que la casa ya cerró.
@@ -273,14 +273,17 @@ function pasa(reporte: Reporte, busqueda: string, filtros: FilterSelection) {
    dos maneras de plegar un grupo en la misma app serían dos cosas que hay que
    aprender por separado.
 
-   Lo que la fila pierde contra la tabla vieja son tres columnas. El **nombre**
-   lo dice el encabezado del mes: adentro de agosto, las cinco filas decían lo
-   mismo. La **fecha de armado** es el cierre de la ventana, que ya está en la
-   fila —un reporte semanal se firma el día que su semana termina—, así que eran
-   dos columnas para un solo hecho. Y **cuántas cuentas cubre**: la fila queda
-   contestando una sola pregunta —de cuándo es este archivo y si está listo— y
-   el número vive donde importa, adentro del CSV y en el aviso que confirma la
-   bajada. */
+   Lo que la fila pierde contra la tabla vieja son dos columnas. El **nombre** lo
+   dice el encabezado del mes: adentro de agosto, las cinco filas decían lo
+   mismo. Y **cuántas cuentas cubre**, que era un número pelado sin decir de qué;
+   el dato vive donde importa, adentro del CSV y en el aviso que confirma la
+   bajada.
+
+   La **fecha de armado** sí se quedó, pero escrita en relativo. Es el cierre de
+   la ventana —un reporte semanal se firma el día que su semana termina—, así que
+   repetirla en absoluto sería la misma frase dos veces; "hace dos meses" es otra
+   pregunta que "del 10 al 17 de julio", y es la que uno hace cuando busca el
+   archivo más nuevo y no la semana tal. */
 
 /* ─────────────────────────── La bajada ─────────────────────────── */
 
@@ -376,7 +379,13 @@ function BajarReporte({ reporte }: { reporte: Reporte }) {
       onClick={alTocar}
       className={cn(
         "opacity-0 transition-opacity duration-80",
-        "group-[.is-active]/row:opacity-100",
+        /* Con el hover de **su fila**, y no con el `is-active` de una tabla:
+           esta pantalla dejó de ser una tabla cuando pasó a carpetas, y
+           `is-active` lo pone `<TableRow>`. La clase quedó de entonces y el
+           botón no llegaba nunca a aparecer con el puntero —sólo tabulando
+           hasta él o mientras se estaba bajando—. El grupo que sí existe acá es
+           el de la fila. */
+        "group-hover/fila:opacity-100",
         bajando && "opacity-100",
         "focus-visible:opacity-100",
       )}
@@ -389,29 +398,27 @@ function BajarReporte({ reporte }: { reporte: Reporte }) {
 /**
  * Un reporte, como una fila de la lista de su mes.
  *
- * Cuatro cosas y en este orden: qué semana cubre, cuántas cuentas entraron en
- * ella, en qué anda, y qué se puede hacer con él.
+ * Tres columnas y una acción, en este orden: qué semana cubre, en qué anda, de
+ * cuándo es, y qué se puede hacer con él. La forma es la de una línea de un
+ * explorador de archivos, que es lo mismo que dice el mueble de afuera: esto es
+ * una carpeta con archivos adentro.
  *
  * **Sin el nombre.** Adentro del mes las cinco filas decían la misma frase —"KC-B
- * August 2026 Report"— y esa frase es exactamente lo que el encabezado del mes
- * ya dice. Lo que distingue una semana de la de abajo es la ventana, que ahora
- * es lo primero que se lee.
- *
- * **Y sin la fecha de armado.** Un reporte semanal se firma el día que su semana
- * termina, así que la fecha de armado *es* el cierre de la ventana. La tabla
- * vieja tenía las dos columnas y decían un solo hecho.
+ * August 2026 Report"— y esa frase es exactamente lo que el encabezado del mes ya
+ * dice. Lo que distingue una semana de la de abajo es la ventana, que es lo
+ * primero que se lee.
  *
  * La sangría de la izquierda la mete el mes: la fila cuelga de su encabezado, y
  * verlo en el margen es lo que hace que se lea como algo adentro de algo y no
  * como una lista más.
  */
-function FilaDeReporte({ reporte }: { reporte: Reporte }) {
+function FilaDeReporte({ reporte, indice }: { reporte: Reporte; indice: number }) {
   const escala = useTypeScale();
   const estado = ESTADOS_DE_REPORTE[reporte.estado];
   /* Lo terminado no se anuncia. Es el caso normal —cincuenta y siete de sesenta
      semanas— y una palabra que aparece en casi todas las filas no informa: lo
      que informa es su ausencia. Con el estado callado, las tres semanas que no
-     salieron son lo único que hay a la derecha de la lista. */
+     salieron son lo único escrito en esa columna. */
   const hayQueDecirlo = reporte.estado !== "completed";
 
   return (
@@ -420,12 +427,53 @@ function FilaDeReporte({ reporte }: { reporte: Reporte }) {
          no con el de la pantalla: lo que la trae es haber desplegado el mes,
          que puede pasar mil veces después del primer pintado. */
       variants={entraSemana}
-      className="group/fila flex min-h-9 items-center gap-3 rounded-lg pr-2 pl-5 transition-colors duration-80 hover:bg-hover"
+      /* Una grilla y no una hilera de `flex` con anchos. Dos de las cuatro
+         celdas se vacían solas —el estado se calla en cincuenta y siete de
+         sesenta filas, y el botón de bajar no existe en lo que no está listo—, y
+         en flex una celda vacía no ocupa nada: desaparece y arrastra a las de al
+         lado, así que la fila con estado se corría contra la que no lo tiene. En
+         una grilla la columna existe aunque esté vacía, y las cuatro caen
+         siempre en el mismo lugar.
+
+         La primera es la que cede: `minmax(0,1fr)` y no `auto`, porque un `1fr`
+         a secas no baja de su contenido y una ventana larga empujaría las tres
+         fijas fuera del panel en vez de recortarse. */
+      style={{ gridTemplateColumns: "minmax(0,1fr) 5.5rem 5rem 1.75rem" }}
+      className={cn(
+        "group/fila grid min-h-9 items-center gap-3 rounded-lg pr-2 pl-5",
+        "transition-colors duration-80 hover:bg-hover",
+        /* Las bandas intercaladas. Sesenta renglones de texto suelto sobre un
+           plano blanco no tienen dónde empezar ni dónde terminar: la fila existe
+           recién cuando se la toca. La banda le da un borde sin dibujar una
+           línea, que es lo que deja recorrerla de izquierda a derecha —tres
+           columnas separadas por aire— sin saltar al renglón de al lado.
+
+           El tinte es `--hover` al 40%, y no un gris elegido acá. En claro las
+           superficies 3 a 8 son todas `#FFFFFF` —no hay un escalón que sirva de
+           banda— y en oscuro el escalón de al lado es un salto enorme, así que
+           ningún token de superficie funciona en los dos temas. `--hover` sí: es
+           el "una pizca de tinta sobre lo que haya debajo" de esta app, negro en
+           claro y blanco en oscuro.
+
+           Al 40% y no entero porque el hover usa ese mismo tinte al 100%: si la
+           banda pesara lo mismo, pasar el puntero por una fila impar no haría
+           nada. Así, tocar cualquier fila la lleva al mismo lugar —el patrón se
+           deshace bajo el cursor y la que se está mirando queda como la única
+           sin banda—.
+
+           El índice es el de adentro del mes y no el de la lista: cada carpeta
+           arranca de nuevo. Con un contador corrido, que la primera semana de
+           agosto tuviera banda dependería de cuántas filas hubo antes, que es
+           una razón que no tiene nada que ver con agosto. Y arranca sin banda,
+           para que el renglón pegado al encabezado del mes quede en el plano del
+           panel. */
+        indice % 2 === 1 && "bg-hover/40",
+      )}
     >
       {/* Qué semana cubre. Las dos fechas enteras con año: es lo único que
           distingue esta fila de la de abajo, así que acá no se abrevia nada. */}
       <span
-        className="min-w-0 flex-1 truncate tabular-nums text-foreground"
+        className="min-w-0 truncate tabular-nums text-foreground"
         style={{ fontSize: escala.body }}
       >
         {fechaDia(reporte.desde)} &ndash; {fechaDia(reporte.hasta)}
@@ -438,7 +486,7 @@ function FilaDeReporte({ reporte }: { reporte: Reporte }) {
           salió es lo que se espera de un reporte, y decirlo en cincuenta y siete
           filas no agrega nada: lo que se busca acá es la semana que se cayó, la
           que todavía está en la cola y la que se está armando, y esas tres se
-          encuentran solas cuando son lo único escrito de ese lado.
+          encuentran solas cuando son lo único escrito en esta columna.
 
           Que la fila terminada quede muda no la deja sin contestar nada: el
           botón de bajar aparece con el puntero justamente en ésas, así que "está
@@ -449,26 +497,58 @@ function FilaDeReporte({ reporte }: { reporte: Reporte }) {
           que ser la semana. Queda el punto —que es lo que se recorre con la
           vista— y la palabra en el gris del texto secundario.
 
+          Alineado a la izquierda de su columna, al revés que la fecha que sigue:
+          así los puntos caen todos en la misma x y forman una línea vertical,
+          que es lo que hace legible una columna que se llena en tres filas de
+          sesenta. Alineados a la derecha, cada punto quedaría a distinta altura
+          horizontal según el largo de la palabra.
+
           El tinte sale de `ESTADOS_DE_REPORTE` —el mismo con el que el panel de
           filtros distingue cada estado—, así que el punto de la fila y el de la
           opción del panel son el mismo color por construcción. */}
-      {hayQueDecirlo && (
-        <span
-          className="flex shrink-0 items-center gap-1.5 text-muted-foreground"
-          style={{ fontSize: escala.body }}
-        >
+      <span className="min-w-0">
+        {hayQueDecirlo && (
           <span
-            aria-hidden
-            className="size-1.5 shrink-0 rounded-full"
-            style={{ background: estado.tinte }}
-          />
-          {estado.label}
-        </span>
-      )}
+            className="flex items-center gap-1.5 text-muted-foreground"
+            style={{ fontSize: escala.body }}
+          >
+            <span
+              aria-hidden
+              className="size-1.5 shrink-0 rounded-full"
+              style={{ background: estado.tinte }}
+            />
+            {estado.label}
+          </span>
+        )}
+      </span>
 
-      {/* Contra el borde derecho, que es donde termina la fila: se la lee
-          entera y recién entonces se decide. */}
-      <BajarReporte reporte={reporte} />
+      {/* De cuándo es, en relativo. `creadoEl` **es** el cierre de la ventana
+          —un reporte semanal se firma el día que su semana termina—, así que
+          escribirlo en absoluto sería repetir lo que ya dice la primera columna.
+          En relativo contesta otra pregunta: cuál es el archivo más nuevo, que
+          es la que uno hace cuando no viene por una semana en particular.
+
+          El mediodía en UTC no es decoración: `creadoEl` es un día pelado y
+          `new Date("2026-08-28")` cae en la medianoche UTC, que del otro lado
+          del meridiano es el día anterior y devuelve un "hace" corrido en uno.
+
+          A la derecha y con `tabular-nums`, que es como se compara una columna
+          de cantidades: las unidades quedan una debajo de la otra y los dígitos
+          no bailan entre filas. */}
+      <span
+        className="text-right tabular-nums text-muted-foreground"
+        style={{ fontSize: escala.body }}
+      >
+        {haceCuanto(`${reporte.creadoEl}T12:00:00Z`)}
+      </span>
+
+      {/* Contra el borde derecho, que es donde termina la fila: se la lee entera
+          y recién entonces se decide. Es una columna de la grilla y no un
+          agregado al final, así que el hueco queda reservado también en las
+          filas donde `BajarReporte` no dibuja nada. */}
+      <span className="flex justify-end">
+        <BajarReporte reporte={reporte} />
+      </span>
     </motion.div>
   );
 }
@@ -708,8 +788,12 @@ function Pantalla() {
                         animate="visible"
                         className="flex flex-col"
                       >
-                        {mes.reportes.map((reporte) => (
-                          <FilaDeReporte key={reporte.id} reporte={reporte} />
+                        {mes.reportes.map((reporte, indice) => (
+                          <FilaDeReporte
+                            key={reporte.id}
+                            reporte={reporte}
+                            indice={indice}
+                          />
                         ))}
                       </motion.div>
                     )}
