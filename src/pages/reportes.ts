@@ -206,6 +206,64 @@ export function useReportes(): Reporte[] {
   return useMemo(() => armar(usuarios), [usuarios]);
 }
 
+/* ─────────────────────────── El mes ─────────────────────────── */
+
+/** Un mes con los reportes que cerraron adentro. Es la unidad con la que la
+ *  pantalla los muestra: una lista de sesenta ventanas semanales no se recorre,
+ *  y agrupadas son catorce meses de cuatro o cinco. */
+export interface MesDeReportes {
+  /** `2026-08`. Es la `key` de la sección y lo que la pantalla recuerda cuando
+   *  alguien la pliega. */
+  clave: string;
+  /** "August 2026", con el mismo formateador que arma el nombre de cada reporte
+   *  —ver `MES_Y_ANIO`—, que es lo que hace que la carpeta y lo que dicen sus
+   *  reportes no puedan decir dos meses distintos. */
+  nombre: string;
+  reportes: Reporte[];
+}
+
+/**
+ * Repartir los reportes por mes.
+ *
+ * El mes sale del **cierre** de la ventana y no de su apertura: una semana que
+ * empieza en julio y termina en agosto es de agosto, que es cuando el reporte se
+ * firmó. Es la misma regla con la que se arma el nombre, y por eso el mes no se
+ * inventa acá: ya estaba en el dato.
+ *
+ * Conserva el orden que trae la lista —del más nuevo al más viejo—: el `Map`
+ * respeta el orden de inserción, así que no hay que volver a ordenar ni los
+ * meses ni lo que tienen adentro.
+ *
+ * Los meses sin nada no aparecen, que es lo que hace que esto funcione con un
+ * filtro puesto: lo encontrado se muestra en su mes y los demás no dejan un
+ * encabezado vacío diciendo que ahí no hay nada.
+ */
+export function porMes(reportes: Reporte[]): MesDeReportes[] {
+  const meses = new Map<string, MesDeReportes>();
+
+  for (const reporte of reportes) {
+    const clave = reporte.hasta.slice(0, 7);
+    let mes = meses.get(clave);
+    if (!mes) {
+      mes = {
+        clave,
+        nombre: MES_Y_ANIO.format(new Date(`${reporte.hasta}T12:00:00Z`)),
+        reportes: [],
+      };
+      meses.set(clave, mes);
+    }
+    mes.reportes.push(reporte);
+  }
+
+  return [...meses.values()];
+}
+
+/** Cuántos del mes no terminaron bien. Es lo único que un mes plegado puede
+ *  decir de lo que tiene adentro sin abrirlo, y lo que decide si vale la pena
+ *  abrirlo: cuatro reportes que salieron no son noticia, uno que falló sí. */
+export const fallidosDelMes = (mes: MesDeReportes) =>
+  mes.reportes.filter((r) => r.estado === "failed").length;
+
 /* ─────────────────────────── Qué semana cubre ─────────────────────────── */
 
 /** Los tramos con los que el panel pregunta por el período.

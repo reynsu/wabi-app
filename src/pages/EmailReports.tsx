@@ -1,11 +1,14 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { sileo } from "sileo";
 import {
   CalendarRange,
+  ChevronDown,
   Download,
   FileChartColumn,
   FileText,
+  Folder,
+  FolderOpen,
   Loader,
   Search,
   Tag,
@@ -25,22 +28,10 @@ import {
   type FilterOption,
   type FilterSelection,
 } from "@/components/filter-menu";
-import { Pagination } from "@/components/pagination";
-import { Rango } from "@/components/pager-range";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { InputField, InputGroup } from "@/components/ui/input-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { useMeasuredHeight } from "@/hooks/use-measured-height";
-import { usePaginacion } from "@/hooks/use-paginacion";
 import { descargar } from "@/lib/descargar";
 import { SizeProvider, useTypeScale } from "@/lib/size-context";
 import { spring } from "@/lib/springs";
@@ -52,6 +43,8 @@ import {
   TIPOS_DE_REPORTE,
   archivoDeReporte,
   csvDeReporte,
+  fallidosDelMes,
+  porMes,
   sePuedeBajar,
   tramoDePeriodo,
   useReportes,
@@ -59,12 +52,6 @@ import {
 } from "@/pages/reportes";
 import { fechaDia } from "@/pages/tiempo";
 import { useUsuarios, type Usuario } from "@/pages/usuarios";
-import {
-  AIRE_FILA,
-  AIRE_TITULOS,
-  BANDA_TITULOS,
-  SANGRIA,
-} from "@/pages/tabla";
 
 /* La pantalla de Email Reports: las semanas que la casa ya cerró.
 
@@ -230,57 +217,31 @@ function pasa(reporte: Reporte, busqueda: string, filtros: FilterSelection) {
   });
 }
 
-/* ─────────────────────────── La tabla ─────────────────────────── */
+/* ─────────────────────────── La lista ───────────────────────────
 
-/* Las columnas, declaradas una vez y usadas por las dos tablas —la de los
-   títulos y la del cuerpo—. Con `table-fixed` el ancho sale de acá y no del
-   contenido, que es lo único que las mantiene alineadas estando separadas.
+   No es una tabla. Los reportes se generan solos, uno por semana, así que la
+   lista crece para siempre y todas las filas se parecen: dos de julio se llaman
+   igual —"KC-B July 2026 Report"— y lo único que las distingue es la ventana que
+   cubren. Una tabla plana de sesenta filas con paginador es la forma equivocada
+   para eso: el paginador parte por número lo que se recorre por fecha, y la
+   columna del nombre repite la misma frase cuarenta veces.
 
-   El período se lleva más que el nombre aunque el nombre vaya primero: son dos
-   fechas enteras con un guión en el medio —"Jul 23, 2026 – Jul 30, 2026"— y
-   apretado eso se parte en dos renglones o se recorta justo en el año, que es la
-   parte que lo desambigua. El nombre, en cambio, se repite entre filas y se lee
-   de un vistazo.
+   Van agrupados por mes, con el mes como encabezado que se pliega. **El mes no
+   se inventa: ya estaba en el dato** —el nombre de cada reporte lo lleva—, así
+   que agruparlos es mostrar una estructura que el modelo ya tenía escondida.
+   Sesenta filas pasan a ser catorce meses de cuatro o cinco.
 
-   La de acciones va en píxeles y no en porcentaje: es lo único de la tabla que
-   no muestra un dato sino un botón, y un botón mide lo que mide en cualquier
-   ancho de ventana. Son los 28 del botón más la sangría del borde. */
-const COLUMNAS = [
-  { id: "name", ancho: "26%" },
-  { id: "accounts", ancho: "11%" },
-  { id: "period", ancho: "28%" },
-  { id: "status", ancho: "14%" },
-  { id: "created", ancho: "16%" },
-  { id: "acciones", ancho: "60px" },
-];
+   Es el mismo mueble que la sección Emails de un perfil, hasta el encabezado
+   pegajoso y el plegado: son dos listas largas que se recorren por grupos, y
+   dos maneras de plegar un grupo en la misma app serían dos cosas que hay que
+   aprender por separado.
 
-function Columnas() {
-  return (
-    <colgroup>
-      {COLUMNAS.map((c) => (
-        <col key={c.id} style={{ width: c.ancho }} />
-      ))}
-    </colgroup>
-  );
-}
+   Lo que la fila pierde contra la tabla vieja es el nombre y la fecha de
+   armado. El nombre lo dice el encabezado del mes —adentro de agosto, las cinco
+   filas decían lo mismo— y la fecha de armado es el cierre de la ventana, que
+   ya está en la fila: un reporte semanal se firma el día que su semana termina,
+   así que eran dos columnas para un solo hecho. */
 
-/**
- * Cuentas — cuántas cubre el reporte.
- *
- * El dígito adentro de una baldosita gris, del alto exacto del badge de Status.
- * Es lo que le da cuerpo: un número solo, alineado a la izquierda de una celda
- * de cien píxeles, deja noventa vacíos —y eso, y no el número, es lo que hacía
- * que la columna se leyera plana entre dos bloques—.
- *
- * La baldosa **no** es un badge, y las dos diferencias son a propósito: el radio
- * es el chico —`rounded-md` contra el `rounded-lg` del badge— y no lleva color
- * nunca. Un badge dice en qué estado está algo; esto dice cuántos son, y las dos
- * cosas viven en la misma fila a dos columnas de distancia.
- *
- * El cero no cambia de forma, sólo se vacía de tinta: la baldosa sigue ahí y el
- * número se apaga. Diez de cada cuarenta semanas no tuvieron altas, y una fila
- * que pierde su baldosa se lee como una fila a la que le falta un dato.
- */
 function Cuentas({ reporte }: { reporte: Reporte }) {
   const escala = useTypeScale();
   const cuantas = reporte.cuentas.length;
@@ -299,11 +260,6 @@ function Cuentas({ reporte }: { reporte: Reporte }) {
     </span>
   );
 }
-
-/** Cuántos reportes entran en una página. Los mismos que políticas, buzones y
- *  correos: es el mismo mueble mirado con otros ojos, y dos largos de página
- *  distintos harían que el pager cambie de significado al cambiar de sección. */
-const POR_PAGINA = 40;
 
 /* ─────────────────────────── La bajada ─────────────────────────── */
 
@@ -409,6 +365,61 @@ function BajarReporte({ reporte }: { reporte: Reporte }) {
   );
 }
 
+/**
+ * Un reporte, como una fila de la lista de su mes.
+ *
+ * Cuatro cosas y en este orden: qué semana cubre, cuántas cuentas entraron en
+ * ella, en qué anda, y qué se puede hacer con él.
+ *
+ * **Sin el nombre.** Adentro del mes las cinco filas decían la misma frase —"KC-B
+ * August 2026 Report"— y esa frase es exactamente lo que el encabezado del mes
+ * ya dice. Lo que distingue una semana de la de abajo es la ventana, que ahora
+ * es lo primero que se lee.
+ *
+ * **Y sin la fecha de armado.** Un reporte semanal se firma el día que su semana
+ * termina, así que la fecha de armado *es* el cierre de la ventana. La tabla
+ * vieja tenía las dos columnas y decían un solo hecho.
+ *
+ * La sangría de la izquierda la mete el mes: la fila cuelga de su encabezado, y
+ * verlo en el margen es lo que hace que se lea como algo adentro de algo y no
+ * como una lista más.
+ */
+function FilaDeReporte({ reporte }: { reporte: Reporte }) {
+  const escala = useTypeScale();
+  const estado = ESTADOS_DE_REPORTE[reporte.estado];
+
+  return (
+    <motion.div
+      variants={entraCelda}
+      className="group/fila flex min-h-9 items-center gap-3 rounded-lg pr-2 pl-5 transition-colors duration-80 hover:bg-hover"
+    >
+      {/* Qué semana cubre. Las dos fechas enteras con año: es lo único que
+          distingue esta fila de la de abajo, así que acá no se abrevia nada. */}
+      <span
+        className="min-w-0 flex-1 truncate tabular-nums text-foreground"
+        style={{ fontSize: escala.caption }}
+      >
+        {fechaDia(reporte.desde)} &ndash; {fechaDia(reporte.hasta)}
+      </span>
+
+      {/* Cuántas cuentas cubre. El número y nada más: contesta "¿esta semana
+          tuvo altas?" —que es lo que se recorre— y quiénes fueron está en el
+          archivo, que es para lo que está el botón del final. */}
+      <Cuentas reporte={reporte} />
+
+      {/* `variant="dot"`, el mismo de la Communication Status de Accounts: el
+          contorno y el punto de color, y no una pastilla pintada. */}
+      <Badge variant="dot" color={estado.color}>
+        {estado.label}
+      </Badge>
+
+      {/* Contra el borde derecho, que es donde termina la fila: se la lee
+          entera y recién entonces se decide. */}
+      <BajarReporte reporte={reporte} />
+    </motion.div>
+  );
+}
+
 /* ─────────────────────────── La pantalla ─────────────────────────── */
 
 export function EmailReports() {
@@ -425,7 +436,22 @@ function Pantalla() {
   const [busqueda, setBusqueda] = useState("");
   const [filtros, setFiltros] = useState<FilterSelection>({});
   const escala = useTypeScale();
-  const [medirCabecera, altoCabecera] = useMeasuredHeight<HTMLDivElement>();
+  /* Qué meses están plegados. Se guardan los plegados y no los abiertos: lo
+     normal es que estén todos abiertos, así que el estado inicial es "ninguno"
+     en vez de una lista que hay que mantener al día cuando cierre un mes nuevo.
+     Es lo mismo que hace la lista de correos de un perfil. */
+  const [plegados, setPlegados] = useState<Set<string>>(new Set());
+  /* Los ids que atan cada encabezado con lo que abre. De `useId` porque dos
+     pestañas de esta pantalla son dos listas en la misma página. */
+  const idLista = useId();
+
+  const plegar = (clave: string) =>
+    setPlegados((previos) => {
+      const proximos = new Set(previos);
+      if (proximos.has(clave)) proximos.delete(clave);
+      else proximos.add(clave);
+      return proximos;
+    });
 
   const todos = useReportes();
 
@@ -434,17 +460,12 @@ function Pantalla() {
     [todos, busqueda, filtros],
   );
 
-  const GRUPOS = useMemo(() => grupos(todos), [todos]);
+  /* Agrupados **después** de filtrar, que es lo que hace que el filtro y las
+     carpetas no se peleen: lo encontrado se muestra en su mes y los meses que
+     quedan sin nada no dibujan un encabezado para decir que ahí no hay nada. */
+  const meses = useMemo(() => porMes(encontrados), [encontrados]);
 
-  /* La página, con la clave de lo que estaba filtrado cuando se la eligió:
-     cambiar el filtro vuelve a la primera, y la página se acota contra el total.
-     Es el mismo hook que usan Email Search, Provisioning y Policies. */
-  const clave = `${busqueda}|${JSON.stringify(filtros)}`;
-  const { pagina, paginas, desde, filas, dir, ancla, irA } = usePaginacion(
-    encontrados,
-    clave,
-    POR_PAGINA,
-  );
+  const GRUPOS = useMemo(() => grupos(todos), [todos]);
 
   return (
     <motion.div
@@ -503,7 +524,7 @@ function Pantalla() {
         </div>
       </motion.header>
 
-      {filas.length === 0 ? (
+      {meses.length === 0 ? (
         <AnimatedEmpty>
           <AnimatedEmptyHeader>
             <AnimatedEmptyMedia variant="icon">
@@ -517,153 +538,107 @@ function Pantalla() {
           </AnimatedEmptyHeader>
         </AnimatedEmpty>
       ) : (
-        <motion.div variants={entraTabla} className="relative min-h-0 flex-1">
-          {/* Los títulos van afuera del scroller y flotando encima: adentro,
-              `scroll-fade` los desvanecería cada vez que hay filas por arriba.
-              Las dos tablas se alinean porque comparten `Columnas` y van las dos
-              en `table-fixed`. */}
-          <div ref={medirCabecera} className="absolute inset-x-0 top-0 z-10">
-            <Table
-              className={cn("table-fixed", BANDA_TITULOS, SANGRIA, AIRE_TITULOS)}
-            >
-              <Columnas />
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Report</TableHead>
-                  <TableHead>Accounts</TableHead>
-                  <TableHead>Period covered</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created</TableHead>
-                  {/* Sin rótulo a la vista, pero con nombre para quien la lee
-                      de a una celda: una columna anónima en un lector de
-                      pantalla es una celda que no se sabe qué contesta. */}
-                  <TableHead>
-                    <span className="sr-only">Actions</span>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-            </Table>
-          </div>
-
+        <motion.div variants={entraTabla} className="min-h-0 flex-1">
           <ScrollArea className="h-full" viewportClassName="scroll-fade">
-            {/* La reserva para la cabecera que flota encima. Lleva el ancla: es
-                lo que el hook de la paginación usa para encontrar la caja que
-                scrollea y subirla cuando cambia de página. */}
-            <div ref={ancla} style={{ paddingTop: altoCabecera ?? 0 }} />
+            <div className="flex flex-col px-6 pb-6" role="list">
+              {meses.map((mes) => {
+                const abierto = !plegados.has(mes.clave);
+                const fallidos = fallidosDelMes(mes);
+                const idContenido = `${idLista}-${mes.clave}`;
 
-            <Table className={cn("table-fixed", SANGRIA, AIRE_FILA)}>
-              <Columnas />
-              <TableBody>
-                {filas.map((reporte, i) => {
-                  const estado = ESTADOS_DE_REPORTE[reporte.estado];
+                return (
+                  <section key={mes.clave} role="listitem">
+                    {/* El encabezado del mes, pegajoso. Se queda arriba mientras
+                        se recorren sus semanas, que es lo que evita perder de
+                        vista en cuál se está: sin eso, a la cuarta fila el mes
+                        ya se fue y las cinco ventanas se parecen entre sí.
 
-                  return (
-                    <TableRow key={reporte.id} index={i}>
-                      <TableCell className="text-foreground">
-                        <motion.span
-                          variants={entraCelda}
-                          className="block truncate"
-                          title={reporte.nombre}
-                        >
-                          {reporte.nombre}
-                        </motion.span>
-                      </TableCell>
+                        Lleva el mismo plano que el panel —no una banda propia—
+                        porque no es una cabecera de tabla sino un renglón de la
+                        lista que se queda quieto. */}
+                    <button
+                      type="button"
+                      aria-expanded={abierto}
+                      aria-controls={idContenido}
+                      onClick={() => plegar(mes.clave)}
+                      className={cn(
+                        "group/mes sticky top-0 z-10 flex w-full cursor-pointer items-center gap-2",
+                        "bg-surface-5 px-2 pt-4 pb-1.5 text-left text-muted-foreground outline-none",
+                        "hover:text-foreground focus-visible:text-foreground",
+                      )}
+                      style={{ fontSize: escala.caption }}
+                    >
+                      {abierto ? (
+                        <FolderOpen size={13} strokeWidth={1.5} className="shrink-0" />
+                      ) : (
+                        <Folder size={13} strokeWidth={1.5} className="shrink-0" />
+                      )}
 
-                      {/* Cuántas cuentas cubre. El número y nada más: la columna
-                          contesta "¿esta semana tuvo altas?" —que es lo que se
-                          recorre— y quiénes fueron está en el archivo, que es
-                          para lo que está el botón del final. */}
-                      <TableCell>
-                        <motion.span variants={entraCelda} className="block">
-                          <Cuentas reporte={reporte} />
-                        </motion.span>
-                      </TableCell>
+                      <span className="min-w-0 flex-1 truncate">{mes.nombre}</span>
 
-                      {/* Qué semana cubre. Las dos fechas enteras con año: es lo
-                          único que distingue esta fila de la de abajo, que se
-                          llama igual, así que acá no se abrevia nada. */}
-                      <TableCell>
-                        <motion.span
-                          variants={entraCelda}
-                          className="block truncate tabular-nums"
-                        >
-                          {fechaDia(reporte.desde)} &ndash;{" "}
-                          {fechaDia(reporte.hasta)}
-                        </motion.span>
-                      </TableCell>
+                      {/* Lo único que un mes plegado dice de lo que esconde:
+                          cuántos hay, y si alguno falló. Cuatro reportes que
+                          salieron no son noticia; uno que no salió sí, y sin
+                          esto habría que abrir los catorce para encontrarlo. */}
+                      {fallidos > 0 && (
+                        <span
+                          aria-label={`${fallidos} failed`}
+                          className="size-1.5 shrink-0 rounded-full bg-[oklch(0.62_0.2_18)]"
+                        />
+                      )}
+                      <span className="shrink-0 tabular-nums">
+                        {mes.reportes.length}
+                      </span>
 
-                      {/* `variant="dot"`, el mismo de la Communication Status
-                          de Accounts Search: el contorno y el punto de color, y
-                          no una pastilla pintada. Son dos tablas de la misma
-                          consola diciendo en qué anda algo, y dos maneras de
-                          escribir un estado se leen como dos clases de dato. El
-                          color queda donde importa —el punto— y la etiqueta va
-                          en la tinta del texto, que es lo que la deja legible
-                          también cuando el estado es el rojo de "Failed". */}
-                      <TableCell>
-                        <motion.span variants={entraCelda} className="block">
-                          <Badge variant="dot" color={estado.color}>
-                            {estado.label}
-                          </Badge>
-                        </motion.span>
-                      </TableCell>
+                      {/* El chevron aparece con el puntero: en reposo la fila ya
+                          se lee como un encabezado, y catorce galones apuntando
+                          hacia abajo son una columna de ruido. */}
+                      <ChevronDown
+                        size={12}
+                        strokeWidth={1.5}
+                        aria-hidden
+                        className={cn(
+                          "shrink-0 transition-[transform,opacity] duration-80",
+                          "opacity-0 group-hover/mes:opacity-100 group-focus-visible/mes:opacity-100",
+                          !abierto && "-rotate-90",
+                        )}
+                      />
+                    </button>
 
-                      {/* Cuándo se armó, con el día entero y no en relativo: es
-                          la misma fecha, escrita igual, que la Date Added de
-                          Accounts y la Created on de Policies. */}
-                      <TableCell>
-                        <motion.span
-                          variants={entraCelda}
-                          className="block truncate tabular-nums"
-                        >
-                          {fechaDia(reporte.creadoEl)}
-                        </motion.span>
-                      </TableCell>
-
-                      {/* Qué se puede hacer con él. Va a la derecha del todo
-                          porque es donde termina la fila: se la lee entera y
-                          recién entonces se decide. */}
-                      {/* Sin el relleno vertical de las otras celdas —de ahí el
-                          `!`, que le gana al `[&_td]:py-2` compartido—: el botón
-                          mide 28 y el alto de la fila lo pone la tabla, no esta
-                          celda. */}
-                      <TableCell className="py-0!">
-                        {/* `flex` y no `inline-flex`: un inline abre una caja de
-                            línea, y su descendente vuelve a empujar el alto. */}
-                        <motion.span
-                          variants={entraCelda}
-                          className="flex justify-end"
-                        >
-                          <BajarReporte reporte={reporte} />
-                        </motion.span>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                    {abierto && (
+                      <div id={idContenido} className="flex flex-col">
+                        {mes.reportes.map((reporte) => (
+                          <FilaDeReporte key={reporte.id} reporte={reporte} />
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                );
+              })}
+            </div>
           </ScrollArea>
         </motion.div>
       )}
 
-      {/* El pie: de cuántos se está viendo cuáles, y por dónde se pasa a los que
-          siguen. Va afuera del scroller y pegado abajo —es del mueble, no de la
-          lista—, así que el pager no se va con el scroll. */}
-      {filas.length > 0 && (
+      {/* El pie dice cuántos quedaron y en cuántos meses. Sin pager: la lista se
+          recorre por fecha y partirla en páginas de cuarenta corta un mes al
+          medio por una razón que no tiene nada que ver con el mes. Lo que el
+          pager contestaba —"¿cuánto hay?"— lo contesta este renglón, que además
+          no se va con el scroll. */}
+      {meses.length > 0 && (
         <motion.footer
           variants={entraBloque}
-          className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border px-6 py-3"
+          className="flex shrink-0 items-center gap-1.5 border-t border-border px-6 py-3 text-muted-foreground"
+          style={{ fontSize: escala.caption }}
         >
-          <Rango
-            desde={desde + 1}
-            hasta={desde + filas.length}
-            total={encontrados.length}
-            dir={dir}
-          />
-
-          <Pagination total={paginas} value={pagina} onValueChange={irA} />
+          <span className="tabular-nums">{encontrados.length}</span>
+          {encontrados.length === 1 ? "report" : "reports"}
+          <span aria-hidden>·</span>
+          <span className="tabular-nums">{meses.length}</span>
+          {meses.length === 1 ? "month" : "months"}
         </motion.footer>
       )}
+
     </motion.div>
   );
 }

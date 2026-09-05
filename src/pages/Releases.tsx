@@ -26,6 +26,7 @@ const RELEASES: Release[] = [
       {
         kind: "improvement",
         items: [
+          "Email › Reports files itself by month: folders that fold, and no pager.",
           "Correcting a DOC account uses the very form that creates one.",
           "Correcting a policy does too: it opens the rail form filled in, instead of a dialog that asked for other things.",
           "Policies and Provisioning create with the same button as the rest of the console.",
