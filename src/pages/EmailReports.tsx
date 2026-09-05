@@ -408,6 +408,11 @@ function BajarReporte({ reporte }: { reporte: Reporte }) {
 function FilaDeReporte({ reporte }: { reporte: Reporte }) {
   const escala = useTypeScale();
   const estado = ESTADOS_DE_REPORTE[reporte.estado];
+  /* Lo terminado no se anuncia. Es el caso normal —cincuenta y siete de sesenta
+     semanas— y una palabra que aparece en casi todas las filas no informa: lo
+     que informa es su ausencia. Con el estado callado, las tres semanas que no
+     salieron son lo único que hay a la derecha de la lista. */
+  const hayQueDecirlo = reporte.estado !== "completed";
 
   return (
     <motion.div
@@ -426,33 +431,40 @@ function FilaDeReporte({ reporte }: { reporte: Reporte }) {
         {fechaDia(reporte.desde)} &ndash; {fechaDia(reporte.hasta)}
       </span>
 
-      {/* En qué anda: el punto de su color y la palabra, sin la pastilla.
+      {/* En qué anda, **cuando hay algo que decir**: el punto de su color y la
+          palabra, sin la pastilla.
 
-          Un badge dibuja un recuadro alrededor de una palabra que en cincuenta
-          y siete de sesenta filas dice lo mismo, y ese recuadro terminaba siendo
-          lo más fuerte de la fila —más que la semana, que es lo que se viene a
-          leer—. Sacado el contorno, el color queda donde importa y la palabra
-          baja al gris del texto secundario.
+          Se calla en las terminadas y habla en las otras tres. Un reporte que
+          salió es lo que se espera de un reporte, y decirlo en cincuenta y siete
+          filas no agrega nada: lo que se busca acá es la semana que se cayó, la
+          que todavía está en la cola y la que se está armando, y esas tres se
+          encuentran solas cuando son lo único escrito de ese lado.
 
-          El punto se queda, y no es decorativo: es lo único que se recorre con
-          la vista para encontrar la semana que no salió. Sin palabra sería un
-          código de colores que hay que aprender; sin punto, sesenta renglones
-          grises iguales.
+          Que la fila terminada quede muda no la deja sin contestar nada: el
+          botón de bajar aparece con el puntero justamente en ésas, así que "está
+          lista" se dice ofreciendo el archivo en vez de escribiendo una palabra.
+
+          Sin la pastilla del badge, además: un recuadro alrededor de una palabra
+          es lo más fuerte que puede tener una fila, y acá lo más fuerte tiene
+          que ser la semana. Queda el punto —que es lo que se recorre con la
+          vista— y la palabra en el gris del texto secundario.
 
           El tinte sale de `ESTADOS_DE_REPORTE` —el mismo con el que el panel de
           filtros distingue cada estado—, así que el punto de la fila y el de la
           opción del panel son el mismo color por construcción. */}
-      <span
-        className="flex shrink-0 items-center gap-1.5 text-muted-foreground"
-        style={{ fontSize: escala.body }}
-      >
+      {hayQueDecirlo && (
         <span
-          aria-hidden
-          className="size-1.5 shrink-0 rounded-full"
-          style={{ background: estado.tinte }}
-        />
-        {estado.label}
-      </span>
+          className="flex shrink-0 items-center gap-1.5 text-muted-foreground"
+          style={{ fontSize: escala.body }}
+        >
+          <span
+            aria-hidden
+            className="size-1.5 shrink-0 rounded-full"
+            style={{ background: estado.tinte }}
+          />
+          {estado.label}
+        </span>
+      )}
 
       {/* Contra el borde derecho, que es donde termina la fila: se la lee
           entera y recién entonces se decide. */}
