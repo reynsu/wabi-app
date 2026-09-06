@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Download, FileChartColumn } from "lucide-react";
 
 import {
@@ -45,36 +45,59 @@ export function VistaDeReporte({ id }: { id: string }) {
   const reporte = useReporte(id);
   const usuarios = useUsuarios();
 
-  /* El archivo, en el formato en el que ese reporte quedó firmado. Se arma una
-     vez por reporte y por padrón: sin memorizar, cada pintada del panel volvería
-     a recorrer las cuentas para escribir lo mismo.
+  /* El CSV, cuando el reporte es un CSV: es texto y el visor lo parte. Se arma
+     una vez por reporte y por padrón; sin memorizar, cada pintada del panel
+     volvería a recorrer las cuentas para escribir lo mismo. */
+  const texto = useMemo(
+    () =>
+      reporte && reporte.formato === "csv"
+        ? csvDeReporte(reporte, usuarios)
+        : undefined,
+    [reporte, usuarios],
+  );
 
-     El CSV va como texto y lo parte el visor. El PDF va como `blob:`, porque lo
-     dibuja el lector del navegador y lo que un lector recibe es una dirección,
-     no bytes. */
-  const contenido: ContenidoDeArchivo | undefined = useMemo(() => {
-    if (!reporte) return undefined;
-    if (reporte.formato === "pdf") {
-      const bytes = pdfDeReporte(reporte, usuarios);
-      return {
-        clase: "url",
-        url: URL.createObjectURL(new Blob([bytes], { type: "application/pdf" })),
-      };
-    }
-    return { clase: "texto", texto: csvDeReporte(reporte, usuarios) };
+  /* El PDF, cuando es un PDF: una dirección `blob:`, porque lo dibuja un lector
+     y lo que un lector recibe es una dirección.
+     
+     **Se arma adentro del efecto y no en un `useMemo`.** Es la misma pieza que
+     hay que devolver al cerrar la pestaña —un `blob:` que nadie revoca deja el
+     archivo colgado en memoria hasta que se recargue la página—, y en modo
+     estricto React monta, limpia y vuelve a montar: con la dirección en un
+     `useMemo`, la limpieza del primer montaje revocaba una URL que el memo no
+     volvía a crear, y el segundo montaje recibía una dirección muerta. El
+     síntoma era "Unexpected server response (0)" y un cartel de archivo dañado
+     sobre un archivo sano.
+     
+     Creándola donde se la devuelve, cada montaje tiene la suya y la del anterior
+     ya no le sirve a nadie. */
+  const [url, setUrl] = useState<string>();
+
+  useEffect(() => {
+    /* Sin limpiar la de antes al salir por acá: la pestaña es de un reporte y el
+       formato de un reporte sale de su ventana, así que no cambia mientras está
+       abierta. Y si el reporte dejó de existir, la pantalla ya salió antes por
+       el cartel de "no está". */
+    if (!reporte || reporte.formato !== "pdf") return;
+    const bytes = pdfDeReporte(reporte, usuarios);
+    const direccion = URL.createObjectURL(
+      new Blob([bytes], { type: "application/pdf" }),
+    );
+    /* La regla pide derivar en vez de escribir estado desde un efecto, y tiene
+       razón casi siempre; su propia excepción es sincronizar con algo de afuera
+       que tiene ciclo de vida, y una dirección `blob:` es exactamente eso: se
+       crea, se usa y se devuelve. Derivarla en el render es lo que traía el bug
+       de arriba. */
+    // oxlint-disable-next-line react/set-state-in-effect
+    setUrl(direccion);
+    return () => URL.revokeObjectURL(direccion);
   }, [reporte, usuarios]);
 
-  /* Y la dirección se devuelve al cerrar la pestaña —o al armarse otra—: un
-     `blob:` que nadie revoca deja el archivo entero colgado en memoria hasta que
-     se recargue la página. Es lo mismo que hace `descargar` con el suyo, sólo
-     que acá el archivo tiene que seguir vivo mientras se lo mira, así que la
-     devolución no puede ser en la línea siguiente. */
-  useEffect(() => {
-    const url = contenido?.clase === "url" ? contenido.url : undefined;
-    return () => {
-      if (url) URL.revokeObjectURL(url);
-    };
-  }, [contenido]);
+  const contenido: ContenidoDeArchivo | undefined =
+    texto !== undefined
+      ? { clase: "texto", texto }
+      : url
+        ? { clase: "url", url }
+        : undefined;
 
   /* Los hooks van antes de cualquier salida: la bajada existe aunque el reporte
      no, y moverla adentro del `if` la haría condicional. */

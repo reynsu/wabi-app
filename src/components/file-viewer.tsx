@@ -1,6 +1,25 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+/* Sólo el tipo: se borra al compilar, así que nombrarlo no arrastra la
+   biblioteca. Lo que la carga es el `import()` de adentro del efecto. */
+import type { PDFDocumentProxy } from "pdfjs-dist";
+/* Dónde está el worker.
+ *
+ * Con el `?url` de Vite, que resuelve el paquete y devuelve la dirección del
+ * archivo emitido —con la base del deploy puesta: la GitHub Page cuelga de
+ * `/wabi-app/`, y una ruta escrita a mano se rompería ahí—.
+ *
+ * Con `new URL("pdfjs-dist/…", import.meta.url)` **no** alcanza, y es un error
+ * silencioso: eso resuelve como una ruta relativa al módulo, no como un
+ * especificador de paquete, así que en desarrollo apunta a un archivo que no
+ * existe. El lector falla al abrir cualquier PDF y lo único que se ve es un
+ * `ERR_FILE_NOT_FOUND` en la consola.
+ *
+ * Import estático a propósito: lo que entra acá es la cadena con la dirección, no
+ * la biblioteca. Lo que arrastra el megabyte es el `import()` de adentro del
+ * efecto. */
+import workerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { FileText } from "lucide-react";
 
 import {
@@ -122,29 +141,207 @@ function Planilla({ filas }: { filas: string[][] }) {
   );
 }
 
-/* ─────────────────────────── El documento ─────────────────────────── */
+/* ─────────────────────────── El documento ───────────────────────────
+ *
+ * Un PDF, dibujado con PDF.js.
+ *
+ * **Y no con `<object>`**, que era lo primero que había acá. Un `<object
+ * type="application/pdf">` le pasa el archivo al lector que trae el navegador, y
+ * eso tiene dos problemas: no todos traen uno —el navegador embebido de un
+ * editor, por ejemplo, ofrece bajar el archivo en vez de mostrarlo—, y cuando no
+ * lo traen no siempre lo dicen: el contenido de reserva de la etiqueta aparece
+ * si el navegador **rechaza** el tipo, no si lo acepta y después no pinta nada.
+ * El resultado era un panel en blanco sin explicación.
+ *
+ * PDF.js dibuja en un canvas, así que se ve igual en todos lados y el resultado
+ * no depende de lo que el navegador tenga instalado.
+ *
+ * **Se carga recién cuando hace falta.** El `import()` está adentro del efecto:
+ * quien abre un CSV no baja el megabyte del lector, y en esta app la mayoría de
+ * los reportes son CSV. El worker se pide con `?url`, que es lo que hace que
+ * Vite lo emita como un archivo aparte y le ponga la base del deploy —la
+ * GitHub Page cuelga de `/wabi-app/`, y una ruta escrita a mano se rompería
+ * ahí—.
+ */
+
+function Documento({ url, nombre }: { url: string; nombre: string }) {
+  const escala = useTypeScale();
+  const [documento, setDocumento] = useState<PDFDocumentProxy | undefined>();
+  const [fallo, setFallo] = useState(false);
+  /* El ancho de la columna, para saber a qué escala dibujar. Empieza en cero y
+     no en un número inventado: hasta que el contenedor no midió, dibujar sería
+     dibujar dos veces. */
+  const [ancho, setAncho] = useState(0);
+  const caja = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const nodo = caja.current;
+    if (!nodo) return;
+    const observador = new ResizeObserver(([entrada]) =>
+      setAncho(entrada.contentRect.width),
+    );
+    observador.observe(nodo);
+    return () => observador.disconnect();
+  }, []);
+
+  useEffect(() => {
+    let vivo = true;
+    /* Lo que se cierra es la **tarea de carga** y no el documento: es la que se
+       lleva el worker. Cada PDF abierto tiene el suyo, así que sin esto abrir
+       diez reportes deja diez colgados hasta que se recargue la página. */
+    let carga: { destroy: () => Promise<void> } | undefined;
+
+    (async () => {
+      try {
+        const pdfjs = await import("pdfjs-dist");
+        pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
+        const tarea = pdfjs.getDocument({ url });
+        carga = tarea;
+        const doc = await tarea.promise;
+        /* El panel se pudo cerrar mientras el lector cargaba. */
+        if (!vivo) return;
+        setDocumento(doc);
+      } catch (error) {
+        /* Y queda escrito en la consola. El cartel de abajo le dice a quien mira
+           que no se pudo; esto le dice a quien la abre **por qué**, que es la
+           diferencia entre un archivo dañado, un worker mal servido y un lector
+           que no cargó. Tragarse el error deja las tres cosas iguales. */
+        console.error("No se pudo abrir el PDF", nombre, error);
+        if (vivo) setFallo(true);
+      }
+    })();
+
+    return () => {
+      vivo = false;
+      void carga?.destroy();
+    };
+  }, [url, nombre]);
+
+  if (fallo) {
+    return (
+      <SinLector
+        titulo="This PDF couldn’t be opened"
+        detalle="The file may be damaged. It can still be downloaded and opened elsewhere."
+      />
+    );
+  }
+
+  return (
+    /* Sin el desvanecido de las listas. Ahí dice "esto sigue"; acá se comía el
+       borde de abajo de la hoja, y una página tiene bordes —es un objeto
+       apoyado, no una lista que se corta—. Lo que dice que hay más es la página
+       siguiente asomando. */
+    <ScrollArea className="h-full">
+      {/* La caja mide, las páginas se dibujan. El aire de abajo es el mismo que
+          separa una página de la siguiente, para que la última no quede pegada
+          al borde. */}
+      <div ref={caja} className="flex flex-col items-center gap-3 pt-1 pb-3">
+        {!documento || ancho === 0 ? (
+          <p
+            className="py-8 text-muted-foreground"
+            style={{ fontSize: escala.body }}
+          >
+            Opening {nombre}…
+          </p>
+        ) : (
+          Array.from({ length: documento.numPages }, (_, i) => (
+            <PaginaDePdf
+              key={i}
+              documento={documento}
+              numero={i + 1}
+              ancho={ancho}
+            />
+          ))
+        )}
+      </div>
+    </ScrollArea>
+  );
+}
 
 /**
- * Un PDF. Lo dibuja el navegador y no nosotros: `<object>` monta el lector que
- * ya viene puesto, con su zoom, su búsqueda y sus páginas.
+ * Una página, en un canvas.
  *
- * Sin `<iframe>` porque `<object>` tiene lo de adentro: cuando el navegador no
- * sabe dibujar un PDF —o lo tiene deshabilitado— muestra lo que va adentro de la
- * etiqueta en vez de un rectángulo blanco.
+ * **A la resolución de la pantalla y no a la del CSS.** El canvas se dibuja
+ * multiplicado por `devicePixelRatio` y se muestra al ancho de la columna: en
+ * una pantalla densa, sin eso, el texto de un PDF sale borroso justo donde más
+ * se nota que es texto.
+ *
+ * Se vuelve a dibujar cuando cambia el ancho —el panel se puede achicar— y el
+ * dibujo anterior se cancela: `render` es asíncrono, y dos dibujos encima del
+ * mismo canvas terminan en el que llegue último, que no siempre es el que
+ * corresponde al ancho de ahora.
  */
-function Documento({ url, nombre }: { url: string; nombre: string }) {
+function PaginaDePdf({
+  documento,
+  numero,
+  ancho,
+}: {
+  documento: PDFDocumentProxy;
+  numero: number;
+  ancho: number;
+}) {
+  const canvas = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    let vivo = true;
+    let tarea: { cancel: () => void } | undefined;
+
+    (async () => {
+      const pagina = await documento.getPage(numero);
+      const nodo = canvas.current;
+      if (!vivo || !nodo) return;
+
+      const natural = pagina.getViewport({ scale: 1 });
+      /* Una hoja no se agranda más allá de su tamaño real. Un PDF viene en
+         puntos —A4 son 595 de ancho— y un punto es 1/72 de pulgada contra el
+         1/96 de un píxel de CSS, así que el "cien por ciento" de esa hoja son
+         `595 × 96/72`, unos 793 píxeles. Sin este techo, en un panel ancho la
+         página se estiraba hasta llenarlo y un A4 salía con el cuerpo de texto
+         del tamaño de un título. Más angosto que eso sí se achica: ahí la
+         alternativa es cortar la hoja. */
+      const aCienPorCiento = (natural.width * 96) / 72;
+      const util = Math.min(ancho, aCienPorCiento);
+
+      const dpr = window.devicePixelRatio || 1;
+      const vista = pagina.getViewport({ scale: (util / natural.width) * dpr });
+
+      nodo.width = Math.floor(vista.width);
+      nodo.height = Math.floor(vista.height);
+      nodo.style.width = `${util}px`;
+      nodo.style.height = `${Math.floor(vista.height / dpr)}px`;
+
+      const contexto = nodo.getContext("2d");
+      if (!contexto) return;
+
+      const dibujo = pagina.render({
+        canvas: nodo,
+        canvasContext: contexto,
+        viewport: vista,
+      });
+      tarea = dibujo;
+      try {
+        await dibujo.promise;
+      } catch {
+        /* Cancelado porque cambió el ancho: el dibujo que viene lo reemplaza. */
+      }
+    })();
+
+    return () => {
+      vivo = false;
+      tarea?.cancel();
+    };
+  }, [documento, numero, ancho]);
+
   return (
-    <object
-      data={url}
-      type="application/pdf"
-      title={nombre}
-      className="h-full w-full"
-    >
-      <SinLector
-        titulo="This browser won’t show the PDF"
-        detalle="It can still be downloaded and opened outside the console."
-      />
-    </object>
+    /* Blanco y con sombra, en los dos temas: una hoja de PDF **es** blanca, y
+       teñirla en oscuro sería mostrar algo distinto de lo que el archivo dice.
+       La sombra es la que separa una superficie de la de abajo en esta app, y
+       acá dice lo mismo: esto es una hoja apoyada sobre el panel. */
+    <canvas
+      ref={canvas}
+      aria-label={`Page ${numero}`}
+      className="shadow-surface-2 bg-white"
+    />
   );
 }
 
