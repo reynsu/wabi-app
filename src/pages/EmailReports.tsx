@@ -589,6 +589,11 @@ function FilaDeReporte({ reporte, indice }: { reporte: Reporte; indice: number }
  * Las dos vistas se eligen con el par de botones de la barra y comparten todo lo
  * demás: la búsqueda, el panel de filtros, el vacío y el pie. Lo único que cambia
  * es el dibujo.
+ *
+ * **Y ésta es la que aparece.** Abrir la pantalla y ver catorce carpetas de meses
+ * —enteras, sin scroll— dice qué guarda esto y cómo está ordenado antes de leer
+ * nada. La lista contesta más rápido, pero para leerla hay que saber de antemano
+ * que la pantalla va por semanas. Ver `Pantalla`.
  */
 
 /** El ancho de una baldosa. `auto-fill` y no un número de columnas: el panel
@@ -937,10 +942,19 @@ type Vista = "lista" | "grilla";
 function Pantalla() {
   const [busqueda, setBusqueda] = useState("");
   const [filtros, setFiltros] = useState<FilterSelection>({});
-  /* Lista, que es la que contesta la pregunta de todos los días —qué semana es
-     ésta y si está lista—. La grilla es para recorrer el archivo, que es lo que
-     uno hace de vez en cuando. */
-  const [vista, setVista] = useState<Vista>("lista");
+  /* Grilla, que es la vista con la que esta pantalla se explica sola: se abre y
+     se ven catorce carpetas de meses, sin scroll, y queda dicho qué guarda esto
+     y cómo está ordenado. La lista contesta más rápido —qué semana es ésta y si
+     está lista— pero para leerla hay que saber de antemano que la pantalla va
+     por semanas.
+
+     Y es la que le hace justicia al encabezado, que dice "filed by the month it
+     closed in": eso son carpetas por mes, y la lista lo cuenta con renglones.
+
+     La elección no se guarda entre sesiones: no hay dónde: las tiendas de esta
+     app viven mientras viva la pestaña. El día que haya preferencias de usuario,
+     ésta es una. */
+  const [vista, setVista] = useState<Vista>("grilla");
   const escala = useTypeScale();
   /* Las medidas del escalón. De acá sale el tamaño del glifo de la carpeta, que
      es el mismo que el de cualquier ícono de control en esta densidad. */
