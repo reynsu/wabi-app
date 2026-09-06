@@ -101,22 +101,34 @@ export const ORDEN_TIPOS = Object.keys(TIPOS_DE_REPORTE) as TipoDeReporte[];
 export type FormatoDeReporte = "csv" | "pdf";
 
 /**
- * Desde cuándo se firman en CSV.
+ * Cuál de los reportes de un mes queda como documento.
  *
- * Antes de esa fecha la casa emitía el reporte como un PDF —una hoja con
- * membrete, para archivar e imprimir— y desde entonces lo emite como CSV, que es
- * lo que se abre en la planilla donde esto termina igual.
+ * **El que cierra el mes.** Las semanas del medio son material de trabajo y van
+ * en CSV, que es lo que se abre en la planilla donde esto termina igual; la
+ * última es la que se archiva, y eso se archiva como una hoja: con membrete,
+ * para imprimir y guardar. Así cada carpeta tiene su documento y el resto de sus
+ * archivos son planillas.
  *
- * Es una mudanza de formato y no una decisión por reporte: los dos existen
- * porque uno reemplazó al otro en una fecha, y lo viejo no se vuelve a emitir.
- * Por eso sale de la ventana y no de un campo suelto del fixture —un flag por
- * reporte dejaría un PDF de este mes al lado de un CSV de este mes, que es
- * justamente lo que no pasa—.
+ * **Se decide sobre la lista y no sobre cada reporte por separado**, que es la
+ * única manera de que la regla se cumpla siempre. Un reporte solo no sabe si es
+ * el último de su mes: mirar si la semana siguiente cae en otro mes parece
+ * equivalente y no lo es —la semana que sigue a la más nueva todavía no existe—,
+ * y con esa versión la carpeta del mes en curso se quedaba sin documento en
+ * cuanto el fixture cerraba a mitad de mes.
+ *
+ * Los reportes ya vienen del más nuevo al más viejo, así que el primero de cada
+ * mes que aparece **es** el que lo cierra. Y en la pantalla eso queda arriba de
+ * todo en su carpeta, que es donde uno busca el resumen.
  */
-const FORMATO_DESDE = "2026-01-01";
-
-export const formatoDeReporte = (hasta: string): FormatoDeReporte =>
-  hasta < FORMATO_DESDE ? "pdf" : "csv";
+function marcarLosQueCierranElMes(reportes: Reporte[]): Reporte[] {
+  const yaTiene = new Set<string>();
+  return reportes.map((reporte) => {
+    const mes = reporte.hasta.slice(0, 7);
+    if (yaTiene.has(mes)) return reporte;
+    yaTiene.add(mes);
+    return { ...reporte, formato: "pdf" };
+  });
+}
 
 /* ─────────────────────────── El reporte ─────────────────────────── */
 
@@ -189,7 +201,7 @@ const EN_CURSO: Record<number, EstadoDeReporte> = {
 };
 
 function armar(usuarios: Usuario[]): Reporte[] {
-  return Array.from({ length: SEMANAS }, (_, i) => {
+  const semanas: Reporte[] = Array.from({ length: SEMANAS }, (_, i) => {
     const hasta = comoDia(HOY_DIA - i * SEMANA);
     const desde = comoDia(HOY_DIA - (i + 1) * SEMANA);
 
@@ -211,7 +223,9 @@ function armar(usuarios: Usuario[]): Reporte[] {
          —y no se asume— para que el día que haya dos, el que agregue el segundo
          no tenga que salir a buscar dónde se decidía esto. */
       tipo: "activity",
-      formato: formatoDeReporte(hasta),
+      /* Todos arrancan como planilla; el que cierra su mes lo corrige después.
+         Ver `marcarLosQueCierranElMes`. */
+      formato: "csv",
       /* El mes es el del cierre de la ventana: una semana que empieza en julio
          y termina en agosto es del reporte de agosto, que es cuando se firmó. */
       nombre: `${CODIGO} ${MES_Y_ANIO.format(new Date(`${hasta}T12:00:00Z`))} Report`,
@@ -223,7 +237,10 @@ function armar(usuarios: Usuario[]): Reporte[] {
     };
   });
   /* Ya salen del más nuevo al más viejo: `i` cuenta semanas para atrás. Sin
-     `sort`, que ordenaría otra vez algo que ya está en orden. */
+     `sort`, que ordenaría otra vez algo que ya está en orden —y de ese orden
+     depende cuál de cada mes queda como documento—. */
+
+  return marcarLosQueCierranElMes(semanas);
 }
 
 /** Los reportes de ahora. Se vuelven a armar cuando cambia el padrón: a quiénes
