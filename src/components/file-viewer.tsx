@@ -20,7 +20,7 @@ import type { PDFDocumentProxy } from "pdfjs-dist";
  * la biblioteca. Lo que arrastra el megabyte es el `import()` de adentro del
  * efecto. */
 import workerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import { FileText } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileText, Minus, Plus } from "lucide-react";
 
 import {
   AnimatedEmpty,
@@ -30,6 +30,7 @@ import {
   AnimatedEmptyTitle,
 } from "@/components/animated-empty";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Elevated } from "@/lib/elevated";
 import {
   GLIFOS,
   claseDeArchivo,
@@ -164,21 +165,47 @@ function Planilla({ filas }: { filas: string[][] }) {
  * ahí—.
  */
 
+/** Un punto de PDF contra un píxel de CSS: 1/72 de pulgada contra 1/96. Es lo
+ *  que convierte el tamaño de una hoja en un tamaño de pantalla. */
+const PT_A_PX = 96 / 72;
+
+/** El aire alrededor de la hoja, y lo que se le reserva abajo a la barra de
+ *  controles: la hoja entera tiene que entrar **arriba** de la barra, no debajo. */
+const AIRE = 16;
+const RESERVA = 52;
+
+/** Los escalones del zoom. Discretos y no un deslizador: quien mira un
+ *  documento quiere "un poco más grande", no elegir un número. El ajuste no está
+ *  en la lista —es el que salga— y por eso los botones buscan el escalón
+ *  siguiente al efectivo, en vez de moverse por índice. */
+const ESCALONES = [0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
+
 function Documento({ url, nombre }: { url: string; nombre: string }) {
   const escala = useTypeScale();
+  const medidas = useSize();
   const [documento, setDocumento] = useState<PDFDocumentProxy | undefined>();
   const [fallo, setFallo] = useState(false);
-  /* El ancho de la columna, para saber a qué escala dibujar. Empieza en cero y
-     no en un número inventado: hasta que el contenedor no midió, dibujar sería
+  /* Qué página se está mirando, y a qué tamaño. `zoom` en `undefined` es
+     "ajustada", que es como abre: ver `ajuste`. */
+  const [pagina, setPagina] = useState(1);
+  const [zoom, setZoom] = useState<number>();
+  /* El tamaño de la hoja actual, en puntos. Sale del documento porque un PDF
+     puede traer páginas de distinto tamaño, así que el ajuste se calcula contra
+     la que se está mirando y no contra la primera. */
+  const [hoja, setHoja] = useState<{ ancho: number; alto: number }>();
+  /* La caja donde entra. Empieza sin medir: hasta que no midió, dibujar sería
      dibujar dos veces. */
-  const [ancho, setAncho] = useState(0);
-  const caja = useRef<HTMLDivElement>(null);
+  const [caja, setCaja] = useState<{ ancho: number; alto: number }>();
+  const marco = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const nodo = caja.current;
+    const nodo = marco.current;
     if (!nodo) return;
     const observador = new ResizeObserver(([entrada]) =>
-      setAncho(entrada.contentRect.width),
+      setCaja({
+        ancho: entrada.contentRect.width,
+        alto: entrada.contentRect.height,
+      }),
     );
     observador.observe(nodo);
     return () => observador.disconnect();
@@ -217,6 +244,54 @@ function Documento({ url, nombre }: { url: string; nombre: string }) {
     };
   }, [url, nombre]);
 
+  /* Cuánto mide la hoja que se está mirando. */
+  useEffect(() => {
+    if (!documento) return;
+    let vivo = true;
+    void documento.getPage(pagina).then((p) => {
+      const vista = p.getViewport({ scale: 1 });
+      if (vivo) setHoja({ ancho: vista.width, alto: vista.height });
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [documento, pagina]);
+
+  /**
+   * A qué escala entra la hoja entera.
+   *
+   * Por el lado que sobre menos —el ancho o el alto—, que es lo que hace que
+   * entre completa y no sólo la parte de arriba. Con la barra descontada del
+   * alto: una hoja que "entra" pero termina detrás de los controles no entra.
+   *
+   * **Y nunca más grande que el original.** Una hoja no se agranda sola: en un
+   * panel muy alto, ajustar sin techo la infla y un A4 sale con el cuerpo de
+   * texto del tamaño de un título. Agrandar es una decisión de quien mira, y
+   * para eso están los botones.
+   */
+  const ajuste =
+    hoja && caja
+      ? Math.min(
+          (caja.ancho - AIRE * 2) / (hoja.ancho * PT_A_PX),
+          (caja.alto - AIRE - RESERVA) / (hoja.alto * PT_A_PX),
+          1,
+        )
+      : undefined;
+
+  const efectivo = zoom ?? ajuste;
+
+  const alejar = () => {
+    if (efectivo === undefined) return;
+    const menor = [...ESCALONES].reverse().find((e) => e < efectivo - 0.001);
+    if (menor !== undefined) setZoom(menor);
+  };
+
+  const acercar = () => {
+    if (efectivo === undefined) return;
+    const mayor = ESCALONES.find((e) => e > efectivo + 0.001);
+    if (mayor !== undefined) setZoom(mayor);
+  };
+
   if (fallo) {
     return (
       <SinLector
@@ -227,34 +302,179 @@ function Documento({ url, nombre }: { url: string; nombre: string }) {
   }
 
   return (
-    /* Sin el desvanecido de las listas. Ahí dice "esto sigue"; acá se comía el
-       borde de abajo de la hoja, y una página tiene bordes —es un objeto
-       apoyado, no una lista que se corta—. Lo que dice que hay más es la página
-       siguiente asomando. */
-    <ScrollArea className="h-full">
-      {/* La caja mide, las páginas se dibujan. El aire de abajo es el mismo que
-          separa una página de la siguiente, para que la última no quede pegada
-          al borde. */}
-      <div ref={caja} className="flex flex-col items-center gap-3 pt-1 pb-3">
-        {!documento || ancho === 0 ? (
-          <p
-            className="py-8 text-muted-foreground"
-            style={{ fontSize: escala.body }}
-          >
-            Opening {nombre}…
-          </p>
-        ) : (
-          Array.from({ length: documento.numPages }, (_, i) => (
+    <div ref={marco} className="relative flex h-full min-h-0 flex-col">
+      {/* Los dos ejes: ajustada la hoja no desborda, pero acercada sí, y en las
+          dos direcciones. */}
+      <ScrollArea className="h-full" orientation="both">
+        <div
+          className="flex min-h-full min-w-full items-center justify-center"
+          style={{ padding: AIRE, paddingBottom: RESERVA }}
+        >
+          {!documento || efectivo === undefined || !hoja ? (
+            <p className="text-muted-foreground" style={{ fontSize: escala.body }}>
+              Opening {nombre}…
+            </p>
+          ) : (
             <PaginaDePdf
-              key={i}
+              /* La `key` con la página adentro: cambiar de hoja es cambiar de
+                 dibujo, no redibujar el mismo. Sin esto, el canvas de la
+                 anterior se queda a la vista hasta que termine el dibujo nuevo. */
+              key={pagina}
               documento={documento}
-              numero={i + 1}
-              ancho={ancho}
+              numero={pagina}
+              hoja={hoja}
+              escala={efectivo}
             />
-          ))
+          )}
+        </div>
+      </ScrollArea>
+
+      {documento && efectivo !== undefined && (
+        <Controles
+          escalaTexto={escala.caption}
+          icono={medidas.icon}
+          pagina={pagina}
+          paginas={documento.numPages}
+          onPagina={setPagina}
+          porciento={Math.round(efectivo * 100)}
+          ajustada={zoom === undefined}
+          onAlejar={alejar}
+          onAcercar={acercar}
+          onAjustar={() => setZoom(undefined)}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * La barra de controles.
+ *
+ * Flota sobre la hoja en vez de ocupar una franja fija: una barra en el flujo le
+ * come alto al documento para siempre, y acá el alto es justamente lo que decide
+ * de qué tamaño se ve la página. Es el mismo argumento con el que flota la barra
+ * de acciones de esta app.
+ *
+ * En reposo se aclara y con el puntero encima vuelve entera, porque tapa algo
+ * que se está leyendo.
+ *
+ * **Las flechas de página no aparecen en un documento de una sola.** Un control
+ * que nunca va a hacer nada es ruido, y casi todos los reportes son de una hoja.
+ */
+function Controles({
+  escalaTexto,
+  icono,
+  pagina,
+  paginas,
+  onPagina,
+  porciento,
+  ajustada,
+  onAlejar,
+  onAcercar,
+  onAjustar,
+}: {
+  escalaTexto: number;
+  icono: number;
+  pagina: number;
+  paginas: number;
+  onPagina: (n: number) => void;
+  porciento: number;
+  ajustada: boolean;
+  onAlejar: () => void;
+  onAcercar: () => void;
+  onAjustar: () => void;
+}) {
+  const boton = cn(
+    "flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md",
+    "text-muted-foreground transition-colors duration-80",
+    "hover:bg-hover hover:text-foreground focus-visible:bg-hover focus-visible:text-foreground",
+    "outline-none disabled:pointer-events-none disabled:opacity-40",
+  );
+
+  return (
+    /* Dos escalones sobre lo que tiene debajo, que es lo que esta app le da a lo
+       que flota —un menú, un popover—: el plano y la sombra salen de ahí y no de
+       clases escritas acá, así que la barra pesa lo que pesa cualquier cosa
+       apoyada encima del contenido. */
+    <Elevated
+      offset={2}
+      className={cn(
+        "absolute bottom-3 left-1/2 z-10 -translate-x-1/2",
+        "flex items-center gap-1 rounded-xl border border-border p-1",
+        "opacity-70 transition-opacity duration-150 hover:opacity-100",
+      )}
+      style={{ fontSize: escalaTexto }}
+    >
+        {paginas > 1 && (
+          <>
+            <button
+              type="button"
+              aria-label="Previous page"
+              disabled={pagina <= 1}
+              onClick={() => onPagina(pagina - 1)}
+              className={boton}
+            >
+              <ChevronLeft size={icono} strokeWidth={1.5} />
+            </button>
+
+            <span className="px-1 tabular-nums text-muted-foreground select-none">
+              {pagina} / {paginas}
+            </span>
+
+            <button
+              type="button"
+              aria-label="Next page"
+              disabled={pagina >= paginas}
+              onClick={() => onPagina(pagina + 1)}
+              className={boton}
+            >
+              <ChevronRight size={icono} strokeWidth={1.5} />
+            </button>
+
+            {/* El filete que separa las páginas del tamaño: son dos cosas
+                distintas metidas en la misma barra. */}
+            <span aria-hidden className="mx-0.5 h-4 w-px bg-border" />
+          </>
         )}
-      </div>
-    </ScrollArea>
+
+        <button
+          type="button"
+          aria-label="Zoom out"
+          onClick={onAlejar}
+          className={boton}
+        >
+          <Minus size={icono} strokeWidth={1.5} />
+        </button>
+
+        {/* El número es el botón de volver al ajuste: es lo que uno toca cuando
+            se perdió de zoom, y ahorra un control más en una barra que flota
+            sobre lo que se está leyendo. Deshabilitado cuando ya está ajustada,
+            que es lo que dice que ése es el estado de reposo. */}
+        <button
+          type="button"
+          aria-label="Fit page"
+          title="Fit page"
+          disabled={ajustada}
+          onClick={onAjustar}
+          className={cn(
+            "min-w-11 cursor-pointer rounded-md px-1 py-0.5 tabular-nums",
+            "text-muted-foreground transition-colors duration-80 outline-none",
+            "hover:bg-hover hover:text-foreground focus-visible:bg-hover",
+            "disabled:pointer-events-none",
+          )}
+        >
+          {porciento}%
+        </button>
+
+        <button
+          type="button"
+          aria-label="Zoom in"
+          onClick={onAcercar}
+          className={boton}
+        >
+          <Plus size={icono} strokeWidth={1.5} />
+        </button>
+    </Elevated>
   );
 }
 
@@ -262,25 +482,32 @@ function Documento({ url, nombre }: { url: string; nombre: string }) {
  * Una página, en un canvas.
  *
  * **A la resolución de la pantalla y no a la del CSS.** El canvas se dibuja
- * multiplicado por `devicePixelRatio` y se muestra al ancho de la columna: en
- * una pantalla densa, sin eso, el texto de un PDF sale borroso justo donde más
- * se nota que es texto.
+ * multiplicado por `devicePixelRatio` y se muestra al tamaño que le toca: en una
+ * pantalla densa, sin eso, el texto de un PDF sale borroso justo donde más se
+ * nota que es texto.
  *
- * Se vuelve a dibujar cuando cambia el ancho —el panel se puede achicar— y el
- * dibujo anterior se cancela: `render` es asíncrono, y dos dibujos encima del
- * mismo canvas terminan en el que llegue último, que no siempre es el que
- * corresponde al ancho de ahora.
+ * El tamaño de la caja se pone **antes** de dibujar, con lo que ya se sabe de la
+ * hoja: así el hueco existe desde el primer pintado y la barra de controles no
+ * salta de lugar cuando el dibujo llega.
+ *
+ * Se vuelve a dibujar cuando cambia la escala, y el dibujo anterior se cancela:
+ * `render` es asíncrono, y dos dibujos encima del mismo canvas terminan en el
+ * que llegue último, que no siempre es el que corresponde al tamaño de ahora.
  */
 function PaginaDePdf({
   documento,
   numero,
-  ancho,
+  hoja,
+  escala,
 }: {
   documento: PDFDocumentProxy;
   numero: number;
-  ancho: number;
+  hoja: { ancho: number; alto: number };
+  escala: number;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
+  const ancho = hoja.ancho * PT_A_PX * escala;
+  const alto = hoja.alto * PT_A_PX * escala;
 
   useEffect(() => {
     let vivo = true;
@@ -291,24 +518,11 @@ function PaginaDePdf({
       const nodo = canvas.current;
       if (!vivo || !nodo) return;
 
-      const natural = pagina.getViewport({ scale: 1 });
-      /* Una hoja no se agranda más allá de su tamaño real. Un PDF viene en
-         puntos —A4 son 595 de ancho— y un punto es 1/72 de pulgada contra el
-         1/96 de un píxel de CSS, así que el "cien por ciento" de esa hoja son
-         `595 × 96/72`, unos 793 píxeles. Sin este techo, en un panel ancho la
-         página se estiraba hasta llenarlo y un A4 salía con el cuerpo de texto
-         del tamaño de un título. Más angosto que eso sí se achica: ahí la
-         alternativa es cortar la hoja. */
-      const aCienPorCiento = (natural.width * 96) / 72;
-      const util = Math.min(ancho, aCienPorCiento);
-
       const dpr = window.devicePixelRatio || 1;
-      const vista = pagina.getViewport({ scale: (util / natural.width) * dpr });
+      const vista = pagina.getViewport({ scale: PT_A_PX * escala * dpr });
 
       nodo.width = Math.floor(vista.width);
       nodo.height = Math.floor(vista.height);
-      nodo.style.width = `${util}px`;
-      nodo.style.height = `${Math.floor(vista.height / dpr)}px`;
 
       const contexto = nodo.getContext("2d");
       if (!contexto) return;
@@ -322,7 +536,7 @@ function PaginaDePdf({
       try {
         await dibujo.promise;
       } catch {
-        /* Cancelado porque cambió el ancho: el dibujo que viene lo reemplaza. */
+        /* Cancelado porque cambió la escala: el dibujo que viene lo reemplaza. */
       }
     })();
 
@@ -330,17 +544,18 @@ function PaginaDePdf({
       vivo = false;
       tarea?.cancel();
     };
-  }, [documento, numero, ancho]);
+  }, [documento, numero, escala]);
 
   return (
-    /* Blanco y con sombra, en los dos temas: una hoja de PDF **es** blanca, y
+    /* Blanca y con sombra, en los dos temas: una hoja de PDF **es** blanca, y
        teñirla en oscuro sería mostrar algo distinto de lo que el archivo dice.
        La sombra es la que separa una superficie de la de abajo en esta app, y
        acá dice lo mismo: esto es una hoja apoyada sobre el panel. */
     <canvas
       ref={canvas}
       aria-label={`Page ${numero}`}
-      className="shadow-surface-2 bg-white"
+      className="shrink-0 bg-white shadow-surface-2"
+      style={{ width: ancho, height: alto }}
     />
   );
 }
