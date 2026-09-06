@@ -302,7 +302,28 @@ function Documento({ url, nombre }: { url: string; nombre: string }) {
   }
 
   return (
-    <div ref={marco} className="relative flex h-full min-h-0 flex-col">
+    /* El fondo donde se apoya la hoja.
+     *
+     * Sin él, en claro la página blanca queda sobre un panel blanco y lo único
+     * que la separa es su sombra: el archivo se lee, pero no se ve dónde
+     * empieza y dónde termina la hoja. Con el fondo apagado, lo blanco es el
+     * documento y lo gris es el mueble, que es la misma división que hace
+     * cualquier lector de PDF.
+     *
+     * `bg-muted`, que es el relleno tranquilo de esta app —el mismo del control
+     * segmentado— y no un gris elegido acá. Anda en los dos temas por el mismo
+     * motivo: en claro se hunde contra el blanco del panel, y en oscuro el papel
+     * blanco resalta contra cualquier gris de este lado de la escala.
+     *
+     * Redondeado y con su filete, como un pozo: es una superficie distinta de la
+     * del panel, no una franja pintada. */
+    <div
+      ref={marco}
+      className={cn(
+        "relative flex h-full min-h-0 flex-col overflow-hidden",
+        "rounded-xl border border-border bg-muted",
+      )}
+    >
       {/* Los dos ejes: ajustada la hoja no desborda, pero acercada sí, y en las
           dos direcciones. */}
       <ScrollArea className="h-full" orientation="both">
@@ -554,6 +575,10 @@ function PaginaDePdf({
     <canvas
       ref={canvas}
       aria-label={`Page ${numero}`}
+      /* La sombra ya trae el filete: `shadow-surface-2` es un anillo de un píxel
+         al seis por ciento de negro más un desplazamiento mínimo, así que sobre
+         el fondo apagado el borde de la hoja queda dibujado sin agregarle nada.
+         Le puse un `outline` encima y era una segunda línea sobre la primera. */
       className="shrink-0 bg-white shadow-surface-2"
       style={{ width: ancho, height: alto }}
     />
