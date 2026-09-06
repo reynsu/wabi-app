@@ -40,10 +40,17 @@ const CUERPO = 10;
 const RENGLON = 16;
 const TITULO = 16;
 
-/** Cuántas filas entran en una página. La primera lleva el título y su aire, así
- *  que entran menos: se calcula por página y no una sola vez. */
-const filasQueEntran = (conTitulo: boolean) =>
-  Math.floor((ALTO - MARGEN * 2 - (conTitulo ? TITULO + RENGLON * 2 : 0)) / RENGLON);
+/** Cuántas filas entran en una página. La primera lleva el título y su aire, y
+ *  todas llevan la cabecera si la hay, así que se calcula por página y no una
+ *  sola vez. */
+const filasQueEntran = (conTitulo: boolean, conCabecera: boolean) =>
+  Math.floor(
+    (ALTO -
+      MARGEN * 2 -
+      (conTitulo ? TITULO + RENGLON * 2 : 0) -
+      (conCabecera ? RENGLON : 0)) /
+      RENGLON,
+  );
 
 /** El texto, como lo espera un PDF: `\`, `(` y `)` se escapan, y lo que no entra
  *  en un byte no se puede escribir sin incrustar una fuente. */
@@ -64,11 +71,21 @@ const escapar = (s: string) =>
 export function armarPdf({
   titulo,
   columnas,
+  preambulo,
+  cabecera,
   filas,
 }: {
   titulo: string;
   /** Dónde empieza cada columna, en puntos desde el margen izquierdo. */
   columnas: number[];
+  /** Lo que va debajo del título y **sólo en la primera hoja**: la ficha del
+   *  documento, de qué habla, de cuándo es. No es parte de la tabla, así que no
+   *  se reparte entre páginas ni se repite arriba de cada una. */
+  preambulo?: FilaDePdf[];
+  /** La fila que dice qué es cada columna. Va **arriba de cada página** y no una
+   *  sola vez: una tabla que sigue en la hoja siguiente sin repetir sus rótulos
+   *  deja la segunda página con números que no dicen de qué son. */
+  cabecera?: FilaDePdf;
   filas: FilaDePdf[];
   /* `Uint8Array<ArrayBuffer>` y no `Uint8Array` a secas: el genérico por defecto
      admite un `SharedArrayBuffer`, y un `Blob` no lo recibe. Decirlo acá evita
@@ -79,7 +96,12 @@ export function armarPdf({
   const paginas: FilaDePdf[][] = [];
   let resto = filas;
   while (resto.length > 0 || paginas.length === 0) {
-    const cuantas = filasQueEntran(paginas.length === 0);
+    const primera = paginas.length === 0;
+    const cuantas =
+      filasQueEntran(primera, cabecera !== undefined) -
+      /* El preámbulo le come renglones a la primera hoja, y su renglón de aire
+         también. */
+      (primera && preambulo ? preambulo.length + 1 : 0);
     paginas.push(resto.slice(0, cuantas));
     resto = resto.slice(cuantas);
   }
@@ -97,7 +119,15 @@ export function armarPdf({
       y -= TITULO + RENGLON * 2;
     }
 
-    for (const fila of pagina) {
+    /* El orden de una hoja: el título, la ficha, los rótulos, y recién ahí la
+       tabla. La ficha sólo en la primera; los rótulos en todas. */
+    const renglones = [
+      ...(primera && preambulo ? [...preambulo, { celdas: [] }] : []),
+      ...(cabecera ? [cabecera] : []),
+      ...pagina,
+    ];
+
+    for (const fila of renglones) {
       partes.push(`/${fila.negrita ? "F2" : "F1"} ${CUERPO} Tf`);
       fila.celdas.forEach((celda, i) => {
         if (!celda) return;

@@ -384,40 +384,64 @@ export const archivoDeReporte = (reporte: Reporte) =>
   `${reporte.nombre.replace(/\s+/g, "-")}-${reporte.desde}-${reporte.hasta}.${reporte.formato}`;
 
 /**
- * El reporte como PDF: el título arriba, la ficha de la ventana y después una
- * fila por cuenta.
+ * El reporte como PDF: el estado del padrón al cierre.
  *
- * Dice **lo mismo** que el CSV y con las mismas columnas. Es a propósito: son
- * dos formatos del mismo reporte, no dos reportes, y que uno cuente algo que el
- * otro no cuenta sería una diferencia que nadie pidió y que nadie va a mantener.
+ * **No dice lo mismo que el CSV, y ésa es la razón de que sea un documento.** El
+ * CSV de una semana lista lo que cambió esa semana —las cuentas que se abrieron—
+ * y es material de trabajo: se abre en la planilla, se filtra, se cruza. El PDF
+ * es el que cierra el mes y se archiva, así que dice de qué tamaño quedó la casa:
+ * el padrón entero, cuenta por cuenta, con la ventana que cubre anotada arriba.
  *
- * Lo escribe `armarPdf`, que es un escritor de tablas de texto y nada más. Acá
- * sólo se decide qué dice y dónde caen las columnas.
+ * Una hoja que se firma y se guarda tiene que poder leerse sola dentro de un año,
+ * y "estas dos cuentas se abrieron" no se lee solo: no dice contra qué. El padrón
+ * completo sí.
+ *
+ * De ahí sale que tenga más de una página: cuarenta y ocho cuentas no entran en
+ * una hoja, y `armarPdf` las reparte.
  */
 export function pdfDeReporte(
   reporte: Reporte,
   usuarios: Usuario[],
 ): Uint8Array<ArrayBuffer> {
-  const cuentas = reporte.cuentas
-    .map((id) => usuarios.find((u) => u.id === id))
-    .filter((u): u is Usuario => u !== undefined);
+  /* Las que se abrieron en la ventana, que es lo que el reporte semanal cuenta y
+     acá va como un número en la ficha. */
+  const abiertas = reporte.cuentas.length;
 
   return armarPdf({
     titulo: reporte.nombre,
-    /* Los cuatro anchos son los del contenido y no una repartija pareja: un id
-       de cuenta mide siempre lo mismo, un nombre no, y una fecha tampoco. */
-    columnas: [0, 90, 260, 380],
-    filas: [
+    /* Los cinco anchos son los del contenido y no una repartija pareja: un id de
+       cuenta mide siempre lo mismo, un nombre no, y una fecha tampoco. */
+    columnas: [0, 78, 225, 320, 415],
+    /* La cabecera de la tabla, que `armarPdf` repite en cada hoja: cuarenta y
+       ocho cuentas no entran en una, y la segunda página con los rótulos
+       arriba se lee sola. */
+    cabecera: {
+      negrita: true,
+      celdas: ["Account ID", "Name", "Account type", "Added", "Messages"],
+    },
+    /* De qué habla esta hoja. Va una sola vez, arriba de todo: repetirlo en cada
+       página sería repetir la misma frase, y ponerlo adentro de la tabla lo
+       dejaba debajo de los rótulos de las columnas. */
+    preambulo: [
       { celdas: [`Period covered: ${reporte.desde} to ${reporte.hasta}`] },
-      { celdas: [`Accounts: ${cuentas.length}`] },
-      { celdas: [] },
       {
-        negrita: true,
-        celdas: ["Account ID", "Name", "Account type", "Added"],
+        celdas: [
+          `Accounts opened in this window: ${abiertas}` +
+            `   ·   Accounts on file: ${usuarios.length}`,
+        ],
       },
-      ...cuentas.map((u) => ({
-        celdas: [u.id, u.name, TIPOS[u.accountType], u.addedAt],
+    ],
+    filas: [
+      ...usuarios.map((u) => ({
+        celdas: [
+          u.id,
+          u.name,
+          TIPOS[u.accountType],
+          u.addedAt,
+          String(u.messages),
+        ],
       })),
     ],
   });
 }
+

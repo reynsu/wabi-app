@@ -73,72 +73,179 @@ import { cn } from "@/lib/utils";
  * ya está escrita y ya las dibuja.
  */
 
-/* ─────────────────────────── La planilla ─────────────────────────── */
-
-/**
- * Filas y columnas, como en una planilla: la numeración a la izquierda y las
- * celdas tal cual vienen.
+/* ─────────────────────────── La planilla ───────────────────────────
  *
- * **Con números de fila y sin encabezado en negrita.** La tentación es poner la
- * primera fila como cabecera, y en el reporte de esta app estaría mal: sus tres
- * primeras filas son la ficha del reporte —qué ventana, cuántas cuentas— y la
- * cabecera de la tabla recién aparece después del renglón en blanco. Un visor
- * que adivina cuál es la cabecera acierta en un archivo y miente en el
- * siguiente. Los números, en cambio, son verdad en todos, y son lo que uno
- * necesita para decir "mirá la fila 12".
+ * Filas y columnas, como en una planilla de cálculo: la numeración a la
+ * izquierda, las letras arriba, y la cuadrícula llenando todo el espacio aunque
+ * el archivo no llegue hasta el borde.
  *
- * Las filas cortas se completan con celdas vacías hasta el ancho de la más
- * larga: son las columnas de la planilla, y una tabla con filas de distinto
- * largo se dibuja escalonada.
+ * **Con números y letras, y sin encabezado en negrita.** La tentación es tomar
+ * la primera fila como cabecera, y en el reporte de esta app estaría mal: sus
+ * tres primeras filas son la ficha —qué ventana, cuántas cuentas— y la cabecera
+ * de la tabla recién aparece después del renglón en blanco. Un visor que adivina
+ * cuál es la cabecera acierta en un archivo y miente en el siguiente. Las letras,
+ * en cambio, son verdad en todos, y son lo que deja decir "mirá la C7".
  *
- * El ancho no se reparte: cada columna mide lo que mide su contenido y la tabla
- * desborda a lo ancho adentro de su scroll. Repartir el ancho del panel entre
- * las columnas corta los nombres largos para dejarle lugar a una columna de
- * fechas que no lo necesita.
+ * **Y la cuadrícula sigue después del dato.** Un archivo de seis filas dibujado
+ * como seis renglones sueltos sobre un panel vacío no se ve como una planilla:
+ * se ve como una tabla chica perdida en el medio. Las celdas vacías son lo que
+ * dice qué clase de archivo es esto, igual que en el programa donde va a
+ * terminar abriéndose.
  */
+
+/** El alto de una fila, fijo. Fijo y no medido porque de él salen dos cuentas
+ *  —cuántas filas vacías entran abajo, y dónde cae cada renglón— y una altura
+ *  que dependiera del contenido las haría distintas por fila. */
+const ALTO_FILA = 28;
+
+/** El ancho de una columna vacía. Las que tienen dato miden lo que mide su
+ *  contenido; éstas no tienen contenido, así que miden lo que se les diga. */
+const ANCHO_VACIA = 96;
+
+/** La letra de una columna, como en una planilla: A…Z, después AA, AB. */
+function letraDeColumna(i: number) {
+  let n = i;
+  let letra = "";
+  do {
+    letra = String.fromCharCode(65 + (n % 26)) + letra;
+    n = Math.floor(n / 26) - 1;
+  } while (n >= 0);
+  return letra;
+}
+
 function Planilla({ filas }: { filas: string[][] }) {
   const escala = useTypeScale();
-  const columnas = filas.reduce((maximo, f) => Math.max(maximo, f.length), 0);
+  const caja = useRef<HTMLDivElement>(null);
+  const tabla = useRef<HTMLTableElement>(null);
+  const [medida, setMedida] = useState<{ ancho: number; alto: number }>();
+  /* Cuántas columnas vacías hacen falta a la derecha. En estado porque depende
+     de cuánto ocuparon las de dato, que sólo se sabe después de dibujarlas. */
+  const [vacias, setVacias] = useState(0);
+
+  useEffect(() => {
+    const nodo = caja.current;
+    if (!nodo) return;
+    const observador = new ResizeObserver(([entrada]) =>
+      setMedida({
+        ancho: entrada.contentRect.width,
+        alto: entrada.contentRect.height,
+      }),
+    );
+    observador.observe(nodo);
+    return () => observador.disconnect();
+  }, []);
+
+  const conDato = filas.reduce((maximo, f) => Math.max(maximo, f.length), 0);
+
+  /* Cuántas columnas vacías entran, sin medirlas dos veces.
+   *
+   * Lo que ocupan las de dato se **despeja** en vez de medirse aparte: el ancho
+   * total de la tabla menos lo que ponen las vacías, que miden un número que
+   * elegimos nosotros. Sin eso habría que medir un ancho que cambia al agregar
+   * columnas, agregar columnas por lo que se midió, y volver a medir: un lazo
+   * que no cierra nunca. */
+  useEffect(() => {
+    const nodo = tabla.current;
+    if (!nodo || !medida) return;
+    const anchoDeDatos = nodo.scrollWidth - vacias * ANCHO_VACIA;
+    const faltan = Math.max(
+      0,
+      Math.ceil((medida.ancho - anchoDeDatos) / ANCHO_VACIA),
+    );
+    if (faltan !== vacias) setVacias(faltan);
+  }, [medida, vacias, filas]);
+
+  const columnas = conDato + vacias;
+  /* Y las filas vacías de abajo, que son una cuenta directa porque el alto de
+     fila es fijo. Se descuenta la banda de las letras. */
+  const total = medida
+    ? Math.max(filas.length, Math.ceil((medida.alto - ALTO_FILA) / ALTO_FILA))
+    : filas.length;
+
+  const celda = "border-r border-b border-border/60";
+  const encabezado = cn(
+    celda,
+    "bg-muted text-center font-normal text-muted-foreground select-none",
+  );
 
   return (
-    <ScrollArea className="h-full" viewportClassName="scroll-fade">
+    /* Enmarcada, como la hoja del PDF está apoyada en su pozo: las dos son un
+       archivo adentro de un panel, y las dos tienen que decir dónde terminan.
+       La caja de afuera es la que mide —el `ScrollArea` mueve lo de adentro— y
+       el de los dos ejes porque una planilla se corre para los dos lados. */
+    <div
+      ref={caja}
+      className="h-full min-h-0 overflow-hidden rounded-xl border border-border"
+    >
+      <ScrollArea className="h-full" orientation="both">
       <table
-        className="w-max border-separate border-spacing-0 tabular-nums"
+        ref={tabla}
+        className="border-separate border-spacing-0 tabular-nums"
         style={{ fontSize: escala.body }}
       >
-        <tbody>
-          {filas.map((fila, i) => (
-            <tr key={i} className="group/fila">
-              {/* La numeración. Pegada a la izquierda para que siga estando
-                  cuando la tabla se corre a lo ancho, que es cuando más falta
-                  hace saber en qué fila se está. */}
+        {/* Las letras. Pegadas arriba, para que sigan estando cuando el archivo
+            se recorre hacia abajo. */}
+        <thead>
+          <tr>
+            {/* El rincón, donde se cruzan la numeración y las letras. Pegado a
+                los dos lados a la vez, así que va un escalón más arriba: si no,
+                al correr la tabla las letras le pasarían por encima. */}
+            <th
+              className={cn(encabezado, "sticky top-0 left-0 z-20")}
+              style={{ height: ALTO_FILA, minWidth: 44 }}
+            />
+            {Array.from({ length: columnas }, (_, j) => (
               <th
-                scope="row"
-                className={cn(
-                  "sticky left-0 z-10 border-b border-border/60 bg-surface-5 px-3 py-1.5",
-                  "text-right font-normal text-muted-foreground select-none",
-                )}
-                style={{ fontSize: escala.caption }}
+                key={j}
+                scope="col"
+                className={cn(encabezado, "sticky top-0 z-10 px-3")}
+                style={{
+                  height: ALTO_FILA,
+                  fontSize: escala.caption,
+                  ...(j >= conDato ? { minWidth: ANCHO_VACIA } : undefined),
+                }}
               >
-                {i + 1}
+                {letraDeColumna(j)}
               </th>
+            ))}
+          </tr>
+        </thead>
 
-              {Array.from({ length: columnas }, (_, j) => (
-                <td
-                  key={j}
-                  className={cn(
-                    "border-b border-l border-border/60 px-3 py-1.5",
-                    "whitespace-pre text-foreground",
-                  )}
+        <tbody>
+          {Array.from({ length: total }, (_, i) => {
+            const fila = filas[i];
+            return (
+              <tr key={i}>
+                {/* La numeración. Pegada a la izquierda para que siga estando
+                    cuando la tabla se corre a lo ancho, que es cuando más falta
+                    hace saber en qué fila se está. */}
+                <th
+                  scope="row"
+                  className={cn(encabezado, "sticky left-0 z-10 px-3 text-right")}
+                  style={{ height: ALTO_FILA, fontSize: escala.caption }}
                 >
-                  {fila[j] ?? ""}
-                </td>
-              ))}
-            </tr>
-          ))}
+                  {i + 1}
+                </th>
+
+                {Array.from({ length: columnas }, (_, j) => (
+                  <td
+                    key={j}
+                    className={cn(celda, "px-3 whitespace-pre text-foreground")}
+                    style={{
+                      height: ALTO_FILA,
+                      ...(j >= conDato ? { minWidth: ANCHO_VACIA } : undefined),
+                    }}
+                  >
+                    {fila?.[j] ?? ""}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
-    </ScrollArea>
+      </ScrollArea>
+    </div>
   );
 }
 
