@@ -206,6 +206,15 @@ export function useReportes(): Reporte[] {
   return useMemo(() => armar(usuarios), [usuarios]);
 }
 
+/** Uno solo, por id. Es para el que abrió un reporte en una pestaña: la pestaña
+ *  sobrevive a lo que muestra, así que se lleva el id y lee la lista viva —igual
+ *  que el perfil de una cuenta—. Devuelve `undefined` si ese reporte ya no está,
+ *  que hoy no puede pasar pero el día que vengan de una API sí. */
+export function useReporte(id: string): Reporte | undefined {
+  const reportes = useReportes();
+  return useMemo(() => reportes.find((r) => r.id === id), [reportes, id]);
+}
+
 /* ─────────────────────────── El mes ─────────────────────────── */
 
 /** Un mes con los reportes que cerraron adentro. Es la unidad con la que la

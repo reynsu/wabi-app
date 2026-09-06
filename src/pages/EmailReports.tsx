@@ -1,6 +1,5 @@
 import { useId, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { sileo } from "sileo";
 import {
   CalendarRange,
   ChevronDown,
@@ -25,6 +24,8 @@ import {
   AnimatedEmptyTitle,
 } from "@/components/animated-empty";
 import { punto } from "@/components/color-dot";
+import { useBajada } from "@/pages/bajar-reporte";
+import { tabDeReporte } from "@/pages/reporte-tab";
 import { Segmentado } from "@/components/ficha";
 import {
   FilterMenu,
@@ -35,9 +36,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { InputField, InputGroup } from "@/components/ui/input-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { descargar } from "@/lib/descargar";
 import { SizeProvider, useSize, useTypeScale } from "@/lib/size-context";
 import { spring } from "@/lib/springs";
+import { useWorkspace } from "@/stores/workspace";
 import { cn } from "@/lib/utils";
 import {
   ESTADOS_DE_REPORTE,
@@ -45,7 +46,6 @@ import {
   ORDEN_TIPOS,
   TIPOS_DE_REPORTE,
   archivoDeReporte,
-  csvDeReporte,
   fallidosDelMes,
   porMes,
   sePuedeBajar,
@@ -55,7 +55,6 @@ import {
   type Reporte,
 } from "@/pages/reportes";
 import { diaCorto, fechaDia, haceCuanto } from "@/pages/tiempo";
-import { useUsuarios, type Usuario } from "@/pages/usuarios";
 
 /* La pantalla de Email Reports: las semanas que la casa ya cerró.
 
@@ -292,99 +291,6 @@ function pasa(reporte: Reporte, busqueda: string, filtros: FilterSelection) {
 
 /* ─────────────────────────── La bajada ─────────────────────────── */
 
-/** Cuánto tarda en prepararse un archivo.
- *
- *  No hay servidor detrás, y sin demora la bajada sería instantánea: se toca el
- *  botón y el archivo ya está. Eso no es lo que va a pasar el día que haya una
- *  API —un reporte de un año son varios megas— y una pantalla diseñada contra
- *  una bajada instantánea no tiene dónde poner lo que pasa mientras. Es la misma
- *  decisión, con el mismo número, que el alta de políticas y la de anuncios. */
-const DEMORA_MS = 900;
-
-/**
- * Entregar el archivo.
- *
- * El CSV lo arma el modelo —ver `csvDeReporte`— y el navegador lo recibe por
- * `descargar`, que es lo mismo que hace Admin › Reports: acá adentro sólo queda
- * la espera, que es de esta pantalla.
- *
- * Es una bajada de verdad y no un aviso de que se bajó algo: la fila promete un
- * archivo con lo que dice la fila, y un toast de éxito sobre una carpeta vacía
- * es lo peor que puede hacer una pantalla que se llama Reports.
- */
-async function bajar(reporte: Reporte, usuarios: Usuario[]) {
-  await new Promise((listo) => setTimeout(listo, DEMORA_MS));
-
-  descargar(archivoDeReporte(reporte), csvDeReporte(reporte, usuarios));
-}
-
-/**
- * BajarReporte — lo único que se puede hacer con una fila.
- *
- * Un botón suelto y no un menú, al revés que en Policies: allá son dos acciones
- * —corregir y sacar— y dos íconos por fila en cuarenta filas son una columna de
- * ruido. Acá es una sola, y esconder una acción única detrás de un menú es
- * pedir dos clics para lo mismo.
- *
- * Aparece con el hover de la fila y se queda mientras se está bajando y con el
- * foco de teclado: si no, tabular hasta acá sería tabular hacia algo invisible.
- *
- * Y no aparece cuando no hay nada que bajar. Un reporte que se está armando
- * todavía no tiene archivo y uno que falló no lo va a tener: el botón
- * deshabilitado diría "esto se puede hacer, pero no ahora", y lo que pasa es que
- * no hay qué bajar. El estado de la fila ya lo explica.
- */
-/**
- * Bajar un reporte, con lo que se cuenta mientras.
- *
- * En un hook y no adentro del botón porque son dos las cosas que bajan un
- * reporte: el ícono de una fila de la lista y la baldosa entera en la grilla.
- * Dos maneras de tocar lo mismo, y una sola manera de que pase —la misma espera,
- * el mismo aviso, el mismo texto de error—. Copiado en dos lados, el día que el
- * mensaje cambie va a cambiar en uno.
- */
-function useBajada(reporte: Reporte) {
-  const usuarios = useUsuarios();
-  /* Vive en quien lo dispara y no en la pantalla, al revés que el alta de una
-     política: bajar un reporte no apaga nada más que ese control, y dos se
-     pueden estar bajando a la vez. */
-  const [bajando, setBajando] = useState(false);
-
-  const alTocar = async () => {
-    if (bajando) return;
-    setBajando(true);
-    try {
-      /* El toast se cuelga de la promesa y cuenta los tres momentos en un solo
-         aviso: se está preparando, quedó bajado, no se pudo. Es lo que hace
-         `sileo` con `promise`, y es donde va este relato —la fila no tiene lugar
-         para contarlo y un cartel adentro de la tabla taparía la lista—. */
-      await sileo.promise(bajar(reporte, usuarios), {
-        /* Sin artículos: Sileo capitaliza el título palabra por palabra, y
-           "Preparing the report…" sale "Preparing The Report…". */
-        loading: { title: "Preparing report…" },
-        success: () => ({
-          title: "Report downloaded",
-          /* Qué ventana bajó, que es lo que no dice el nombre del archivo hasta
-             abrirlo —y lo que distingue este reporte del otro del mismo mes—. */
-          description: `${fechaDia(reporte.desde)} – ${fechaDia(reporte.hasta)}, ${
-            reporte.cuentas.length
-          } account${reporte.cuentas.length === 1 ? "" : "s"}.`,
-        }),
-        error: () => ({
-          title: "Nothing was downloaded",
-          description: "The report couldn't be prepared — try again.",
-        }),
-      });
-    } catch {
-      /* El toast ya lo contó. */
-    } finally {
-      setBajando(false);
-    }
-  };
-
-  return { bajando, alTocar };
-}
-
 function BajarReporte({ reporte }: { reporte: Reporte }) {
   const { bajando, alTocar } = useBajada(reporte);
 
@@ -440,6 +346,10 @@ function FilaDeReporte({ reporte, indice }: { reporte: Reporte; indice: number }
      que informa es su ausencia. Con el estado callado, las tres semanas que no
      salieron son lo único escrito en esa columna. */
   const hayQueDecirlo = reporte.estado !== "completed";
+  /* Lo mismo que decide si hay botón de bajar decide si la ventana abre: lo que
+     no está listo no tiene archivo. */
+  const hayArchivo = sePuedeBajar(reporte);
+  const openTab = useWorkspace((w) => w.openTab);
 
   return (
     <motion.div
@@ -491,13 +401,35 @@ function FilaDeReporte({ reporte, indice }: { reporte: Reporte; indice: number }
       )}
     >
       {/* Qué semana cubre. Las dos fechas enteras con año: es lo único que
-          distingue esta fila de la de abajo, así que acá no se abrevia nada. */}
-      <span
-        className="min-w-0 truncate tabular-nums text-foreground"
-        style={{ fontSize: escala.body }}
-      >
-        {fechaDia(reporte.desde)} &ndash; {fechaDia(reporte.hasta)}
-      </span>
+          distingue esta fila de la de abajo, así que acá no se abrevia nada.
+
+          Y es lo que abre el archivo, cuando hay archivo. La fila entera no:
+          adentro está el botón de bajar, y un botón adentro de otro botón no es
+          HTML válido ni se puede tabular. Es lo mismo que hacen las tablas de
+          Accounts y Policies, donde lo que lleva al perfil es el nombre y no el
+          renglón; y hasta con la misma raya punteada, que es como esta app
+          escribe "esto abre algo". */}
+      {hayArchivo ? (
+        <button
+          type="button"
+          onClick={() => openTab(tabDeReporte(reporte))}
+          className={cn(
+            "w-fit max-w-full cursor-pointer truncate text-left tabular-nums text-foreground",
+            "decoration-dotted decoration-muted-foreground underline-offset-2",
+            "outline-none hover:underline focus-visible:underline",
+          )}
+          style={{ fontSize: escala.body }}
+        >
+          {fechaDia(reporte.desde)} &ndash; {fechaDia(reporte.hasta)}
+        </button>
+      ) : (
+        <span
+          className="min-w-0 truncate tabular-nums text-foreground"
+          style={{ fontSize: escala.body }}
+        >
+          {fechaDia(reporte.desde)} &ndash; {fechaDia(reporte.hasta)}
+        </span>
+      )}
 
       {/* En qué anda, **cuando hay algo que decir**: el punto de su color y la
           palabra, sin la pastilla.
@@ -699,8 +631,11 @@ function BaldosaDeArchivo({
   const escala = useTypeScale();
   const estado = ESTADOS_DE_REPORTE[reporte.estado];
   const hayQueDecirlo = reporte.estado !== "completed";
-  const { bajando, alTocar } = useBajada(reporte);
-  const sePuede = sePuedeBajar(reporte);
+  /* Tocar el archivo lo abre. La bajada sigue existiendo pero se corrió adentro
+     del visor: primero se mira y después se decide, que es el orden en el que
+     uno hace las dos cosas. */
+  const openTab = useWorkspace((w) => w.openTab);
+  const hayArchivo = sePuedeBajar(reporte);
 
   const adentro = (
     <>
@@ -739,10 +674,12 @@ function BaldosaDeArchivo({
   const pinta = cn(
     "flex flex-col items-center gap-1.5 rounded-lg px-2 py-3",
     "transition-colors duration-80",
-    bajando && "opacity-60",
   );
 
-  if (!sePuede) {
+  /* Un reporte que se está armando todavía no tiene archivo y uno que falló no
+     lo va a tener: no hay nada que abrir, así que deja de ser botón. La insignia
+     de estado ya lo explica. */
+  if (!hayArchivo) {
     return (
       <span title={archivoDeReporte(reporte)} className={pinta}>
         {adentro}
@@ -754,9 +691,8 @@ function BaldosaDeArchivo({
     <button
       type="button"
       title={archivoDeReporte(reporte)}
-      aria-label={`Download ${reporte.nombre}, ${fechaDia(reporte.desde)} to ${fechaDia(reporte.hasta)}`}
-      aria-busy={bajando}
-      onClick={alTocar}
+      aria-label={`Open ${reporte.nombre}, ${fechaDia(reporte.desde)} to ${fechaDia(reporte.hasta)}`}
+      onClick={() => openTab(tabDeReporte(reporte))}
       className={cn(
         pinta,
         "cursor-pointer outline-none hover:bg-hover focus-visible:bg-hover",
