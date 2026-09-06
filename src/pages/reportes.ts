@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 
 import type { BadgeColor } from "@/components/ui/badge";
+import { armarPdf } from "@/lib/pdf";
 import { DIA, HOY, TIPOS, useUsuarios, type Usuario } from "@/pages/usuarios";
 
 /* Los reportes de correo de la casa: el fixture de la sección Email › Reports.
@@ -94,6 +95,29 @@ export type TipoDeReporte = keyof typeof TIPOS_DE_REPORTE;
 
 export const ORDEN_TIPOS = Object.keys(TIPOS_DE_REPORTE) as TipoDeReporte[];
 
+/* ─────────────────────────── El formato ─────────────────────────── */
+
+/** En qué queda firmado un reporte. */
+export type FormatoDeReporte = "csv" | "pdf";
+
+/**
+ * Desde cuándo se firman en CSV.
+ *
+ * Antes de esa fecha la casa emitía el reporte como un PDF —una hoja con
+ * membrete, para archivar e imprimir— y desde entonces lo emite como CSV, que es
+ * lo que se abre en la planilla donde esto termina igual.
+ *
+ * Es una mudanza de formato y no una decisión por reporte: los dos existen
+ * porque uno reemplazó al otro en una fecha, y lo viejo no se vuelve a emitir.
+ * Por eso sale de la ventana y no de un campo suelto del fixture —un flag por
+ * reporte dejaría un PDF de este mes al lado de un CSV de este mes, que es
+ * justamente lo que no pasa—.
+ */
+const FORMATO_DESDE = "2026-01-01";
+
+export const formatoDeReporte = (hasta: string): FormatoDeReporte =>
+  hasta < FORMATO_DESDE ? "pdf" : "csv";
+
 /* ─────────────────────────── El reporte ─────────────────────────── */
 
 export interface Reporte {
@@ -104,6 +128,8 @@ export interface Reporte {
    *  período—. */
   nombre: string;
   tipo: TipoDeReporte;
+  /** En qué formato quedó firmado. Ver `FORMATO_DESDE`. */
+  formato: FormatoDeReporte;
   /** Las cuentas que cubre. Ids y no cuentas enteras: se resuelven contra el
    *  padrón vivo cuando hay que escribirlas, así el reporte nombra a la cuenta
    *  como se llama ahora. */
@@ -185,6 +211,7 @@ function armar(usuarios: Usuario[]): Reporte[] {
          —y no se asume— para que el día que haya dos, el que agregue el segundo
          no tenga que salir a buscar dónde se decidía esto. */
       tipo: "activity",
+      formato: formatoDeReporte(hasta),
       /* El mes es el del cierre de la ventana: una semana que empieza en julio
          y termina en agosto es del reporte de agosto, que es cuando se firmó. */
       nombre: `${CODIGO} ${MES_Y_ANIO.format(new Date(`${hasta}T12:00:00Z`))} Report`,
@@ -332,6 +359,48 @@ export function csvDeReporte(reporte: Reporte, usuarios: Usuario[]): string {
 
 /** Cómo se llama el archivo. Lleva la ventana y no la fecha de hoy: dos reportes
  *  del mismo mes se llaman igual en la tabla, y bajados los dos a la misma
- *  carpeta el nombre tiene que decir cuál es cuál. */
+ *  carpeta el nombre tiene que decir cuál es cuál.
+ *
+ *  La extensión sale del formato del reporte, que es lo que hace que el nombre no
+ *  mienta: un `.csv` que adentro trae un PDF es peor que no tener extensión. */
 export const archivoDeReporte = (reporte: Reporte) =>
-  `${reporte.nombre.replace(/\s+/g, "-")}-${reporte.desde}-${reporte.hasta}.csv`;
+  `${reporte.nombre.replace(/\s+/g, "-")}-${reporte.desde}-${reporte.hasta}.${reporte.formato}`;
+
+/**
+ * El reporte como PDF: el título arriba, la ficha de la ventana y después una
+ * fila por cuenta.
+ *
+ * Dice **lo mismo** que el CSV y con las mismas columnas. Es a propósito: son
+ * dos formatos del mismo reporte, no dos reportes, y que uno cuente algo que el
+ * otro no cuenta sería una diferencia que nadie pidió y que nadie va a mantener.
+ *
+ * Lo escribe `armarPdf`, que es un escritor de tablas de texto y nada más. Acá
+ * sólo se decide qué dice y dónde caen las columnas.
+ */
+export function pdfDeReporte(
+  reporte: Reporte,
+  usuarios: Usuario[],
+): Uint8Array<ArrayBuffer> {
+  const cuentas = reporte.cuentas
+    .map((id) => usuarios.find((u) => u.id === id))
+    .filter((u): u is Usuario => u !== undefined);
+
+  return armarPdf({
+    titulo: reporte.nombre,
+    /* Los cuatro anchos son los del contenido y no una repartija pareja: un id
+       de cuenta mide siempre lo mismo, un nombre no, y una fecha tampoco. */
+    columnas: [0, 90, 260, 380],
+    filas: [
+      { celdas: [`Period covered: ${reporte.desde} to ${reporte.hasta}`] },
+      { celdas: [`Accounts: ${cuentas.length}`] },
+      { celdas: [] },
+      {
+        negrita: true,
+        celdas: ["Account ID", "Name", "Account type", "Added"],
+      },
+      ...cuentas.map((u) => ({
+        celdas: [u.id, u.name, TIPOS[u.accountType], u.addedAt],
+      })),
+    ],
+  });
+}

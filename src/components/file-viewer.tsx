@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, type ReactNode } from "react";
-import { FileSpreadsheet, FileText, FileType2 } from "lucide-react";
+import { FileText } from "lucide-react";
 
 import {
   AnimatedEmpty,
@@ -12,11 +12,11 @@ import {
 } from "@/components/animated-empty";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
+  GLIFOS,
   claseDeArchivo,
   extensionDe,
   leerCsv,
   type ArchivoParaVer,
-  type ClaseDeArchivo,
 } from "@/lib/archivos";
 import { useSize, useTypeScale } from "@/lib/size-context";
 import { cn } from "@/lib/utils";
@@ -52,12 +52,6 @@ import { cn } from "@/lib/utils";
  * que cambia es quien las abre —le pasa `filas`— y no este archivo: la planilla
  * ya está escrita y ya las dibuja.
  */
-
-const GLIFOS: Record<ClaseDeArchivo, typeof FileText> = {
-  planilla: FileSpreadsheet,
-  documento: FileType2,
-  desconocida: FileText,
-};
 
 /* ─────────────────────────── La planilla ─────────────────────────── */
 

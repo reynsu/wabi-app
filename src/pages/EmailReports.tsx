@@ -24,6 +24,7 @@ import {
   AnimatedEmptyTitle,
 } from "@/components/animated-empty";
 import { punto } from "@/components/color-dot";
+import { GLIFOS, claseDeArchivo } from "@/lib/archivos";
 import { useBajada } from "@/pages/bajar-reporte";
 import { tabDeReporte } from "@/pages/reporte-tab";
 import { Segmentado } from "@/components/ficha";
@@ -631,6 +632,7 @@ function BaldosaDeArchivo({
   const escala = useTypeScale();
   const estado = ESTADOS_DE_REPORTE[reporte.estado];
   const hayQueDecirlo = reporte.estado !== "completed";
+  const Glifo = GLIFOS[claseDeArchivo(archivoDeReporte(reporte))];
   /* Tocar el archivo lo abre. La bajada sigue existiendo pero se corrió adentro
      del visor: primero se mira y después se decide, que es el orden en el que
      uno hace las dos cosas. */
@@ -640,7 +642,18 @@ function BaldosaDeArchivo({
   const adentro = (
     <>
       <span className="relative flex">
-        <FileText size={GLIFO} strokeWidth={1} className="text-muted-foreground" />
+        {/* El glifo dice de qué clase de archivo es: la planilla lleva su grilla
+            y el documento sus líneas de texto. No se elige acá —sale de
+            `glifoDeArchivo`, contra el nombre del archivo— para que la baldosa,
+            la solapa de la pestaña y la cabecera del visor no puedan discrepar:
+            si la baldosa dijera "planilla" y adentro se abriera un PDF, una de
+            las dos estaría mintiendo.
+
+            Y es la única diferencia entre las dos baldosas. Un reporte en PDF y
+            uno en CSV cubren la misma semana y dicen lo mismo; lo que cambia es
+            en qué quedó firmado, y eso es exactamente lo que un ícono de archivo
+            sabe decir. */}
+        <Glifo size={GLIFO} strokeWidth={1} className="text-muted-foreground" />
         {hayQueDecirlo && (
           <span
             aria-label={estado.label}

@@ -5,6 +5,7 @@ import { descargar } from "@/lib/descargar";
 import {
   archivoDeReporte,
   csvDeReporte,
+  pdfDeReporte,
   type Reporte,
 } from "@/pages/reportes";
 import { fechaDia } from "@/pages/tiempo";
@@ -45,6 +46,18 @@ const DEMORA_MS = 900;
  */
 async function bajar(reporte: Reporte, usuarios: Usuario[]) {
   await new Promise((listo) => setTimeout(listo, DEMORA_MS));
+
+  /* Cada formato con lo suyo, y con su tipo MIME: el nombre del archivo ya dice
+     `.pdf`, y entregar un PDF anunciado como `text/csv` es la misma mentira del
+     otro lado. */
+  if (reporte.formato === "pdf") {
+    descargar(
+      archivoDeReporte(reporte),
+      pdfDeReporte(reporte, usuarios),
+      "application/pdf",
+    );
+    return;
+  }
 
   descargar(archivoDeReporte(reporte), csvDeReporte(reporte, usuarios));
 }

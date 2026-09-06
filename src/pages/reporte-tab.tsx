@@ -1,8 +1,7 @@
-import { FileSpreadsheet } from "lucide-react";
-
 import type { WorkspaceTab } from "@/components/workspace-panel";
+import { glifoDeArchivo } from "@/lib/archivos";
 import { VistaDeReporte } from "@/pages/VistaDeReporte";
-import type { Reporte } from "@/pages/reportes";
+import { archivoDeReporte, type Reporte } from "@/pages/reportes";
 import { diaCorto, fechaDia } from "@/pages/tiempo";
 
 /* Un reporte abierto, como pestaña del workspace.
@@ -32,8 +31,11 @@ export const tabDeReporte = (reporte: Reporte): WorkspaceTab => ({
      archivo no abre dos pestañas. */
   id: `report/${reporte.id}`,
   label: etiqueta(reporte),
-  /* El glifo de una planilla, que es el que el visor le pone al archivo: la
-     solapa y lo que hay adentro tienen que verse como lo mismo. */
-  icon: FileSpreadsheet,
+  /* El glifo del archivo, el mismo que le pone la baldosa y el que va a poner el
+     visor: la solapa y lo que hay adentro tienen que verse como lo mismo. Sale
+     de `glifoDeArchivo` y no se elige acá, así que un reporte en PDF trae la
+     solapa de un documento sin que este archivo se entere de que existen dos
+     formatos. */
+  icon: glifoDeArchivo(archivoDeReporte(reporte)),
   content: <VistaDeReporte id={reporte.id} />,
 });

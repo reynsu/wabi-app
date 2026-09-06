@@ -9,6 +9,8 @@
  * Y de paso queda donde corresponde: partir un CSV no es cosa de una pantalla.
  */
 
+import { File, FileSpreadsheet, FileText } from "lucide-react";
+
 /* ─────────────────────────── Qué clase de archivo es ─────────────────────── */
 
 /** Cómo se muestra un archivo. Sale de la extensión y no de un tipo MIME: lo que
@@ -117,3 +119,24 @@ export interface ArchivoParaVer {
   nombre: string;
   contenido: ContenidoDeArchivo;
 }
+
+/* ─────────────────────────── Con qué se dibuja ─────────────────────────── */
+
+/** El glifo de cada clase.
+ *
+ *  Vive con `claseDeArchivo` y no adentro del visor porque lo usan tres: el
+ *  visor, la baldosa de la grilla y la solapa de la pestaña. Un archivo tiene
+ *  que verse igual en los tres lugares —si la baldosa dice "documento" y la
+ *  solapa dice "planilla", uno de los dos está mintiendo—, y la única manera de
+ *  garantizarlo es que salga del mismo lado.
+ *
+ *  La planilla lleva la grilla y el documento las líneas de texto, que es la
+ *  diferencia que importa: uno se recorre por columnas y el otro se lee. */
+export const GLIFOS: Record<ClaseDeArchivo, typeof File> = {
+  planilla: FileSpreadsheet,
+  documento: FileText,
+  desconocida: File,
+};
+
+/** Directo desde el nombre, que es lo que casi siempre se tiene a mano. */
+export const glifoDeArchivo = (nombre: string) => GLIFOS[claseDeArchivo(nombre)];

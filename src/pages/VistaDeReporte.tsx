@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { Download, FileChartColumn } from "lucide-react";
 
 import {
@@ -11,10 +11,16 @@ import {
   AnimatedEmptyTitle,
 } from "@/components/animated-empty";
 import { FileViewer } from "@/components/file-viewer";
+import type { ContenidoDeArchivo } from "@/lib/archivos";
 import { Button } from "@/components/ui/button";
 import { SizeProvider } from "@/lib/size-context";
 import { useBajada } from "@/pages/bajar-reporte";
-import { archivoDeReporte, csvDeReporte, useReporte } from "@/pages/reportes";
+import {
+  archivoDeReporte,
+  csvDeReporte,
+  pdfDeReporte,
+  useReporte,
+} from "@/pages/reportes";
 import { useUsuarios } from "@/pages/usuarios";
 
 /**
@@ -39,19 +45,42 @@ export function VistaDeReporte({ id }: { id: string }) {
   const reporte = useReporte(id);
   const usuarios = useUsuarios();
 
-  /* El CSV se arma una vez por reporte y por padrón. Sin memorizar, cada
-     pintada del panel volvería a recorrer las cuentas para escribir el mismo
-     texto. */
-  const texto = useMemo(
-    () => (reporte ? csvDeReporte(reporte, usuarios) : ""),
-    [reporte, usuarios],
-  );
+  /* El archivo, en el formato en el que ese reporte quedó firmado. Se arma una
+     vez por reporte y por padrón: sin memorizar, cada pintada del panel volvería
+     a recorrer las cuentas para escribir lo mismo.
+
+     El CSV va como texto y lo parte el visor. El PDF va como `blob:`, porque lo
+     dibuja el lector del navegador y lo que un lector recibe es una dirección,
+     no bytes. */
+  const contenido: ContenidoDeArchivo | undefined = useMemo(() => {
+    if (!reporte) return undefined;
+    if (reporte.formato === "pdf") {
+      const bytes = pdfDeReporte(reporte, usuarios);
+      return {
+        clase: "url",
+        url: URL.createObjectURL(new Blob([bytes], { type: "application/pdf" })),
+      };
+    }
+    return { clase: "texto", texto: csvDeReporte(reporte, usuarios) };
+  }, [reporte, usuarios]);
+
+  /* Y la dirección se devuelve al cerrar la pestaña —o al armarse otra—: un
+     `blob:` que nadie revoca deja el archivo entero colgado en memoria hasta que
+     se recargue la página. Es lo mismo que hace `descargar` con el suyo, sólo
+     que acá el archivo tiene que seguir vivo mientras se lo mira, así que la
+     devolución no puede ser en la línea siguiente. */
+  useEffect(() => {
+    const url = contenido?.clase === "url" ? contenido.url : undefined;
+    return () => {
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [contenido]);
 
   /* Los hooks van antes de cualquier salida: la bajada existe aunque el reporte
      no, y moverla adentro del `if` la haría condicional. */
   const { bajando, alTocar } = useBajada(reporte);
 
-  if (!reporte) {
+  if (!reporte || !contenido) {
     return (
       <div className="flex h-full min-h-0 flex-col">
         <AnimatedEmpty>
@@ -75,10 +104,7 @@ export function VistaDeReporte({ id }: { id: string }) {
        lista que lo abrió tiene que leerse con el mismo escalón. */
     <SizeProvider size="compact">
       <FileViewer
-        archivo={{
-          nombre: archivoDeReporte(reporte),
-          contenido: { clase: "texto", texto },
-        }}
+        archivo={{ nombre: archivoDeReporte(reporte), contenido }}
         acciones={
           /* Bajarlo sigue estando, y acá es donde más sentido tiene: se mira
              primero y se decide después. Es la misma bajada de la lista —el
