@@ -649,6 +649,7 @@ function Pantalla() {
               <TableBody>
                 {filas.map((fila, i) => {
                   const remitente = remitenteDe(fila);
+                  const destinatario = destinatarioDe(fila);
 
                   return (
                     /* La fila entera abre el hilo en el perfil de la cuenta: es
@@ -662,22 +663,46 @@ function Pantalla() {
                       className="cursor-pointer"
                       onClick={() => abrirHilo(fila)}
                     >
-                      {/* Quién lo escribió, y nada más que quién lo escribió.
-                          El destinatario no se pinta: en un hilo de a dos es el
-                          otro, así que el renglón de abajo repetía en cada fila
-                          el nombre que ya estaba arriba en la fila de al lado.
-                          Un dato que se puede deducir de lo que ya está a la
-                          vista no es un dato, es ruido con forma de columna.
-
-                          Se lo sigue pudiendo buscar —está en la barra de
-                          arriba y como atributo `Recipient` del panel—: que no
-                          ocupe lugar no es lo mismo que que no exista. */}
+                      {/* Quién lo escribió, y debajo a quién.
+                          
+                          El destinatario estuvo afuera con el argumento de que
+                          en un hilo de a dos se deduce: es el otro. Es cierto
+                          leyendo una fila, y deja de serlo recorriendo la
+                          tabla, que es lo que uno hace acá. Con sólo el
+                          remitente, dos filas seguidas de la misma persona no
+                          dicen si le escribió a la misma o a dos distintas, y
+                          para saberlo hay que abrir el hilo. Eso convierte una
+                          lectura en un clic.
+                          
+                          Va en un segundo renglón y no en una columna propia:
+                          es la contracara del nombre de arriba —el mismo hecho
+                          visto del otro lado—, y una columna lo pondría al
+                          nivel de lo que dice el mensaje y de cuándo se mandó.
+                          
+                          En el gris del texto secundario, y el "to" también:
+                          lo que se recorre es la columna de los remitentes, y
+                          el destinatario está para cuando uno se detuvo en una
+                          fila. Dos nombres del mismo peso pelean, y el que
+                          ganaría es el de abajo por estar más cerca del que
+                          sigue. */}
                       <TableCell className="text-foreground">
-                        <motion.div variants={entraCelda} className="flex min-w-0">
+                        <motion.div
+                          variants={entraCelda}
+                          className="flex min-w-0 flex-col gap-0.5"
+                        >
                           <Nombre
                             participante={remitente}
                             onPerfil={abrirCuenta}
                           />
+                          <span
+                            className="flex min-w-0 items-baseline gap-1 text-muted-foreground"
+                            style={{ fontSize: escala.caption }}
+                          >
+                            <span className="shrink-0">to</span>
+                            <span className="truncate">
+                              {destinatario.nombre}
+                            </span>
+                          </span>
                         </motion.div>
                       </TableCell>
 
