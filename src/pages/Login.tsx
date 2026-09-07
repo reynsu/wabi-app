@@ -18,12 +18,30 @@ import { entrar } from "@/stores/sesion";
  * sino lo que hay en su lugar mientras no haya nadie adentro. Ver `App`.
  */
 
-/* Lo que la casa dice de sí misma en la puerta. La promesa es la del producto y
-   no la de la pantalla: quien llega acá ya sabe que va a escribir un correo y
-   una contraseña, lo que no sabe es a qué está entrando. */
-const TITULO = "The house's console";
+/* Lo que la consola dice de sí misma en la puerta. La promesa es la del producto
+   y no la de la pantalla: quien llega acá ya sabe que va a escribir un correo y
+   una contraseña, lo que no sabe es a qué está entrando.
+   
+   **Dice de qué se trata, sin el eufemismo.** Decía "la casa" y "quienes viven
+   acá", que es la manera amable de no nombrar lo que esto es: una consola desde
+   la que se revisa y se investiga lo que las personas privadas de libertad
+   escriben y reciben. Quien entra acá lo sabe; el que no lo sabía es el texto.
+   Una puerta que no nombra lo que hay del otro lado no protege a nadie —lo que
+   se hace adentro se hace igual— y le saca a quien entra la única oportunidad de
+   entenderlo antes de estar adentro.
+   
+   Y termina donde termina a propósito. Lo último que se lee no es lo que la
+   consola permite mirar sino que mirar **deja rastro**: en un sistema de
+   vigilancia, la línea que importa es la que dice quién vigila a quien vigila.
+   Era la mejor frase del texto viejo y es la única que se queda tal cual.
+   
+   El título mide veinte caracteres por lo mismo que medía diecinueve el que
+   había: el bloque pide que entre en dos renglones al ancho del panel. Medido
+   ahí, éste toma dos y el anterior también; el que había escrito primero
+   —"Every message on the record", veintisiete— tomaba tres. */
+const TITULO = "Every word on record";
 const DESCRIPCION =
-  "Mail, messages and tickets for everyone who lives here — in one place, and with a record of who looked.";
+  "Search the messages, voice notes and mail of everyone in custody, see what moderation stopped — and leave a record of who looked.";
 
 export function Login() {
   const oscuro = useTema((t) => t.oscuro);
