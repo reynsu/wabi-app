@@ -391,11 +391,24 @@ export function FloatingActions({
                             ancho en manos de la proyección de `layout` hay un
                             solo dueño, y el rótulo se ocupa nada más de aparecer.
 
-                            `popLayout` para que al salir se retire del flujo en
-                            el acto: si esperara a terminar de desvanecerse, el
-                            botón se quedaría ancho todo ese rato y recién
-                            después se encogería de golpe. */}
-                        <AnimatePresence initial={false} mode="popLayout">
+                            **Sin `popLayout`, y eso es un arreglo y no un
+                            olvido.** Estuvo, para que al salir el rótulo se
+                            retirara del flujo en el acto y el botón se encogiera
+                            enseguida, y traía un bug a la vista: `popLayout` lo
+                            pone en `position: absolute` para sacarlo del flujo,
+                            y lo ubica contra el marco del padre —que en ese
+                            mismo momento está animando su propio tamaño—. El
+                            resultado era el rótulo deformado y afuera del botón
+                            por un instante. Medido: se iba hasta ciento treinta
+                            y dos píxeles pasando el borde derecho, con el ancho
+                            saltando entre cuarenta y seis y ciento cincuenta y
+                            cuatro para un texto que mide sesenta y dos.
+
+                            Sin él, el rótulo se queda en el flujo mientras se
+                            desvanece y el botón se encoge después. Cuesta los
+                            cien milisegundos de la salida, y es un precio que se
+                            paga entero: lo otro se veía. */}
+                        <AnimatePresence initial={false}>
                           {abierto && (
                             <motion.span
                               key="rotulo"
