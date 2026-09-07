@@ -14,6 +14,7 @@
 
 import {
   useCallback,
+  useEffect,
   useId,
   useLayoutEffect,
   useRef,
@@ -41,6 +42,12 @@ import { useProximityHover } from "@/hooks/use-proximity-hover";
 /** Radius of the tab and of the concave corners that join it to the content.
  *  A single number: if they differ, the curve reads as broken at the joint. */
 const TAB_RADIUS = 12;
+
+/** How many pixels a wheel "line" is worth. Some mice report their delta in
+ *  lines instead of pixels —`deltaMode` 1— and send threes where a pixel wheel
+ *  sends hundreds. Sixteen is the row's own line height, so both kinds travel
+ *  the same distance. */
+const RENGLON_DE_RUEDA = 16;
 
 /** Steps the plane (active tab + content) climbs over the bar. Two, like any
  *  layer resting on its substrate. */
@@ -477,6 +484,47 @@ function WorkspacePanel({
     }
   }, [activeIndex, tabs.length]);
 
+  /**
+   * The wheel over the strip scrolls it sideways.
+   *
+   * The row scrolls on one axis and the wheel of an ordinary mouse only turns
+   * on the other, so without this the only ways to reach a tab that ran off the
+   * end were dragging the strip or picking the tab from somewhere else. A
+   * trackpad could always do it — it sends horizontal deltas of its own — which
+   * is exactly why the gap is easy to miss.
+   *
+   * Three conditions before taking the wheel, because taking it when it isn't
+   * ours is worse than not having it:
+   *
+   * - **Nothing to scroll, nothing to take.** With the tabs fitting, the strip
+   *   isn't a scrolling surface and the wheel belongs to whatever is behind it.
+   * - **A sideways wheel is already sideways.** A trackpad's horizontal delta
+   *   scrolls the row natively and better than we would; intercepting it would
+   *   replace an inertial gesture with a jump.
+   * - **Lines, not pixels.** A wheel that reports `deltaMode` in lines sends
+   *   threes, not hundreds; multiplied out they move the same distance as one
+   *   that reports pixels.
+   *
+   * Native listener and not React's `onWheel`: to stop the page from scrolling
+   * behind us the handler has to be able to call `preventDefault`, and for that
+   * it can't be passive.
+   */
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+
+    const alGirar = (ev: WheelEvent) => {
+      if (list.scrollWidth <= list.clientWidth) return;
+      if (Math.abs(ev.deltaX) > Math.abs(ev.deltaY)) return;
+      if (ev.deltaY === 0) return;
+      ev.preventDefault();
+      list.scrollLeft += ev.deltaY * (ev.deltaMode === 1 ? RENGLON_DE_RUEDA : 1);
+    };
+
+    list.addEventListener("wheel", alGirar, { passive: false });
+    return () => list.removeEventListener("wheel", alGirar);
+  }, []);
+
   // Closing only makes sense if there's something left behind.
   const closable = onTabClose != null && tabs.length > 1;
 
@@ -573,6 +621,28 @@ function WorkspacePanel({
                 key={tab.id}
                 ref={(el) => {
                   itemsRef.current[i] = el;
+                }}
+                /* The middle click closes the tab, the way browsers and
+                   editors do. It's on the wrapper and not on the tab's button
+                   so that it also answers over the close button and over the
+                   icon — the whole tab is the target, which is what the gesture
+                   assumes.
+                   
+                   `auxclick` and not `mousedown`: it's the event for the
+                   non-primary buttons, and like a click it only fires if press
+                   and release land on the same element, so a middle press that
+                   drifts off doesn't close anything. */
+                onAuxClick={(ev) => {
+                  if (ev.button !== 1 || !closable) return;
+                  ev.preventDefault();
+                  closeTab(tab.id);
+                }}
+                /* And the press is stopped short. The middle button arms the
+                   browser's autoscroll on `mousedown`, before any `auxclick`:
+                   without this the tab closes and the page is left with the
+                   scrolling crosshair stuck to the cursor. */
+                onMouseDown={(ev) => {
+                  if (ev.button === 1 && closable) ev.preventDefault();
                 }}
                 className={cn(
                   "group relative inline-flex shrink-0 items-center",
