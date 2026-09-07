@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { sileo } from "sileo";
 import {
   CalendarClock,
   Download,
@@ -43,19 +42,19 @@ import {
 } from "@/components/ui/table";
 import { useMeasuredHeight } from "@/hooks/use-measured-height";
 import { usePaginacion } from "@/hooks/use-paginacion";
-import { descargar } from "@/lib/descargar";
 import { SizeProvider, useTypeScale } from "@/lib/size-context";
 import { spring } from "@/lib/springs";
 import { cn } from "@/lib/utils";
 import { useCuentasDOC, type CuentaDOC } from "@/pages/cuentas-doc";
+import { useBajadaDOC } from "@/pages/bajar-reporte-doc";
+import { useWorkspace } from "@/stores/workspace";
+import { tabDeReporteDOC } from "@/pages/reporte-doc-tab";
 import { useAltaDeReporte } from "@/pages/NuevoReporte";
 import {
   ESTADOS_DE_REPORTE,
   ORDEN_ESTADOS,
   ORDEN_TIPOS_DOC,
   TIPOS_DE_REPORTE_DOC,
-  archivoDeReporteDOC,
-  csvDeReporteDOC,
   quienPidio,
   sePuedeBajar,
   tramoDePedido,
@@ -63,7 +62,6 @@ import {
   type ReporteDOC,
 } from "@/pages/reportes-admin";
 import { fechaLarga, haceCuanto } from "@/pages/tiempo";
-import { useUsuarios, type Usuario } from "@/pages/usuarios";
 import {
   AIRE_FILA,
   AIRE_TITULOS,
@@ -317,84 +315,10 @@ function Columnas() {
  *  sección. */
 const POR_PAGINA = 40;
 
-/* ─────────────────────────── La bajada ─────────────────────────── */
-
-/** Cuánto tarda en prepararse un archivo.
- *
- *  No hay servidor detrás, y sin demora la bajada sería instantánea: se toca el
- *  botón y el archivo ya está. Eso no es lo que va a pasar el día que haya una
- *  API, y una pantalla diseñada contra una bajada instantánea no tiene dónde
- *  poner lo que pasa mientras. Es la misma decisión, con el mismo número, que la
- *  bajada de Email › Reports y las altas de políticas, buzones y cuentas. */
-const DEMORA_MS = 900;
-
-async function bajar(
-  reporte: ReporteDOC,
-  usuarios: Usuario[],
-  cuentas: CuentaDOC[],
-) {
-  await new Promise((listo) => setTimeout(listo, DEMORA_MS));
-
-  descargar(
-    archivoDeReporteDOC(reporte),
-    csvDeReporteDOC(reporte, usuarios, cuentas),
-  );
-}
-
-/**
- * BajarReporte — lo único que se puede hacer con una fila.
- *
- * Un botón suelto y no un menú, igual que en Email › Reports y al revés que en
- * Policies: allá son dos acciones —corregir y sacar— y esconder una sola detrás
- * de un menú es pedir dos clics para lo mismo. Un reporte pedido no se corrige:
- * lo que se pidió, se pidió.
- *
- * Aparece con el hover de la fila y se queda mientras se está bajando y con el
- * foco de teclado: si no, tabular hasta acá sería tabular hacia algo invisible.
- *
- * Y no aparece cuando no hay nada que bajar. Un reporte que está en la cola
- * todavía no tiene archivo y uno que falló no lo va a tener: el botón
- * deshabilitado diría "esto se puede hacer, pero no ahora", y lo que pasa es que
- * no hay qué bajar. El estado de la fila ya lo explica.
- */
 function BajarReporte({ reporte }: { reporte: ReporteDOC }) {
-  const usuarios = useUsuarios();
-  const cuentas = useCuentasDOC();
-  /* Vive en el botón y no en la pantalla: bajar un reporte no apaga nada más
-     que este botón, y dos filas se pueden estar bajando a la vez. */
-  const [bajando, setBajando] = useState(false);
+  const { bajando, alTocar } = useBajadaDOC(reporte);
 
   if (!sePuedeBajar(reporte)) return null;
-
-  const alTocar = async () => {
-    if (bajando) return;
-    setBajando(true);
-    try {
-      /* El toast se cuelga de la promesa y cuenta los tres momentos en un solo
-         aviso: se está preparando, quedó bajado, no se pudo. Es donde va este
-         relato —la fila no tiene lugar para contarlo y un cartel adentro de la
-         tabla taparía la lista—. */
-      await sileo.promise(bajar(reporte, usuarios, cuentas), {
-        /* Sin artículos: Sileo capitaliza el título palabra por palabra, y
-           "Preparing the report…" sale "Preparing The Report…". */
-        loading: { title: "Preparing report…" },
-        success: () => ({
-          title: "Report downloaded",
-          /* Qué trae, que es lo que el nombre del archivo no dice hasta
-             abrirlo. Sale del tipo, que es lo que decide sus columnas. */
-          description: TIPOS_DE_REPORTE_DOC[reporte.tipo].ayuda,
-        }),
-        error: () => ({
-          title: "Nothing was downloaded",
-          description: "The report couldn't be prepared — try again.",
-        }),
-      });
-    } catch {
-      /* El toast ya lo contó. */
-    } finally {
-      setBajando(false);
-    }
-  };
 
   return (
     <Button
@@ -432,6 +356,9 @@ export function AdminReports({ tabId }: { tabId?: string }) {
 }
 
 function Pantalla({ tabId }: { tabId?: string }) {
+  /* Abrir un reporte es abrir una pestaña, igual que abrir un perfil desde una
+     tabla de cuentas. */
+  const openTab = useWorkspace((w) => w.openTab);
   /* El pedido vive en el riel y no en un diálogo: elegir qué pedir es
      justamente cuando hace falta poder mirar los que ya están. Ver
      `NuevoReporte`. */
@@ -610,14 +537,36 @@ function Pantalla({ tabId }: { tabId?: string }) {
                     >
                       {/* Cómo se llama: el tipo y el día del pedido. Es lo que
                           va a decir el archivo cuando esté bajado, y por eso es
-                          la primera columna y la más ancha. */}
+                          la primera columna y la más ancha.
+
+                          Y es lo que abre el archivo, cuando hay archivo. El
+                          nombre y no la fila entera: adentro está el botón de
+                          bajar, y un botón adentro de otro botón no es HTML
+                          válido ni se puede tabular. Es lo mismo que hacen la
+                          lista de Email › Reports y las tablas de Accounts y
+                          Policies, donde lo que lleva al perfil es el nombre y
+                          no el renglón; y con la misma raya punteada, que es
+                          como esta app escribe "esto abre algo". */}
                       <TableCell className="text-foreground">
-                        <motion.span
-                          variants={entraCelda}
-                          className="block truncate"
-                          title={reporte.nombre}
-                        >
-                          {reporte.nombre}
+                        <motion.span variants={entraCelda} className="block">
+                          {sePuedeBajar(reporte) ? (
+                            <button
+                              type="button"
+                              title={reporte.nombre}
+                              onClick={() => openTab(tabDeReporteDOC(reporte))}
+                              className={cn(
+                                "w-full max-w-full cursor-pointer truncate text-left",
+                                "decoration-dotted decoration-muted-foreground underline-offset-2",
+                                "outline-none hover:underline focus-visible:underline",
+                              )}
+                            >
+                              {reporte.nombre}
+                            </button>
+                          ) : (
+                            <span className="block truncate" title={reporte.nombre}>
+                              {reporte.nombre}
+                            </span>
+                          )}
                         </motion.span>
                       </TableCell>
 

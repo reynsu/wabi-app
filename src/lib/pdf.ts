@@ -52,15 +52,82 @@ const filasQueEntran = (conTitulo: boolean, conCabecera: boolean) =>
       RENGLON,
   );
 
-/** El texto, como lo espera un PDF: `\`, `(` y `)` se escapan, y lo que no entra
- *  en un byte no se puede escribir sin incrustar una fuente. */
+/**
+ * La puntuación tipográfica, en los bytes que le corresponden.
+ *
+ * `WinAnsiEncoding` —lo que declara la fuente— **no** es Latin-1: en el tramo
+ * `0x80`–`0x9F`, donde Latin-1 pone caracteres de control, CP1252 pone comillas
+ * curvas, guiones largos y puntos suspensivos. Sus puntos de código Unicode están
+ * arriba de 255, así que la regla de "más de un byte, no se puede escribir" los
+ * mandaba a `?` cuando la fuente sí sabe dibujarlos.
+ *
+ * Se notó con el nombre de un reporte pedido —"Blocked Communication Report —
+ * 08/03/2026"— que salía con un signo de pregunta en el medio.
+ */
+const CP1252: Record<string, number> = {
+  "\u20AC": 0x80, // €
+  "\u201A": 0x82,
+  "\u0192": 0x83,
+  "\u201E": 0x84,
+  "\u2026": 0x85, // …
+  "\u2020": 0x86,
+  "\u2021": 0x87,
+  "\u02C6": 0x88,
+  "\u2030": 0x89,
+  "\u0160": 0x8a,
+  "\u2039": 0x8b,
+  "\u0152": 0x8c,
+  "\u017D": 0x8e,
+  "\u2018": 0x91, // ‘
+  "\u2019": 0x92, // ’
+  "\u201C": 0x93, // “
+  "\u201D": 0x94, // ”
+  "\u2022": 0x95, // •
+  "\u2013": 0x96, // –
+  "\u2014": 0x97, // —
+  "\u02DC": 0x98,
+  "\u2122": 0x99, // ™
+  "\u0161": 0x9a,
+  "\u203A": 0x9b,
+  "\u0153": 0x9c,
+  "\u017E": 0x9e,
+  "\u0178": 0x9f,
+};
+
+/** El texto, como lo espera un PDF: `\`, `(` y `)` se escapan, la puntuación
+ *  tipográfica va a su byte de CP1252, y lo que no tiene byte —un ideograma, un
+ *  emoji— sale como `?`: es lo que un PDF sin fuente incrustada puede prometer. */
 const escapar = (s: string) =>
   [...s]
-    .map((c) => (c.charCodeAt(0) > 255 ? "?" : c))
+    .map((c) => {
+      const cp1252 = CP1252[c];
+      if (cp1252 !== undefined) return String.fromCharCode(cp1252);
+      return c.charCodeAt(0) > 255 ? "?" : c;
+    })
     .join("")
     .replace(/\\/g, "\\\\")
     .replace(/\(/g, "\\(")
     .replace(/\)/g, "\\)");
+
+/**
+ * Cuánto mide un texto, aproximado.
+ *
+ * Helvetica trae una tabla de anchos por caracter y no la tenemos: incrustarla
+ * son doscientos cincuenta y seis números para una sola cosa. Con un ancho medio
+ * la cuenta se equivoca por caracter, pero se equivoca poco y para lo único que
+ * se usa —decidir dónde cortar una celda que si no se sale de la hoja— eso
+ * alcanza. Cortar de más deja un poco de aire; no cortar deja texto pisando el
+ * margen, que es peor.
+ */
+const anchoAproximado = (texto: string, cuerpo: number) =>
+  texto.length * cuerpo * 0.52;
+
+/** El texto que entra en `disponible` puntos, con puntos suspensivos si sobra. */
+function recortar(texto: string, disponible: number, cuerpo: number) {
+  if (anchoAproximado(texto, cuerpo) <= disponible) return texto;
+  const cuantos = Math.max(0, Math.floor(disponible / (cuerpo * 0.52)) - 1);
+  return `${texto.slice(0, cuantos).trimEnd()}\u2026`;
+}
 
 /**
  * Armar el PDF.
@@ -131,9 +198,26 @@ export function armarPdf({
       partes.push(`/${fila.negrita ? "F2" : "F1"} ${CUERPO} Tf`);
       fila.celdas.forEach((celda, i) => {
         if (!celda) return;
+        /* Hasta dónde puede llegar esta celda: hasta donde empieza **la de al
+           lado**, y si no hay una al lado, hasta el margen. Sin esto, una celda
+           larga —los motivos de un bloqueo, por ejemplo— sigue escribiéndose
+           después del borde de la hoja.
+           
+           El límite es la celda vecina y no la columna vecina, que no es lo
+           mismo: un renglón suelto —una línea del preámbulo— ocupa una sola
+           celda y tiene toda la hoja para él. Limitándolo contra la columna B lo
+           cortaba a un cuarto de ancho una frase que no era una columna. */
+        const desde = columnas[i] ?? 0;
+        const hayVecina = fila.celdas[i + 1] !== undefined && fila.celdas[i + 1] !== "";
+        const hasta = hayVecina
+          ? (columnas[i + 1] ?? ANCHO - MARGEN * 2)
+          : ANCHO - MARGEN * 2;
+        /* Un pelo de aire antes de la columna siguiente, para que dos celdas
+           llenas no se toquen. */
+        const disponible = hasta - desde - 6;
         partes.push(
-          `1 0 0 1 ${MARGEN + (columnas[i] ?? 0)} ${y - CUERPO} Tm`,
-          `(${escapar(celda)}) Tj`,
+          `1 0 0 1 ${MARGEN + desde} ${y - CUERPO} Tm`,
+          `(${escapar(recortar(celda, disponible, CUERPO))}) Tj`,
         );
       });
       y -= RENGLON;

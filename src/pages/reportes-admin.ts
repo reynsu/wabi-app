@@ -1,9 +1,10 @@
 import { useMemo } from "react";
 import { create } from "zustand";
 
+import { armarPdf } from "@/lib/pdf";
 import { moderacionDe } from "@/pages/analiticas";
 import type { CuentaDOC } from "@/pages/cuentas-doc";
-import type { EstadoDeReporte } from "@/pages/reportes";
+import type { EstadoDeReporte, FormatoDeReporte } from "@/pages/reportes";
 import { diasDesde } from "@/pages/tiempo";
 import { ESTADOS, HOY, TIPOS, type Usuario } from "@/pages/usuarios";
 
@@ -60,21 +61,38 @@ export const TIPOS_DE_REPORTE_DOC = {
     label: "User ID Report",
     tinte: "#8b5cf6",
     ayuda: "Every account the house knows, with its id and when it was opened.",
+    formato: "csv",
   },
   volume: {
     label: "Communication Volume Report",
     tinte: "#3b82f6",
     ayuda: "How much each account talked, this month against the one before.",
+    formato: "csv",
   },
   blocked: {
     label: "Blocked Communication Report",
     tinte: "#f43f5e",
     ayuda: "What moderation stopped, and what it stopped it for.",
+    /* El único que sale como documento, y por lo que es y no por sorteo. Los
+       otros dos son datos: se piden para cruzarlos con otra cosa, y eso se hace
+       en una planilla. Éste dice qué se frenó y por qué —se lee, se muestra, y
+       a veces se adjunta a un expediente—, y eso se archiva como una hoja.
+
+       Va acá adentro y no como campo del reporte, al revés que en Email ›
+       Reports: allá el formato depende de la posición del reporte en su mes,
+       que no se puede deducir de él solo; acá es una propiedad de **qué clase de
+       reporte es**, y guardarla en cada fila sería tener veinticinco copias de
+       algo que decide el tipo. */
+    formato: "pdf",
   },
 } as const satisfies Record<
   string,
-  { label: string; tinte: string; ayuda: string }
+  { label: string; tinte: string; ayuda: string; formato: FormatoDeReporte }
 >;
+
+/** En qué queda un reporte pedido. Sale del tipo: ver `TIPOS_DE_REPORTE_DOC`. */
+export const formatoDeReporteDOC = (tipo: TipoDeReporteDOC): FormatoDeReporte =>
+  TIPOS_DE_REPORTE_DOC[tipo].formato;
 
 export type TipoDeReporteDOC = keyof typeof TIPOS_DE_REPORTE_DOC;
 
@@ -321,6 +339,14 @@ export function useReportesDOC(): ReporteDOC[] {
     [pedidos],
   );
 }
+/** Uno solo, por id. Es para el que abrió un reporte en una pestaña: la pestaña
+ *  se lleva el id y lee la lista viva, así que un pedido que estaba en la cola
+ *  cuando se lo abrió se ve terminado cuando termina. */
+export function useReporteDOC(id: string): ReporteDOC | undefined {
+  const reportes = useReportesDOC();
+  return useMemo(() => reportes.find((r) => r.id === id), [reportes, id]);
+}
+
 
 /* ─────────────────────────── Cuándo se lo pidió ─────────────────────────── */
 
@@ -478,4 +504,50 @@ export function csvDeReporteDOC(
  *  Sin él, el navegador los numeraría —"(1)", "(2)"— en el orden en que se los
  *  bajó, que no es el orden en que se los pidió. */
 export const archivoDeReporteDOC = (reporte: ReporteDOC) =>
-  `${reporte.tipo}-report-${reporte.pedidoEl.replace(/[T:]/g, "-")}.csv`;
+  `${reporte.tipo}-report-${reporte.pedidoEl.replace(/[T:]/g, "-")}.${formatoDeReporteDOC(reporte.tipo)}`;
+
+/**
+ * El reporte pedido, como PDF.
+ *
+ * Dice lo mismo que diría su CSV —las mismas columnas, las mismas filas— y ahí
+ * se separa de Email › Reports, donde el documento del mes cuenta otra cosa que
+ * la planilla de la semana. Acá no hay dos alcances: lo que se pidió es una foto
+ * de la casa, y la foto es la misma se entregue como se entregue. Lo que cambia
+ * es para qué sirve la entrega, y eso ya lo decide el tipo.
+ *
+ * La ficha del pedido —de qué es, quién lo pidió, cuándo— va de preámbulo, y los
+ * rótulos de las columnas se repiten en cada hoja: son cuarenta y ocho cuentas y
+ * no entran en una.
+ */
+export function pdfDeReporteDOC(
+  reporte: ReporteDOC,
+  usuarios: Usuario[],
+  cuentas: CuentaDOC[],
+): Uint8Array<ArrayBuffer> {
+  const tipo = TIPOS_DE_REPORTE_DOC[reporte.tipo];
+  const { titulos, filas } = CUERPOS[reporte.tipo](usuarios);
+
+  /* Las columnas se reparten parejas sobre el ancho útil de la hoja. A
+     diferencia del reporte semanal —donde las cuatro columnas son siempre las
+     mismas y se les puede dar el ancho de su contenido—, acá cada tipo trae las
+     suyas y son entre cuatro y seis: repartir es lo único que funciona sin
+     saber de antemano qué va adentro. */
+  const util = 483;
+  const columnas = titulos.map((_, i) => Math.round((util / titulos.length) * i));
+
+  return armarPdf({
+    titulo: reporte.nombre,
+    columnas,
+    preambulo: [
+      { celdas: [tipo.ayuda] },
+      {
+        celdas: [
+          `Requested ${reporte.pedidoEl.replace("T", " ")} by ${quienPidio(reporte.pedidoPor, cuentas)}`,
+        ],
+      },
+      { celdas: [`Accounts: ${filas.length}`] },
+    ],
+    cabecera: { negrita: true, celdas: titulos },
+    filas: filas.map((celdas) => ({ celdas })),
+  });
+}
