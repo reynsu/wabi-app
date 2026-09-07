@@ -12,11 +12,13 @@ import {
   CircleCheck,
   Contact,
   History,
+  Home,
   IdCard,
   KeyRound,
   Loader,
   Search,
   SearchX,
+  Users2,
 } from "lucide-react";
 
 import {
@@ -41,6 +43,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { InputField, InputGroup } from "@/components/ui/input-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tooltip } from "@/components/ui/tooltip";
 import { useMeasuredHeight } from "@/hooks/use-measured-height";
 import {
   Table,
@@ -519,6 +522,57 @@ function pasa(usuario: Usuario, busqueda: string, filtros: FilterSelection) {
 /* Las columnas, declaradas una vez y usadas por las dos tablas —la de los
    títulos y la del cuerpo—. Con `table-fixed` el ancho sale de acá y no del
    contenido, que es lo único que las mantiene alineadas estando separadas. */
+/**
+ * De qué tipo es una cuenta, adentro de su plato.
+ *
+ * Una cuenta es de un residente o de su familia. Es una distinción que estaba en
+ * el modelo, se podía filtrar por ella y salía escrita en los reportes, pero no
+ * se veía en la lista donde uno mira a las cuentas.
+ *
+ * **Y no es un estado.** El estado cambia —una cuenta se bloquea, se reactiva— y
+ * por eso tiene su columna y su pastilla. El tipo no cambia: es lo que esa cuenta
+ * es. Un campo de dos valores que no cambia nunca no se gana una columna al lado
+ * de uno que cambia todo el tiempo, y por eso va en el plato, que ya estaba y no
+ * cuesta ni un píxel de ancho.
+ *
+ * En el plato **la columna se recorre sin leer**: se baja la vista por los
+ * dibujos y las cuentas de familia saltan solas, que es lo que ninguna versión
+ * escrita logra —una palabra en la fila hay que leerla fila por fila—.
+ *
+ * Lo que cuesta, y conviene tenerlo escrito: **se van las iniciales.** Eran lo
+ * que distinguía un plato de otro y lo que ataba una cara a una fila; ahora hay
+ * dos dibujos para cuarenta y ocho cuentas. Se cambió a propósito: las iniciales
+ * repetían lo que el nombre dice dos centímetros a la derecha, y el tipo no lo
+ * decía nadie.
+ *
+ * El rótulo va en el `title` y en el `aria-label`. Un glifo sin palabra es una
+ * convención que hay que aprender, y esto la enseña sin gastar lugar: quien no
+ * sabe qué es la casa la señala una vez y no vuelve a preguntar.
+ */
+function TipoDeCuenta({ usuario }: { usuario: Usuario }) {
+  const shape = useShape();
+  const rotulo = TIPOS[usuario.accountType];
+  /* La casa para quien vive en ella, las dos siluetas para quien la visita. */
+  const Glifo = usuario.accountType === "friends" ? Users2 : Home;
+
+  return (
+    /* El disparador es el plato entero y no el glifo de adentro. El `Avatar`
+       dibuja su aro con un `after` que cubre todo el cuadrado, y un pseudo
+       elemento encima se come el puntero: el tooltip colgado del glifo no se
+       abría nunca. Y de paso es lo correcto: lo que uno apunta es el plato. */
+    <Tooltip content={rotulo}>
+      <Avatar
+        aria-label={rotulo}
+        className={cn(shape.item, "after:rounded-[inherit]")}
+      >
+        <AvatarFallback className="rounded-[inherit]">
+          <Glifo size={15} strokeWidth={1.5} aria-hidden />
+        </AvatarFallback>
+      </Avatar>
+    </Tooltip>
+  );
+}
+
 const COLUMNAS = [
   { id: "name", ancho: "40%" },
   { id: "status", ancho: "20%" },
@@ -572,7 +626,6 @@ function Pantalla() {
      un estado local no le llegaría —ver `usuarios.ts`—. */
   const usuarios = useUsuarios();
   const escala = useTypeScale();
-  const shape = useShape();
   /* Lo que mide la cabecera, para que el scroller reserve ese alto arriba: la
      cabecera flota encima, así que sin la reserva las primeras filas nacerían
      tapadas. Medido y no una constante, porque el alto sale del escalón de
@@ -776,27 +829,12 @@ function Pantalla() {
                   <TableRow key={usuario.id} index={i}>
                     <TableCell className="text-foreground">
                       <div className="flex items-center gap-2.5">
-                        {/* El escalón normal del avatar —32px— y no el chico:
-                            es lo que mide la celda de dos líneas que tiene al
-                            lado. El radio sale del sistema de figuras en vez de
-                            ser redondo: `after` y el fallback lo heredan, así
-                            que el aro y el plato siguen la misma esquina. */}
-                        <Avatar
-                          className={cn(shape.item, "after:rounded-[inherit]")}
-                        >
-                          {/* Las iniciales bajan al escalón del texto de la
-                              fila. El `text-sm` que trae el componente para
-                              este tamaño de plato pesa más que el nombre que
-                              tiene al lado, y las iniciales terminan leyéndose
-                              como una insignia en vez de como parte de la
-                              fila. */}
-                          <AvatarFallback
-                            className="rounded-[inherit]"
-                            style={{ fontSize: escala.body }}
-                          >
-                            {iniciales(usuario.name)}
-                          </AvatarFallback>
-                        </Avatar>
+                        {/* El plato dice de qué tipo es la cuenta, no sus
+                            iniciales: ver `TipoDeCuenta`. Sigue en el escalón
+                            normal —32px—, que es lo que mide la celda de dos
+                            líneas que tiene al lado, y con el radio del sistema
+                            de figuras. */}
+                        <TipoDeCuenta usuario={usuario} />
                         <span className="flex min-w-0 flex-col leading-tight">
                           {/* El nombre hace las dos cosas: el hover lo mira,
                               el clic lo abre. El subrayado aparece con el
