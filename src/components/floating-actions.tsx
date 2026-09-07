@@ -249,16 +249,43 @@ export function FloatingActions({
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 8 }}
-              transition={{ duration: 0.1, layout: spring.fast }}
+              /* La fila, el campo y cada botón se mueven con el **mismo**
+                 escalón. Estaban en dos —`fast` para los botones, `moderate`
+                 para la caja— y son partes de un mismo movimiento: con dos
+                 tiempos, el borde del botón llegaba a destino y el resto seguía
+                 viajando, que es lo que se leía como un tirón.
+
+                 `moderate` y no `fast`: ochenta milisegundos para setenta
+                 píxeles de ancho no es rápido, es un salto —no hay recorrido que
+                 el ojo pueda seguir—. Ciento sesenta es el tiempo con el que
+                 esta app mueve lo que cambia de tamaño. */
+              transition={{ duration: 0.1, layout: spring.moderate }}
               className="flex items-center gap-2"
             >
               {/* El campo. Se lleva el ancho que sobra —es lo único que crece— y
-                  los botones se quedan con el suyo. */}
+                  los botones se quedan con el suyo.
+
+                  **El alto es fijo y no sale del contenido.** Sin `h-11`, la
+                  pastilla medía lo que midiera lo de adentro: veintiocho píxeles
+                  vacía y treinta y seis en cuanto aparecía el botón de mandar,
+                  así que crecía al escribir la primera letra y se encogía al
+                  borrar la última. Un campo que cambia de alto mientras uno
+                  escribe mueve la conversación que hay detrás por una razón que
+                  no tiene nada que ver con ella.
+
+                  Y es el mismo `h-11` de los botones: son cuatro objetos de una
+                  misma fila y lo que los alinea es medir igual, no acomodarlos
+                  cada uno por su lado. */}
+              <motion.div
+                layout
+                transition={{ layout: spring.moderate }}
+                className="flex h-11 min-w-0 flex-1"
+              >
               <Elevated
                 offset={2}
                 shadowLevel={4}
                 className={cn(
-                  "flex min-w-0 flex-1 items-center gap-1 rounded-full py-1 pr-1 pl-4",
+                  "flex h-11 min-w-0 flex-1 items-center gap-1 rounded-full py-0 pr-1.5 pl-4",
                 )}
               >
                 <input
@@ -300,7 +327,7 @@ export function FloatingActions({
                       exit={{ opacity: 0, scale: 0.8 }}
                       transition={spring.fast}
                       className={cn(
-                        "flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full",
+                        "flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full",
                         "text-muted-foreground transition-colors duration-80 outline-none",
                         "hover:bg-hover hover:text-foreground",
                         "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
@@ -311,64 +338,81 @@ export function FloatingActions({
                   )}
                 </AnimatePresence>
               </Elevated>
+              </motion.div>
 
               {botones.map((a) => {
                 const Icono = a.icon;
                 const abierto = encima === a.label && !a.disabled;
                 return (
-                  <Elevated
+                  <motion.div
                     key={a.label}
-                    offset={2}
-                    shadowLevel={4}
-                    className="shrink-0 rounded-full"
+                    layout
+                    transition={{ layout: spring.moderate }}
+                    className="shrink-0"
                   >
-                    <motion.button
-                      layout
-                      type="button"
-                      aria-label={a.label}
-                      disabled={a.disabled}
-                      onClick={a.onSelect}
-                      onHoverStart={() => setEncima(a.label)}
-                      onHoverEnd={() =>
-                        setEncima((v) => (v === a.label ? null : v))
-                      }
-                      onFocus={() => setEncima(a.label)}
-                      onBlur={() => setEncima((v) => (v === a.label ? null : v))}
-                      transition={{ layout: spring.fast }}
-                      className={cn(
-                        "flex h-9 cursor-pointer items-center gap-1.5 rounded-full",
-                        /* El mismo aire de los dos lados cuando es un círculo,
-                           así el ícono queda centrado; al abrirse, el rótulo
-                           empuja el borde derecho. */
-                        "px-[10px]",
-                        "text-muted-foreground transition-colors duration-80 outline-none",
-                        "hover:bg-hover hover:text-foreground",
-                        "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
-                        "disabled:pointer-events-none disabled:opacity-40",
-                      )}
-                    >
-                      <Icono size={16} strokeWidth={1.5} className="shrink-0" />
-
-                      {/* El rótulo entra creciendo desde cero. `width: auto` en
-                          el destino es lo que deja que el resorte lo lleve hasta
-                          lo que mida el texto sin tener que medirlo antes. */}
-                      <AnimatePresence initial={false}>
-                        {abierto && (
-                          <motion.span
-                            key="rotulo"
-                            initial={{ opacity: 0, width: 0 }}
-                            animate={{ opacity: 1, width: "auto" }}
-                            exit={{ opacity: 0, width: 0 }}
-                            transition={spring.fast}
-                            className="overflow-hidden whitespace-nowrap"
-                            style={{ fontSize: escala.caption }}
-                          >
-                            {a.label}
-                          </motion.span>
+                    <Elevated offset={2} shadowLevel={4} className="rounded-full">
+                      <motion.button
+                        layout
+                        type="button"
+                        aria-label={a.label}
+                        disabled={a.disabled}
+                        onClick={a.onSelect}
+                        onHoverStart={() => setEncima(a.label)}
+                        onHoverEnd={() =>
+                          setEncima((v) => (v === a.label ? null : v))
+                        }
+                        onFocus={() => setEncima(a.label)}
+                        onBlur={() => setEncima((v) => (v === a.label ? null : v))}
+                        transition={{ layout: spring.moderate }}
+                        className={cn(
+                          "relative flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-full",
+                          /* Cerrado es un cuadrado de cuarenta y cuatro, y eso
+                             sale de `min-w-11` y no de un padding elegido para
+                             que la cuenta dé: el ancho mínimo **es** el alto, así
+                             que el círculo sigue siendo círculo el día que el
+                             ícono cambie de tamaño. Al abrirse, el rótulo pasa el
+                             mínimo y empuja el borde derecho. */
+                          "min-w-11 px-3",
+                          "text-muted-foreground transition-colors duration-80 outline-none",
+                          "hover:bg-hover hover:text-foreground",
+                          "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
+                          "disabled:pointer-events-none disabled:opacity-40",
                         )}
-                      </AnimatePresence>
-                    </motion.button>
-                  </Elevated>
+                      >
+                        <Icono size={17} strokeWidth={1.5} className="shrink-0" />
+
+                        {/* El rótulo sólo se desvanece; **la geometría es del
+                            `layout`**.
+
+                            Antes animaba su propio `width` de cero a `auto` y
+                            además el botón tenía `layout`: dos sistemas moviendo
+                            la misma caja, cada uno con su idea de dónde está el
+                            borde. Eso es lo que se sentía tironeado. Con el
+                            ancho en manos de la proyección de `layout` hay un
+                            solo dueño, y el rótulo se ocupa nada más de aparecer.
+
+                            `popLayout` para que al salir se retire del flujo en
+                            el acto: si esperara a terminar de desvanecerse, el
+                            botón se quedaría ancho todo ese rato y recién
+                            después se encogería de golpe. */}
+                        <AnimatePresence initial={false} mode="popLayout">
+                          {abierto && (
+                            <motion.span
+                              key="rotulo"
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              exit={{ opacity: 0 }}
+                              transition={{ duration: 0.1 }}
+                              className="whitespace-nowrap"
+                              style={{ fontSize: escala.caption }}
+                            >
+                              {a.label}
+                            </motion.span>
+                          )}
+                        </AnimatePresence>
+                      </motion.button>
+                    </Elevated>
+                  </motion.div>
                 );
               })}
             </motion.div>
