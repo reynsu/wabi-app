@@ -619,16 +619,7 @@ const carpetaEncima = {
  * botón: un reporte que se está armando todavía no tiene archivo y uno que falló
  * no lo va a tener, y la insignia ya lo explica.
  */
-function BaldosaDeArchivo({
-  reporte,
-  /** El mes al que pertenece, sólo cuando la grilla está mostrando lo encontrado
-   *  y no una carpeta. Ver `GrillaDeReportes`: sin carpeta alrededor, "Jul 10 –
-   *  Jul 17" no dice de qué año es ni de dónde salió. */
-  carpeta,
-}: {
-  reporte: Reporte;
-  carpeta?: string;
-}) {
+function BaldosaDeArchivo({ reporte }: { reporte: Reporte }) {
   const escala = useTypeScale();
   const estado = ESTADOS_DE_REPORTE[reporte.estado];
   const hayQueDecirlo = reporte.estado !== "completed";
@@ -674,12 +665,6 @@ function BaldosaDeArchivo({
         style={{ fontSize: escala.caption, lineHeight: 1.35 }}
       >
         {diaCorto(reporte.desde)} &ndash; {diaCorto(reporte.hasta)}
-        {carpeta && (
-          <>
-            <br />
-            <span className="text-muted-foreground">{carpeta}</span>
-          </>
-        )}
       </span>
     </>
   );
@@ -778,32 +763,19 @@ function BaldosaDeMes({ mes, onAbrir }: { mes: MesDeReportes; onAbrir: () => voi
 /**
  * La grilla: carpetas, o los archivos de una.
  *
- * **Cuando hay algo buscado, no hay carpetas.** Lo encontrado se muestra plano,
- * como hace cualquier explorador con los resultados de una búsqueda, y por una
- * razón medida: buscando "Jul 10" la pantalla decía "2 reports" y dibujaba una
- * carpeta cerrada. Hacer entrar a una carpeta para ver lo que la búsqueda ya
- * encontró deshace la búsqueda.
- *
- * Sin carpeta alrededor, la baldosa se queda sin el año —que era la carpeta la
- * que lo decía—, así que en ese modo cada una escribe abajo de qué mes salió.
- * Es lo mismo que hace un explorador cuando muestra resultados de varias
- * carpetas, y de paso contesta la pregunta que uno hace al ver un resultado:
- * dónde estaba.
+ * **Con algo buscado esta vista no se dibuja**: la pantalla pasa a la lista. Ver
+ * `Pantalla`. Acá adentro eso quiere decir que las carpetas son siempre
+ * carpetas: no hay un modo de resultados planos que mantener, ni una baldosa que
+ * tenga que explicar de qué mes salió porque no tiene carpeta alrededor.
  */
-function GrillaDeReportes({
-  meses,
-  buscando,
-}: {
-  meses: MesDeReportes[];
-  buscando: boolean;
-}) {
+function GrillaDeReportes({ meses }: { meses: MesDeReportes[] }) {
   const escala = useTypeScale();
   const medidas = useSize();
   /* La clave del mes abierto, o nada si se está en la raíz. Se guarda aunque
      haya una búsqueda puesta: al borrarla, se vuelve a la carpeta que se estaba
      mirando en vez de a la raíz. */
   const [adentro, setAdentro] = useState<string | null>(null);
-  const mes = buscando ? undefined : meses.find((m) => m.clave === adentro);
+  const mes = meses.find((m) => m.clave === adentro);
 
   return (
     <ScrollArea className="h-full" viewportClassName="scroll-fade">
@@ -842,31 +814,23 @@ function GrillaDeReportes({
             ella, entrar a una carpeta cambiaría el contenido de las baldosas sin
             que ninguna llegue. */}
         <motion.div
-          key={buscando ? "buscado" : (adentro ?? "raiz")}
+          key={adentro ?? "raiz"}
           variants={cascadaBaldosas}
           initial="oculto"
           animate="visible"
           className={BALDOSAS}
         >
-          {buscando
-            ? meses.flatMap((m) =>
-                m.reportes.map((r) => (
-                  <motion.div key={r.id} variants={entraBaldosa}>
-                    <BaldosaDeArchivo reporte={r} carpeta={m.nombre} />
-                  </motion.div>
-                )),
-              )
-            : mes
-              ? mes.reportes.map((r) => (
-                  <motion.div key={r.id} variants={entraBaldosa}>
-                    <BaldosaDeArchivo reporte={r} />
-                  </motion.div>
-                ))
-              : meses.map((m) => (
-                  <motion.div key={m.clave} variants={entraBaldosa}>
-                    <BaldosaDeMes mes={m} onAbrir={() => setAdentro(m.clave)} />
-                  </motion.div>
-                ))}
+          {mes
+            ? mes.reportes.map((r) => (
+                <motion.div key={r.id} variants={entraBaldosa}>
+                  <BaldosaDeArchivo reporte={r} />
+                </motion.div>
+              ))
+            : meses.map((m) => (
+                <motion.div key={m.clave} variants={entraBaldosa}>
+                  <BaldosaDeMes mes={m} onAbrir={() => setAdentro(m.clave)} />
+                </motion.div>
+              ))}
         </motion.div>
       </div>
     </ScrollArea>
@@ -947,6 +911,26 @@ function Pantalla() {
     busqueda.trim().length > 0 ||
     Object.values(filtros).some((valores) => valores.length > 0);
 
+  /**
+   * Con algo buscado, lo encontrado va en lista.
+   *
+   * Buscar y agrupar por carpetas son dos maneras de achicar la misma pila y no
+   * se llevan bien: lo que la búsqueda encuentra está repartido entre meses, y
+   * la grilla sólo sabe mostrar el contenido de **una** carpeta por vez. Se
+   * probó la alternativa —mostrar lo encontrado plano, con el mes escrito debajo
+   * de cada baldosa— y lo que se ve es una lista dibujada con baldosas: cinco
+   * archivos ocupando el alto de una pantalla para decir menos de lo que dice un
+   * renglón, sin la ventana entera, sin el estado y sin de cuándo es.
+   *
+   * Así que la lista es la que contesta, y es su trabajo: una tira de resultados
+   * comparables, con sus columnas. Las carpetas vuelven cuando se borra lo
+   * buscado —la elección de la persona no se pierde, sólo se suspende—.
+   *
+   * Se deriva y no se guarda: si esto escribiera `vista`, borrar la búsqueda
+   * dejaría a la persona en lista sin que ella la haya elegido nunca.
+   */
+  const vistaEfectiva: Vista = hayBusqueda ? "lista" : vista;
+
   const GRUPOS = useMemo(() => grupos(todos), [todos]);
 
   return (
@@ -1008,7 +992,7 @@ function Pantalla() {
               leerse de un vistazo. El nombre sigue estando, en el
               `aria-label`. */}
           <Segmentado
-            valor={vista}
+            valor={vistaEfectiva}
             onElegir={setVista}
             rotuloOculto
             opciones={[
@@ -1021,6 +1005,14 @@ function Pantalla() {
                 value: "grilla",
                 label: "Grid view",
                 icon: <LayoutGrid size={medidas.icon} strokeWidth={1.5} />,
+                /* Apagado mientras haya algo buscado, en vez de dejarlo tocar
+                   para nada: la búsqueda manda la vista —ver `vistaEfectiva`— y
+                   un botón que se puede apretar y no cambia nada es peor que uno
+                   apagado que dice por qué. */
+                disabled: hayBusqueda,
+                motivo: hayBusqueda
+                  ? "Search results come as a list"
+                  : undefined,
               },
             ]}
           />
@@ -1047,8 +1039,8 @@ function Pantalla() {
         </AnimatedEmpty>
       ) : (
         <motion.div variants={entraTabla} className="min-h-0 flex-1">
-          {vista === "grilla" ? (
-            <GrillaDeReportes meses={meses} buscando={hayBusqueda} />
+          {vistaEfectiva === "grilla" ? (
+            <GrillaDeReportes meses={meses} />
           ) : (
           <ScrollArea className="h-full" viewportClassName="scroll-fade">
             <div className="flex flex-col px-6 pb-6" role="list">

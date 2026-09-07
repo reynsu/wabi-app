@@ -70,7 +70,16 @@ export function Segmentado<T extends string>({
   className,
 }: {
   valor: T;
-  opciones: { value: T; label: string; icon?: ReactNode; tinte?: string }[];
+  opciones: {
+    value: T;
+    label: string;
+    icon?: ReactNode;
+    tinte?: string;
+    /** Apagada, con el porqué. La razón va en `motivo` y sale como `title`: un
+     *  control que no se puede tocar y no dice por qué se lee como algo roto. */
+    disabled?: boolean;
+    motivo?: string;
+  }[];
   onElegir: (v: T) => void;
   rotuloOculto?: boolean;
   className?: string;
@@ -90,10 +99,13 @@ export function Segmentado<T extends string>({
             key={o.value}
             type="button"
             onClick={() => onElegir(o.value)}
+            disabled={o.disabled}
+            title={o.motivo}
             aria-label={rotuloOculto ? o.label : undefined}
             aria-pressed={rotuloOculto ? puesta : undefined}
             className={cn(
-              "inline-flex cursor-pointer items-center justify-center gap-1 rounded-lg transition-colors duration-80",
+              "inline-flex items-center justify-center gap-1 rounded-lg transition-colors duration-80",
+              o.disabled ? "cursor-default opacity-40" : "cursor-pointer",
               /* Sin rótulo la opción es un cuadrado fijo y no una porción del
                  ancho: `size-6` más el `p-0.5` del control dan veintiocho, que
                  es el alto de un botón compacto —el de "Filters", que suele
