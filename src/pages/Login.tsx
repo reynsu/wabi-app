@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import marca from "@/assets/logo-kiwi-reversed.png";
 import { LoginBlock, useSystemScheme } from "@/components/login-block";
 import { useTema } from "@/stores/tema";
 import { entrar } from "@/stores/sesion";
@@ -39,14 +40,30 @@ export function Login() {
       className="h-screen"
       title={TITULO}
       description={DESCRIPCION}
-      /* El mismo cuadrado con la W del header del sidebar, para que la marca de
-         la puerta y la de adentro sean la misma. Sobre el plano oscuro va en
-         blanco: la tinta de ese plano no depende del tema —los dos tonos del
-         plano son oscuros— y por eso no lleva `dark:`. */
+      /* La marca, en su versión clara.
+       *
+       * **Una sola y sin `dark:`**, porque el plano de la izquierda es oscuro en
+       * los dos temas —el bloque lo dice de sí mismo: "a dark surface in both
+       * themes"—. Poner la versión oscura detrás de un `dark:` sería preparar un
+       * caso que no ocurre, y el día que alguien lo mirara no sabría si el
+       * pintado está mal o la condición.
+       *
+       * `h-7` mide la tinta y no el archivo: el PNG viene recortado a su
+       * contorno, así que veintiocho píxeles de alto son veintiocho píxeles de
+       * letras. El `w-auto` deja que el ancho salga de la proporción en vez de
+       * escribirlo dos veces.
+       *
+       * Con `alt` vacío y `aria-hidden`: el nombre de la casa ya está en el
+       * título que va debajo, y un lector de pantalla que lo diga dos veces no
+       * agrega nada. */
       logo={
-        <span className="flex size-8 items-center justify-center rounded-lg bg-white/95 text-[15px] font-semibold text-neutral-900">
-          W
-        </span>
+        <img
+          src={marca}
+          alt=""
+          aria-hidden
+          className="h-7 w-auto select-none"
+          draggable={false}
+        />
       }
       error={error}
       pending={entrando}
