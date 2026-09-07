@@ -259,6 +259,23 @@ function WidgetRail({
   }, [arrastrando, onResizingChange]);
 
   /**
+   * Whether the rail is the one that folded the sidebar.
+   *
+   * It's borrowed room, and what's borrowed gets given back — see the two
+   * effects below. Without this flag the rail couldn't tell its own doing from
+   * the person's: someone who works with the sidebar folded and opens a preview
+   * would get it pushed open at them when they close it, which is the same
+   * mistake in the other direction.
+   */
+  const cedioLaSidebar = useRef(false);
+
+  /* And the moment they open it themselves, there's nothing left to give back.
+     From here on the sidebar is where they put it. */
+  useEffect(() => {
+    if (open) cedioLaSidebar.current = false;
+  }, [open]);
+
+  /**
    * The preview asks for more width, and if there's nowhere to take it from the
    * sidebar gives way.
    *
@@ -266,15 +283,52 @@ function WidgetRail({
    * same reason: between navigating and reading, reading first. Without this,
    * on a screen where the panel is already at its 55% the preview opens exactly
    * as wide as the board and the widening is never seen.
-   *
-   * There's no automatic return: the sidebar comes back when the person opens
-   * it. Giving it back on its own when the preview closes would move their
-   * navigation twice for something they asked for once.
    */
   useEffect(() => {
     if (!preview || !open || tope === null) return;
-    if (pedido + PREVIEW_EXTRA > tope) setOpen(false);
+    if (pedido + PREVIEW_EXTRA > tope) {
+      cedioLaSidebar.current = true;
+      setOpen(false);
+    }
   }, [preview, open, tope, pedido, setOpen]);
+
+  /**
+   * And when the preview goes, the sidebar comes back.
+   *
+   * It used to stay folded, with the argument that giving it back on its own
+   * would move their navigation twice for something they asked for once. The
+   * argument reads well and doesn't survive using it: what they asked for once
+   * was **to read this**, and the sidebar folding was the price of that, not a
+   * decision about their navigation. Charging that price after the reading is
+   * over leaves the person having to remember what the app took and put it back
+   * by hand — and having to notice it was taken at all, which on a fold that
+   * happens while their eyes are on the preview is not a given.
+   *
+   * Only when the rail was the one that folded it: see `cedioLaSidebar`.
+   */
+  useEffect(() => {
+    if (preview || !cedioLaSidebar.current) return;
+    cedioLaSidebar.current = false;
+    setOpen(true);
+  }, [preview, setOpen]);
+
+  /* The same, for the rail leaving altogether — closing the board with a
+     preview still in it, or moving to a tab that has neither. The rail unmounts
+     there, so the return has to ride on the cleanup, and it has to be an
+     unmount-only cleanup: hung on `setOpen` it would fire every time that
+     identity changed, opening the sidebar in the middle of the rail's life.
+     Hence the ref. */
+  const abrirLaSidebar = useRef(setOpen);
+  useEffect(() => {
+    abrirLaSidebar.current = setOpen;
+  }, [setOpen]);
+
+  useEffect(
+    () => () => {
+      if (cedioLaSidebar.current) abrirLaSidebar.current(true);
+    },
+    [],
+  );
 
   /**
    * The drag.
@@ -350,6 +404,7 @@ function WidgetRail({
         // what it freed up and the drag carries on in the same movement,
         // without waiting for the transition.
         openRef.current = false;
+        cedioLaSidebar.current = true;
         setOpen(false);
         reparto += cede;
       }
@@ -390,6 +445,7 @@ function WidgetRail({
       const pide = pedido + delta;
       if (tope !== null && pide > tope && openRef.current) {
         openRef.current = false;
+        cedioLaSidebar.current = true;
         setOpen(false);
       }
       setPedido(clamp(pide, MIN, MAX));
