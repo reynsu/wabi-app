@@ -726,7 +726,6 @@ export function FileViewer({
   acciones?: ReactNode;
 }) {
   const escala = useTypeScale();
-  const medidas = useSize();
   const clase = claseDeArchivo(archivo.nombre);
   const Glifo = GLIFOS[clase];
 
@@ -767,11 +766,19 @@ export function FileViewer({
       {/* La cabecera. El mismo aire lateral que el header de una pantalla, para
           que el archivo empiece donde empiezan las cosas de esta app. */}
       <header className="flex shrink-0 items-center gap-3 px-6 py-4">
-        <Glifo
-          size={medidas.icon}
-          strokeWidth={1.5}
-          className="shrink-0 text-muted-foreground"
-        />
+        {/* Veinticuatro, y no el `icon` del escalón —catorce—. Ése es el
+            tamaño de un ícono de **control**, y esto no lo es: es la marca del
+            archivo que se está mirando, al lado del bloque que lo nombra.
+            Medido, ese bloque mide cuarenta y un píxeles de alto —el nombre a
+            quince y la línea de conteos a once—, así que a catorce el glifo era
+            un tercio de lo que rotula y se leía como una viñeta.
+            
+            Veinticuatro y no más: en la grilla de Email Reports el glifo va a
+            cuarenta porque ahí **es** el objeto y no hay texto que lo acompañe;
+            acá acompaña a un nombre, y pasarlo de largo lo pondría a competir
+            con él. El trazo se queda en 1.5, que es el de los íconos de esta
+            app: recién a cuarenta hizo falta bajarlo. */}
+        <Glifo size={24} strokeWidth={1.5} className="shrink-0 text-muted-foreground" />
 
         <div className="flex min-w-0 flex-col gap-0.5">
           <h1
