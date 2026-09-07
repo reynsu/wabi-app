@@ -340,6 +340,24 @@ export function FloatingActions({
               </Elevated>
               </motion.div>
 
+              {/* Los tres, adentro de un mismo grupo.
+                  
+                  **Apagar el rótulo es del grupo y no de cada botón.** Lo era de
+                  cada uno, y cruzar de un botón al de al lado pasaba por los ocho
+                  píxeles de aire que los separan: ahí no hay ninguno encima, así
+                  que el rótulo abierto se cerraba, el botón se encogía, y recién
+                  entonces empezaba a abrirse el siguiente. Dos movimientos de ida
+                  y vuelta para lo que la mano vivió como un solo gesto.
+                  
+                  Con el apagado en el grupo, ese aire ya no es "afuera": el
+                  rótulo se queda puesto hasta que otro botón lo reclama, y lo que
+                  se ve es un relevo. Sólo salir del grupo entero lo apaga. */}
+              <motion.div
+                layout
+                onHoverEnd={() => setEncima(null)}
+                transition={{ layout: spring.moderate }}
+                className="flex shrink-0 items-center gap-2"
+              >
               {botones.map((a) => {
                 const Icono = a.icon;
                 const abierto = encima === a.label && !a.disabled;
@@ -358,9 +376,6 @@ export function FloatingActions({
                         disabled={a.disabled}
                         onClick={a.onSelect}
                         onHoverStart={() => setEncima(a.label)}
-                        onHoverEnd={() =>
-                          setEncima((v) => (v === a.label ? null : v))
-                        }
                         onFocus={() => setEncima(a.label)}
                         onBlur={() => setEncima((v) => (v === a.label ? null : v))}
                         transition={{ layout: spring.moderate }}
@@ -412,10 +427,38 @@ export function FloatingActions({
                           {abierto && (
                             <motion.span
                               key="rotulo"
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: 1 }}
-                              exit={{ opacity: 0 }}
-                              transition={{ duration: 0.1 }}
+                              /* Entra **detrás** de la caja y no con ella.
+                              
+                                 Estaba en cien milisegundos planos contra los
+                                 ciento sesenta que tarda el ancho: el texto
+                                 llegaba a opacidad uno cuando el botón todavía
+                                 se estaba abriendo, así que se lo veía apretado
+                                 contra el borde y después el borde se corría. La
+                                 espera de cincuenta lo hace aparecer sobre un
+                                 lugar que ya existe, y los ciento sesenta lo
+                                 dejan terminar junto con la caja.
+                              
+                                 Y sale más rápido de lo que entra —setenta— para
+                                 que el encogimiento no arranque con el texto
+                                 todavía visible: irse es lo que uno ya decidió,
+                                 aparecer es lo que hay que dejar leer.
+                              
+                                 Los cuatro píxeles de corrimiento son de dónde
+                                 viene: el rótulo sale de atrás del ícono, que es
+                                 lo que uno estaba mirando. No mueven la caja
+                                 —son una transformación del hijo— así que el
+                                 ancho sigue siendo del `layout`. */
+                              initial={{ opacity: 0, x: -4 }}
+                              animate={{
+                                opacity: 1,
+                                x: 0,
+                                transition: { duration: 0.16, delay: 0.05 },
+                              }}
+                              exit={{
+                                opacity: 0,
+                                x: -4,
+                                transition: { duration: 0.07 },
+                              }}
                               className="whitespace-nowrap"
                               style={{ fontSize: escala.caption }}
                             >
@@ -428,6 +471,7 @@ export function FloatingActions({
                   </motion.div>
                 );
               })}
+              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
