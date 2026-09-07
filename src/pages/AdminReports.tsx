@@ -46,6 +46,7 @@ import { SizeProvider, useTypeScale } from "@/lib/size-context";
 import { spring } from "@/lib/springs";
 import { cn } from "@/lib/utils";
 import { useCuentasDOC, type CuentaDOC } from "@/pages/cuentas-doc";
+import { GLIFOS, claseDeArchivo } from "@/lib/archivos";
 import { useBajadaDOC } from "@/pages/bajar-reporte-doc";
 import { useWorkspace } from "@/stores/workspace";
 import { tabDeReporteDOC } from "@/pages/reporte-doc-tab";
@@ -56,6 +57,7 @@ import {
   ORDEN_TIPOS_DOC,
   TIPOS_DE_REPORTE_DOC,
   quienPidio,
+  archivoDeReporteDOC,
   sePuedeBajar,
   tramoDePedido,
   useReportesDOC,
@@ -292,9 +294,19 @@ function pasa(
    no muestra un dato sino un botón, y un botón mide lo que mide en cualquier
    ancho de ventana. Son los 28 del botón más la sangría del borde. */
 const COLUMNAS = [
-  { id: "name", ancho: "38%" },
+  /* El nombre se lleva cuatro puntos más desde que la celda lleva el glifo del
+     archivo adelante: con los mismos treinta y ocho, los nombres largos
+     —"Communication Volume Report — 08/26/2026"— pasaban a cortarse.
+     
+     Los cuatro salen del estado y no del tipo. Se probaron las dos: sacándoselos
+     al tipo, once de veinticinco filas pasaban a mostrar "Communication Volume
+     R…", y aunque la frase entera está en el nombre de al lado, once celdas
+     cortadas se leen como una columna que no entra. El estado, en cambio, lleva
+     una pastilla de una palabra —la más larga es "Processing"— y le sobraba
+     lugar. */
+  { id: "name", ancho: "42%" },
   { id: "type", ancho: "26%" },
-  { id: "status", ancho: "21%" },
+  { id: "status", ancho: "17%" },
   { id: "requested", ancho: "15%" },
   { id: "acciones", ancho: "60px" },
 ];
@@ -314,6 +326,28 @@ function Columnas() {
  *  página distintos harían que el pager cambie de significado al cambiar de
  *  sección. */
 const POR_PAGINA = 40;
+
+/** De qué clase es el archivo de un pedido, en un glifo.
+ *
+ *  El hueco se reserva aunque no haya glifo: lo que no está listo no tiene
+ *  archivo, y sin la reserva los nombres de esas filas arrancarían veinte
+ *  píxeles a la izquierda de los otros. */
+function GlifoDelArchivo({ reporte }: { reporte: ReporteDOC }) {
+  const Glifo = GLIFOS[claseDeArchivo(archivoDeReporteDOC(reporte))];
+
+  return (
+    <span className="flex w-4 shrink-0 justify-center">
+      {sePuedeBajar(reporte) && (
+        <Glifo
+          size={14}
+          strokeWidth={1.5}
+          aria-hidden
+          className="text-muted-foreground"
+        />
+      )}
+    </span>
+  );
+}
 
 function BajarReporte({ reporte }: { reporte: ReporteDOC }) {
   const { bajando, alTocar } = useBajadaDOC(reporte);
@@ -548,7 +582,34 @@ function Pantalla({ tabId }: { tabId?: string }) {
                           no el renglón; y con la misma raya punteada, que es
                           como esta app escribe "esto abre algo". */}
                       <TableCell className="text-foreground">
-                        <motion.span variants={entraCelda} className="block">
+                        <motion.span
+                          variants={entraCelda}
+                          className="flex min-w-0 items-center gap-2"
+                        >
+                          {/* El glifo del archivo, antes del nombre.
+                          
+                              Es lo que hacía falta para que la fila se lea como
+                              un archivo. Sin él, el nombre es texto: la raya
+                              punteada que dice "esto abre algo" recién aparece
+                              con el puntero encima, así que quien mira la tabla
+                              quieta no tiene manera de saber que hay algo para
+                              abrir. En la grilla de Email Reports eso lo dice la
+                              baldosa —un dibujo de archivo, del tamaño de un
+                              archivo— y acá no lo decía nadie.
+                          
+                              Y de paso dice **de qué clase** es, que es la otra
+                              cosa que la tabla no mostraba: la planilla lleva su
+                              cuadrícula y el documento sus líneas de texto. Sale
+                              de `GLIFOS` contra el nombre del archivo, el mismo
+                              lugar del que lo sacan la solapa y la cabecera del
+                              visor, así que los tres no pueden discrepar.
+                          
+                              El hueco se reserva aunque no haya glifo: lo que no
+                              está listo no tiene archivo, y sin la reserva los
+                              nombres de esas tres filas arrancarían veinte
+                              píxeles a la izquierda de los otros veintidós. */}
+                          <GlifoDelArchivo reporte={reporte} />
+
                           {sePuedeBajar(reporte) ? (
                             <button
                               type="button"
@@ -563,7 +624,7 @@ function Pantalla({ tabId }: { tabId?: string }) {
                               {reporte.nombre}
                             </button>
                           ) : (
-                            <span className="block truncate" title={reporte.nombre}>
+                            <span className="min-w-0 truncate" title={reporte.nombre}>
                               {reporte.nombre}
                             </span>
                           )}
