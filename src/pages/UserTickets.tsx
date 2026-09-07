@@ -597,7 +597,7 @@ function Chat({ ticket }: { ticket: Ticket }) {
           `Save ticket` todavía no guarda nada: no hay backend detrás y no hay
           nada editable en la ficha. Está por lo mismo que `Save user` en el
           menú del header — la fila dice que va a existir, y cuando exista lo
-          que falta es lo de atrás, no el botón. Las otras tres funcionan. */}
+          que falta es lo de atrás, no el botón. Lo demás funciona. */}
       <FloatingActions
         actions={[
           { label: "Save ticket", icon: Save, onSelect: () => {} },
@@ -621,13 +621,15 @@ function Chat({ ticket }: { ticket: Ticket }) {
           content: <Historia ticket={ticket} completa />,
         }}
         /* Un ticket cerrado no recibe respuestas: contestarle sería dejar un
-           mensaje en algo que ya nadie mira. La celda queda apagada, y al lado
-           está *Reopen ticket*, que es lo que hay que hacer primero — no hace
-           falta explicar por qué está apagado cuando la salida está pegada. */
+           mensaje en algo que ya nadie mira. El campo queda apagado y lo dice en
+           su lugar, en vez de seguir invitando a escribir; al lado está *Reopen
+           ticket*, que es lo que hay que hacer primero — no hace falta explicar
+           por qué está apagado cuando la salida está pegada. */
         compose={{
-          label: "Reply",
+          label: `Reply to ${ticket.referencia}`,
           icon: Reply,
           placeholder: `Reply to ${ticket.referencia}…`,
+          placeholderApagado: "This ticket is closed",
           onSend: (texto) => responder(ticket.id, texto),
           disabled: cerrado,
         }}
