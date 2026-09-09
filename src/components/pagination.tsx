@@ -115,6 +115,18 @@ const fadeVariants = {
  */
 const roll = spring.slow;
 
+/* Pasar de página suena a papel.
+ *
+ * `page` —un golpe de hoja con un tick de vidrio— es la señal que `cuelume`
+ * hizo exactamente para esto, y le gana al knock genérico que trae cualquier
+ * `Button`: acá no se apretó un botón, se dio vuelta algo. Las dos flechas
+ * comparten la señal porque comparten el acto; que la dirección sea distinta no
+ * la vuelve otra cosa.
+ *
+ * En el `pointerdown` como todo lo demás en esta app —ver `stores/sonido.ts`—.
+ * Se esparce después de las props del botón, así que gana sobre el default. */
+const SEÑAL_DE_PAGINA = { "data-cuelume-press": "page" };
+
 /* ── Types ─────────────────────────────────────────────────────────────── */
 
 /** What this render draws with. It's kept whole and not as four states because
@@ -288,6 +300,7 @@ const Pagination = forwardRef<HTMLElement, PaginationProps>(function Pagination(
           )}
           aria-label={previousLabel}
           disabled={page <= 1}
+          {...SEÑAL_DE_PAGINA}
           onClick={() => ir(-1)}
         >
           <flecha.atras />
@@ -355,6 +368,7 @@ const Pagination = forwardRef<HTMLElement, PaginationProps>(function Pagination(
           )}
           aria-label={nextLabel}
           disabled={page >= total}
+          {...SEÑAL_DE_PAGINA}
           onClick={() => ir(1)}
         >
           <flecha.adelante />

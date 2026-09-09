@@ -8,7 +8,7 @@ import {
   useState,
   type RefObject,
 } from "react";
-import { sileo } from "sileo";
+import { sileo } from "@/lib/avisos";
 import { Popover } from "@base-ui/react/popover";
 import { CalendarDays, Check, ChevronDown, IdCard, Search, X } from "lucide-react";
 

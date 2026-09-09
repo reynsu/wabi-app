@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Check, Copy } from "lucide-react";
-import { sileo } from "sileo";
+import { sileo } from "@/lib/avisos";
 
 import { Button } from "@/components/ui/button";
 import { copiarImagen, OMITIR } from "@/lib/copiar-nodo";

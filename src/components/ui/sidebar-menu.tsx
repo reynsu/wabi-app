@@ -989,6 +989,19 @@ const SidebarMenuButton = forwardRef<HTMLButtonElement, SidebarMenuButtonProps>(
         type: template ? undefined : "button",
         "data-sidebar": "menu-button",
         "data-size": size,
+        /* Elegir una sección tickea. `tick` es la señal más corta de las
+           diecisiete y la que `cuelume` reserva para navegación: dice "fuiste a
+           otro lado" sin ponerse en el medio.
+
+           Es la misma señal que antes sonaba al **pasar** por encima de la fila
+           y que se sacó de ahí: pasar el puntero no es pedir nada —el mouse
+           cruza el sidebar yendo a cualquier lugar— y elegir sí. La señal no
+           desapareció, se movió del gesto accidental al deliberado.
+
+           En el `pointerdown` como todo lo demás en esta app: es el instante en
+           que alguien decidió, y no varía con lo que tarde en soltar. Ver
+           `stores/sonido.ts`. */
+        "data-cuelume-press": "tick",
         "data-active": effectiveActive ? "true" : undefined,
         "data-status": status,
         "aria-current": effectiveActive ? "page" : undefined,
@@ -1080,6 +1093,16 @@ const SidebarMenuAction = forwardRef<HTMLButtonElement, SidebarMenuActionProps>(
           event.stopPropagation();
           onClick?.(event);
         },
+        /* El knock de acción, no el `tick` de la fila que tiene al lado.
+           La fila lleva a un lugar; su acción **hace** algo, y en esta app eso
+           suena distinto: la navegación tickea y las acciones golpean. Es el
+           mismo sonido que cualquier `Button`, que es lo que esto es aunque
+           esté dibujado adentro de una fila.
+
+           Suena una sola vez: la acción es hermana de la fila y no su hija, así
+           que el `closest` de `cuelume` no encuentra el `tick` de la fila desde
+           acá. Ver `stores/sonido.ts`. */
+        "data-cuelume-press": "",
         ...props,
         style: { ...({ "--icon-size": `${sizeClasses.icon}px` } as CSSProperties), ...(props.style ?? {}) },
       },

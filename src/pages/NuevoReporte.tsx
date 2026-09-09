@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { sileo } from "sileo";
+import { sileo } from "@/lib/avisos";
 import { Check, FileText } from "lucide-react";
 
 import { AIRE, Campo, Corte } from "@/components/ficha";

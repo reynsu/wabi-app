@@ -670,6 +670,12 @@ function WorkspacePanel({
                   aria-selected={isActive}
                   aria-controls={`${uid}-panel-${tab.id}`}
                   onClick={() => select(tab.id)}
+                  /* La misma señal que una fila del sidebar, y a propósito:
+                     cambiar de pestaña y elegir una sección son el mismo acto a
+                     dos alturas —una elige entre lo que hay, la otra entre lo
+                     que ya está abierto—. Dos sonidos distintos dirían que son
+                     cosas distintas. Ver `stores/sonido.ts`. */
+                  data-cuelume-press="tick"
                   className={cn(
                     "relative inline-flex h-full items-center bg-transparent",
                     "cursor-pointer outline-none",
@@ -703,6 +709,12 @@ function WorkspacePanel({
                     type="button"
                     aria-label={`Close ${tab.label}`}
                     onClick={() => closeTab(tab.id)}
+                    /* `droplet` —una nota sola que cae— es la señal que cuelume
+                       reserva para descartar y cerrar. Cerrar no es elegir: la
+                       pestaña de al lado tickea porque lleva a algún lado, y
+                       ésta saca algo de en medio. Que suenen distinto es el
+                       punto. Ver `stores/sonido.ts`. */
+                    data-cuelume-press="droplet"
                     className={cn(
                       "relative mr-1 inline-flex items-center justify-center",
                       "cursor-pointer rounded-md outline-none",

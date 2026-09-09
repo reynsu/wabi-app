@@ -254,6 +254,36 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       </>
     );
 
+    /* Un botón suena **una vez**, cuando el dedo baja.
+
+       Tuvo las dos mitades —`press` al bajar y `release` al subir, que es como
+       `cuelume` propone armar un gesto físico— y estaba mal. Un botón no se
+       aprieta siempre igual: entre el `pointerdown` y el `pointerup` pasa lo
+       que cada persona tarde en soltar, y eso son 60 ms en un clic rápido y
+       300 en uno distraído. El resultado era que un clic sonaba dos veces, que
+       el último sonido llegaba tan tarde como hubiera durado el apretón, y que
+       **ningún clic sonaba igual al anterior**. Tres síntomas —doble, tarde,
+       inconsistente— de una sola causa.
+
+       Anclado al `pointerdown` no hay nada que variar: es el instante en que
+       alguien decidió, y el sonido llega ahí siempre. El par sigue disponible
+       para un control donde el apretón sea el punto —mantener para acelerar,
+       algo que se suelta—: se agrega `data-cuelume-release` en ese call site.
+
+       Va **antes** de `...props`, así que sigue siendo una opinión por defecto:
+       se pisa con `data-cuelume-press="tick"` para otra señal, o con
+       `{...{ "data-cuelume-press": undefined }}` para ninguna. Ver
+       `stores/sonido.ts`.
+
+       El hover no está a propósito: un tick por cada botón que el puntero cruza
+       de camino a otra cosa es exactamente el ruido que no queremos. En esta
+       app el hover quedó sólo en los menús —ver `menu-item`—: en el sidebar se
+       probó y se sacó, porque una fila que suena al pasarle por encima suena
+       cuando nadie pidió nada. */
+    const señales = {
+      "data-cuelume-press": "",
+    };
+
     const rootClassName = cn(
       buttonVariants({
         variant,
@@ -270,6 +300,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       return cloneElement(
         asChildElement,
         {
+          ...señales,
           ...props,
           ref,
           className: cn(rootClassName, childProps.className),
@@ -287,6 +318,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         className={rootClassName}
         disabled={disabled || loading}
         style={style}
+        {...señales}
         {...props}
       >
         {internals}

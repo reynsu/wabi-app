@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { sileo } from "sileo";
+import { sileo } from "@/lib/avisos";
 import {
   AtSign,
   Building2,

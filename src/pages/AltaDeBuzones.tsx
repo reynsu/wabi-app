@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { CornerDownLeft, MailPlus, Search, X } from "lucide-react";
-import { sileo } from "sileo";
+import { sileo } from "@/lib/avisos";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

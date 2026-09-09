@@ -12,6 +12,8 @@ import {
   Plus,
   Sparkles,
   Sun,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -41,6 +43,7 @@ import { WindowControls } from "@/components/window-controls";
 import { WidgetDragProvider } from "@/components/widget-drag";
 import { Login } from "@/pages/Login";
 import { useSesion } from "@/stores/sesion";
+import { COMO_INTERRUPTOR, sonar, useSonido } from "@/stores/sonido";
 import { WidgetRail, type WidgetRailControl } from "@/components/widget-rail";
 import { WorkspaceOutlet } from "@/components/workspace-outlet";
 import type { WidgetDefinition } from "@/components/widget";
@@ -107,6 +110,8 @@ function Shell() {
   const editarBoard = useBoards((b) => b.editarBoard);
   const dark = useTema((t) => t.oscuro);
   const alternarTema = useTema((t) => t.alternar);
+  const suena = useSonido((s) => s.activo);
+  const alternarSonido = useSonido((s) => s.alternar);
   const [apuntado, setApuntado] = useState(false);
   const [redimensionando, setRedimensionando] = useState(false);
   const shape = useShape();
@@ -201,6 +206,39 @@ function Shell() {
                 onSelect={() => irA("support")}
               />
 
+              {/* Callar la consola.
+
+                  Va en este menú y no en la barra de controles por lo mismo que
+                  el tema no está acá: la barra es de la pantalla —el tema, el
+                  ancho, el board— y esto es de la app entera. Y va antes del
+                  separador de salir, que es el único que corta de verdad.
+
+                  El rótulo dice lo que el clic hace, no cómo está: "Mute" con el
+                  sonido puesto. Es una fila de acción y no una casilla —este
+                  menú no tiene ninguna—, así que se lee como las otras tres.
+
+                  El click-clack va **después** de alternar, y por eso sólo se
+                  escucha al encender: apagar deja a `sonar` en no-op y la fila
+                  se calla en el acto, que es la única confirmación que un mute
+                  necesita. Encender sí contesta —si no, no habría manera de
+                  saber que volvió sin ir a buscar algo que suene—.
+
+                  Se toca a mano y no con `data-cuelume-toggle` porque acá el
+                  orden es el punto: el atributo lo dispara un listener delegado
+                  en el documento, que corre *después* del `onSelect` de React,
+                  y entonces "apagar" quedaría a merced de quién llegó primero.
+                  Esto no depende de eso. */}
+              <MenuItem
+                index={3}
+                icon={suena ? Volume2 : VolumeX}
+                label={suena ? "Mute sounds" : "Unmute sounds"}
+                closeOnClick={false}
+                onSelect={() => {
+                  alternarSonido();
+                  sonar("toggle");
+                }}
+              />
+
               {/* Salir, separado y último. Es lo único de este menú que no lleva
                   a ningún lado adentro de la app: saca de ella. Va acá y no en
                   el pie del sidebar porque este menú es el de la marca —quién
@@ -215,7 +253,7 @@ function Shell() {
                   no esta fila. */}
               <DropdownSeparator />
               <MenuItem
-                index={3}
+                index={4}
                 icon={LogOut}
                 label="Sign out"
                 onSelect={salir}
@@ -301,6 +339,7 @@ function Shell() {
                   size="icon-compact"
                   className={CONTROL}
                   aria-label="Toggle theme"
+                  {...COMO_INTERRUPTOR}
                   onClick={alternarTema}
                 >
                   {dark ? <Sun /> : <Moon />}
@@ -347,6 +386,7 @@ function Shell() {
                   className={CONTROL}
                   aria-label={board.open ? "Hide the board" : "Show the board"}
                   aria-pressed={board.open}
+                  {...COMO_INTERRUPTOR}
                   onClick={() =>
                     activeId &&
                     editarBoard(activeId, (b) => ({ ...b, open: !b.open }))

@@ -139,6 +139,19 @@ const MenuItem = forwardRef<HTMLDivElement, MenuItemProps>(
           onSelect?.();
         };
 
+    /* Una fila de menú tickea al pasarle por encima. Es el único hover que
+       queda encendido en la app: un menú abierto es una lista corta que alguien
+       está recorriendo a propósito, y ahí el tick acompaña. En el sidebar la
+       misma señal se probó y se sacó —esas filas están siempre a la vista y el
+       puntero las cruza yendo a cualquier otro lado—.
+
+       `tick` y no el `chime` que viene por defecto: es la señal más corta de
+       las diecisiete, que es lo que hace falta cuando el puntero barre seis
+       filas seguidas buscando la séptima. `cuelume` además limita el hover a
+       uno cada 150 ms, así que un barrido rápido no se convierte en una
+       ametralladora. Ver `stores/sonido.ts`. */
+    const señal = { "data-cuelume-hover": "tick" };
+
     const itemClassName = cn(
       // Fixed height (was py-2 around a 19.5px line box ≈ 35.5px) so the
       // text-box trim on the label doesn't shrink the row. shrink-0 because
@@ -250,6 +263,7 @@ const MenuItem = forwardRef<HTMLDivElement, MenuItemProps>(
             aria-label={label}
             onClick={handleActivate}
             className={itemClassName}
+            {...señal}
             {...props}
           />
         ),
@@ -276,6 +290,7 @@ const MenuItem = forwardRef<HTMLDivElement, MenuItemProps>(
           }
         }}
         className={itemClassName}
+        {...señal}
         {...props}
       >
         {content}

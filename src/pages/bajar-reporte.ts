@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { sileo } from "sileo";
+import { sileo } from "@/lib/avisos";
 
 import { descargar } from "@/lib/descargar";
 import {

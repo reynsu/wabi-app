@@ -6,6 +6,7 @@ import marca from "@/assets/logo-kiwi-reversed.png";
 import { LoginBlock, useSystemScheme } from "@/components/login-block";
 import { useTema } from "@/stores/tema";
 import { entrar } from "@/stores/sesion";
+import { sonar } from "@/stores/sonido";
 
 /* La pantalla de entrada: lo único que se ve antes de la consola.
  *
@@ -101,11 +102,24 @@ export function Login() {
         /* El error de antes se va al reintentar: dejarlo puesto mientras el
            segundo intento está en vuelo dice que ya falló otra vez. */
         setError(null);
+        /* Los tres momentos también se escuchan. Esta pantalla es el único
+           lugar de la app donde un resultado no lo cuenta un toast —el error
+           empuja adentro de la tarjeta, ver `login-block`— así que las señales
+           se tocan a mano; en el resto las pone el envoltorio de `avisos`.
+
+           El `loading` es el que más gana acá: entrar tarda casi un segundo
+           contra un servidor que no existe, y es el único momento de la app en
+           que alguien está mirando una pantalla quieta esperando. */
+        sonar("loading");
         try {
           await entrar(email, password);
-          /* No hay nada que hacer después: abrir la sesión desmonta esta
-             pantalla entera. */
+          /* Suena y se va: el `success` arranca ahora, y `cuelume` lo sintetiza
+             sobre un `AudioContext` que no depende de este árbol, así que
+             termina de sonar aunque el próximo render desmonte la pantalla
+             entera. No hay nada más que hacer —abrir la sesión la desmonta—. */
+          sonar("success");
         } catch (falla) {
+          sonar("error");
           setError(
             falla instanceof Error
               ? falla.message

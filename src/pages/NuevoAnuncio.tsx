@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { sileo } from "sileo";
+import { sileo } from "@/lib/avisos";
 import {
   Building2,
   Megaphone,
