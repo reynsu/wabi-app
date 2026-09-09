@@ -15,9 +15,9 @@ import { create } from "zustand";
  * tiendas de esta app: lo que la consola hizo vive mientras la pestaña viva.
  *
  * Mientras se trabaja en la app, eso molesta: cada refresco pide entrar de
- * nuevo. Para eso está `SALTAR_LOGIN` acá abajo —la sesión arranca abierta y
- * la puerta no aparece—. La pantalla sigue montada y viva: se llega a ella
- * cerrando sesión desde el menú de la marca, o poniendo la bandera en `false`.
+ * nuevo. Para eso está `SALTAR_LOGIN` acá abajo —en desarrollo la sesión
+ * arranca abierta y la puerta no aparece—. La pantalla sigue montada y viva: se
+ * llega a ella cerrando sesión desde el menú de la marca.
  */
 interface Sesion {
   /** El correo con el que se entró, o `null` si no entró nadie. */
@@ -28,14 +28,20 @@ interface Sesion {
 
 /** Entrar sin pasar por la puerta, mientras se desarrolla.
  *
- *  En `true` la app abre con la sesión ya iniciada: refrescar no vuelve a pedir
- *  el correo. Es una comodidad del desarrollo y nada más —no hay nada que
- *  proteger todavía, la consola no tiene backend—, así que vive acá, en una
- *  sola línea, y se apaga poniéndola en `false` para volver a ver el login.
+ *  En `vite dev` la app abre con la sesión ya iniciada: refrescar no vuelve a
+ *  pedir el correo. En el sitio construido no, y ahí la puerta aparece como
+ *  para cualquiera que llegue.
  *
- *  Cuando haya API esto se borra: la sesión la va a abrir un token, no una
- *  constante. */
-const SALTAR_LOGIN = true;
+ *  **Atado al entorno y no a una bandera que alguien da vuelta a mano.** Una
+ *  constante en `true` funciona hasta el día en que se publica sin acordarse de
+ *  apagarla, y entonces el sitio abre en la consola sin decir a qué se entró.
+ *  `import.meta.env.DEV` no se puede olvidar: Vite lo pone en `false` en todo
+ *  build y no hay nada que recordar antes de un deploy.
+ *
+ *  Es una comodidad del desarrollo y nada más. No protege nada —hoy la puerta
+ *  acepta a cualquiera, no hay a quién preguntarle— y cuando haya API esto se
+ *  borra: la sesión la va a abrir un token, no una constante. */
+const SALTAR_LOGIN = import.meta.env.DEV;
 
 /** Con quién entra la app cuando se saltea la puerta. */
 const CUENTA_DEMO = "demo@wabi.app";
