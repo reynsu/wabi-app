@@ -13,6 +13,11 @@ import { create } from "zustand";
  * servidor emitió, y el día que haya uno lo que se guarda es su token con su
  * vencimiento, no un booleano nuestro. Es la misma decisión que toman las
  * tiendas de esta app: lo que la consola hizo vive mientras la pestaña viva.
+ *
+ * Mientras se trabaja en la app, eso molesta: cada refresco pide entrar de
+ * nuevo. Para eso está `SALTAR_LOGIN` acá abajo —la sesión arranca abierta y
+ * la puerta no aparece—. La pantalla sigue montada y viva: se llega a ella
+ * cerrando sesión desde el menú de la marca, o poniendo la bandera en `false`.
  */
 interface Sesion {
   /** El correo con el que se entró, o `null` si no entró nadie. */
@@ -21,8 +26,22 @@ interface Sesion {
   salir: () => void;
 }
 
+/** Entrar sin pasar por la puerta, mientras se desarrolla.
+ *
+ *  En `true` la app abre con la sesión ya iniciada: refrescar no vuelve a pedir
+ *  el correo. Es una comodidad del desarrollo y nada más —no hay nada que
+ *  proteger todavía, la consola no tiene backend—, así que vive acá, en una
+ *  sola línea, y se apaga poniéndola en `false` para volver a ver el login.
+ *
+ *  Cuando haya API esto se borra: la sesión la va a abrir un token, no una
+ *  constante. */
+const SALTAR_LOGIN = true;
+
+/** Con quién entra la app cuando se saltea la puerta. */
+const CUENTA_DEMO = "demo@wabi.app";
+
 export const useSesion = create<Sesion>()((set) => ({
-  email: null,
+  email: SALTAR_LOGIN ? CUENTA_DEMO : null,
   entrar: (email) => set({ email: email.trim() }),
   salir: () => set({ email: null }),
 }));
