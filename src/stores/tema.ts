@@ -1,5 +1,7 @@
 import { create } from "zustand";
 
+import { guardarPreferencias, leerPreferencias } from "@/lib/preferencias";
+
 /**
  * Claro u oscuro.
  *
@@ -7,6 +9,10 @@ import { create } from "zustand";
  * copia la clase del `<html>`, el `Toaster` de Sileo, y —la que obligó a que
  * esto exista— la onda de una nota de voz, que se pinta en un `canvas` donde
  * ninguna hoja de estilos llega y hay que pasarle un color escrito.
+ *
+ * **Se recuerda.** Vive en `lib/preferencias`, en el mismo renglón que el
+ * sonido: son la misma decisión —cómo quiero la consola— tomada dos veces, y
+ * guardarlas por separado garantiza que alguna vez una se guarde y la otra no.
  *
  * Antes eran dos fuentes: un `useState` en `App` para lo que pintaba React, y
  * un `MutationObserver` sobre la clase del `<html>` para lo que pintaba a mano.
@@ -27,9 +33,22 @@ const aplicar = (oscuro: boolean) => {
   return oscuro;
 };
 
+/* La clase se escribe en el import, no en el primer render.
+ *
+ * Es lo que evita el destello: si esto esperara a que React monte, una consola
+ * guardada en oscuro abriría un cuadro en blanco y se apagaría a la vista. El
+ * módulo se importa antes de `createRoot`, así que para cuando hay algo que
+ * pintar el `<html>` ya dice lo que corresponde. */
+const INICIAL = aplicar(leerPreferencias().oscuro);
+
 export const useTema = create<Tema>()((set) => ({
-  oscuro: false,
-  alternar: () => set((t) => ({ oscuro: aplicar(!t.oscuro) })),
+  oscuro: INICIAL,
+  alternar: () =>
+    set((t) => {
+      const oscuro = aplicar(!t.oscuro);
+      guardarPreferencias({ oscuro });
+      return { oscuro };
+    }),
 }));
 
 /** Si el tema oscuro está puesto. Lo usa lo que pinta a mano —hoy, la onda de
