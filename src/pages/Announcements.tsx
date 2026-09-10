@@ -69,6 +69,7 @@ import {
   BANDA_TITULOS,
   SANGRIA,
 } from "@/pages/tabla";
+import { useTecladoDeTabla } from "@/pages/tabla-teclado";
 
 /* La pantalla de Announcements: lo que la casa dijo, y cuánto de eso se leyó.
 
@@ -439,6 +440,13 @@ function Pantalla({ tabId }: { tabId?: string }) {
     POR_PAGINA,
   );
 
+  /* El teclado de la tabla: una sola parada de tabulado —la fila donde
+     quedaste— y las flechas adentro. Ver `tabla-teclado`. */
+  const teclado = useTecladoDeTabla({
+    cuantas: filas.length,
+    sangriaSuperior: altoCabecera,
+  });
+
   return (
     <motion.div
       variants={cascadaPantalla}
@@ -554,7 +562,10 @@ function Pantalla({ tabId }: { tabId?: string }) {
                 scrollea y subirla cuando cambia de página. */}
             <div ref={ancla} style={{ paddingTop: altoCabecera ?? 0 }} />
 
-            <Table className={cn("table-fixed", SANGRIA, AIRE_FILA)}>
+            <Table
+              {...teclado.tabla}
+              className={cn("table-fixed", SANGRIA, AIRE_FILA)}
+            >
               <Columnas />
               <TableBody>
                 {filas.map(({ anuncio, aQuienes }, i) => {
@@ -597,6 +608,7 @@ function Pantalla({ tabId }: { tabId?: string }) {
                       key={anuncio.id}
                       index={i}
                       destella={tocada}
+                      {...teclado.fila(i)}
                     >
                       {/* Lo que se dijo, y nada más. */}
                       <TableCell className="text-foreground">

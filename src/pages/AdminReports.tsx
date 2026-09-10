@@ -70,6 +70,7 @@ import {
   BANDA_TITULOS,
   SANGRIA,
 } from "@/pages/tabla";
+import { useTecladoDeTabla } from "@/pages/tabla-teclado";
 
 /* La pantalla de Admin › Reports: lo que se le pidió a esta consola.
 
@@ -438,6 +439,13 @@ function Pantalla({ tabId }: { tabId?: string }) {
     POR_PAGINA,
   );
 
+  /* El teclado de la tabla: una sola parada de tabulado —la fila donde
+     quedaste— y las flechas adentro. Ver `tabla-teclado`. */
+  const teclado = useTecladoDeTabla({
+    cuantas: filas.length,
+    sangriaSuperior: altoCabecera,
+  });
+
   return (
     <motion.div
       variants={cascadaPantalla}
@@ -555,7 +563,10 @@ function Pantalla({ tabId }: { tabId?: string }) {
                 scrollea y subirla cuando cambia de página. */}
             <div ref={ancla} style={{ paddingTop: altoCabecera ?? 0 }} />
 
-            <Table className={cn("table-fixed", SANGRIA, AIRE_FILA)}>
+            <Table
+              {...teclado.tabla}
+              className={cn("table-fixed", SANGRIA, AIRE_FILA)}
+            >
               <Columnas />
               <TableBody>
                 {filas.map(({ reporte, quien }, i) => {
@@ -568,6 +579,7 @@ function Pantalla({ tabId }: { tabId?: string }) {
                       key={reporte.id}
                       index={i}
                       destella={tocada}
+                      {...teclado.fila(i)}
                     >
                       {/* Cómo se llama: el tipo y el día del pedido. Es lo que
                           va a decir el archivo cuando esté bajado, y por eso es

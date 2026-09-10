@@ -79,6 +79,7 @@ import {
   BANDA_TITULOS,
   SANGRIA,
 } from "@/pages/tabla";
+import { useTecladoDeTabla } from "@/pages/tabla-teclado";
 
 /* La pantalla de Messages Search: los mensajes de toda la casa, no los de un
    hilo.
@@ -548,6 +549,18 @@ function Pantalla() {
     POR_PAGINA,
   );
 
+  /* El teclado de la tabla: una sola parada de tabulado —la fila donde
+     quedaste— y las flechas adentro. Ver `tabla-teclado`.
+
+     Con `onActivar`, porque acá la fila entera hace algo: `Enter` y `Espacio`
+     abren el hilo, que es lo mismo que promete el cursor de mano sobre el
+     renglón. */
+  const teclado = useTecladoDeTabla({
+    cuantas: filas.length,
+    sangriaSuperior: altoCabecera,
+    onActivar: (i) => abrirHilo(filas[i]),
+  });
+
   return (
     /* La pantalla reparte los turnos y sus piezas los toman: el header, la
        cabecera de la tabla y el cuerpo son sus hijos, y las filas los hijos del
@@ -644,7 +657,10 @@ function Pantalla() {
                 es lo que la pantalla usa para encontrar la caja que scrollea y
                 subirla cuando cambia de página. */}
             <div ref={ancla} style={{ paddingTop: altoCabecera ?? 0 }} />
-            <Table className={cn("table-fixed", SANGRIA, AIRE_FILA)}>
+            <Table
+              {...teclado.tabla}
+              className={cn("table-fixed", SANGRIA, AIRE_FILA)}
+            >
               <Columnas />
               <TableBody>
                 {filas.map((fila, i) => {
@@ -660,7 +676,7 @@ function Pantalla() {
                     <TableRow
                       key={fila.mensaje.id}
                       index={i}
-                      className="cursor-pointer"
+                      {...teclado.fila(i, "cursor-pointer")}
                       onClick={() => abrirHilo(fila)}
                     >
                       {/* Quién lo escribió, y debajo a quién.

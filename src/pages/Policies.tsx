@@ -78,6 +78,7 @@ import {
   BANDA_TITULOS,
   SANGRIA,
 } from "@/pages/tabla";
+import { useTecladoDeTabla } from "@/pages/tabla-teclado";
 
 /* La pantalla de Policies: las reglas que la casa le puso al correo.
 
@@ -431,6 +432,13 @@ function Pantalla({ tabId }: { tabId?: string }) {
     POR_PAGINA,
   );
 
+  /* El teclado de la tabla: una sola parada de tabulado —la fila donde
+     quedaste— y las flechas adentro. Ver `tabla-teclado`. */
+  const teclado = useTecladoDeTabla({
+    cuantas: filas.length,
+    sangriaSuperior: altoCabecera,
+  });
+
   return (
     <motion.div
       variants={cascadaPantalla}
@@ -545,7 +553,10 @@ function Pantalla({ tabId }: { tabId?: string }) {
                 scrollea y subirla cuando cambia de página. */}
             <div ref={ancla} style={{ paddingTop: altoCabecera ?? 0 }} />
 
-            <Table className={cn("table-fixed", SANGRIA, AIRE_FILA)}>
+            <Table
+              {...teclado.tabla}
+              className={cn("table-fixed", SANGRIA, AIRE_FILA)}
+            >
               <Columnas />
               <TableBody>
                 {filas.map(({ politica, alcance }, i) => {
@@ -576,6 +587,7 @@ function Pantalla({ tabId }: { tabId?: string }) {
                       key={politica.id}
                       index={i}
                       destella={tocada}
+                      {...teclado.fila(i)}
                     >
                       {/* Qué dice la regla, y nada más. El tipo no se pinta en
                           la fila: es una palabra de cinco valores que sirve para

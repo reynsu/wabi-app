@@ -1394,6 +1394,50 @@ pager— se fue con él a `components/pager-range.tsx`, por lo mismo que `Datos`
 que se pagine. Email Search quedó igual de afuera; lo que cambió es de dónde
 saca las dos cosas.
 
+## Las tablas se recorren con el teclado
+
+Las ocho tablas de la consola —Accounts, Provisioning, Policies, Announcements,
+DOC Accounts, Email Search, Messages Search y Admin › Reports— se recorrían
+sólo con el puntero. Con el teclado no había manera de pararse en una fila: el
+`Tab` saltaba de control en control —del nombre de la fila 1 al botón de bajar
+de la 1, al nombre de la 2— y la fila, que es la unidad que uno mira, no
+existía. En una lista de cuarenta buzones eso son ochenta paradas para llegar al
+último, y ninguna dice en qué renglón se está.
+
+Ahora la tabla es **una sola parada de tabulado** —la fila donde quedaste— y
+adentro se mueve con las flechas:
+
+| tecla | qué hace |
+|---|---|
+| `↑` `↓` | una fila |
+| `Inicio` `Fin` | la primera, la última |
+| `RePág` `AvPág` | una pantalla, contada contra el scroller |
+| `Enter` | si la fila entera hace algo, lo hace; si no, mete el foco en su primer control |
+| `Escape` | vuelve del control a la fila |
+
+Vive en `src/pages/tabla-teclado.ts`, al lado de las medidas de `tabla.ts`, y
+las pantallas lo toman en dos líneas: `{...teclado.tabla}` sobre el `<Table>` del
+cuerpo y `{...teclado.fila(i)}` sobre cada fila.
+
+**Y no adentro de `ui/table.tsx`**, que es donde a primera vista iría. Ese
+archivo baja del registry @fluid y es byte a byte el mismo que el del showcase:
+una desviación local ahí se pierde en silencio la próxima vez que alguien corra
+`shadcn add`, y lo que queda en su lugar es una tabla que se ve igual y ya no se
+puede recorrer. La app pone lo suyo desde afuera, que es lo mismo que ya hacía
+con las medidas. De `TableRow` se usa una sola cosa —que reparte al `<tr>` las
+props que no conoce—, y hay un test que la fija: `src/test/tablas-teclado.test.tsx`.
+
+**Sin `role="grid"`.** Estas tablas son tablas y conviene que se sigan leyendo
+como tales: un `grid` le apaga a NVDA y a JAWS su modo de lectura y les cambia
+el mapa de teclas por el nuestro. Lo que faltaba, y es lo que se agregó, es el
+teclado de quien ve la pantalla y no usa el mouse.
+
+La planilla del visor de archivos es el caso contrario y por eso está escrita al
+revés: ahí el foco es **la celda** —flechas en los dos ejes, `Inicio`/`Fin` en
+el renglón, con `Ctrl` en la hoja entera— y la cuadrícula sí se anuncia como
+`grid`, porque el teclado reemplaza al del lector de pantalla en vez de
+sumársele. Es lo que deja decir "mirá la C7" y llegar sin el mouse.
+
 ## Lo que falta
 
 Las pantallas son un andamio. Seis están escritas —`Accounts`,

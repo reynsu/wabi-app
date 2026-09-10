@@ -74,6 +74,7 @@ import {
   BANDA_TITULOS,
   SANGRIA,
 } from "@/pages/tabla";
+import { useTecladoDeTabla } from "@/pages/tabla-teclado";
 
 /* La pantalla de Provisioning: los buzones que la casa dio de alta.
 
@@ -457,6 +458,13 @@ function Pantalla() {
     POR_PAGINA,
   );
 
+  /* El teclado de la tabla: una sola parada de tabulado —la fila donde
+     quedaste— y las flechas adentro. Ver `tabla-teclado`. */
+  const teclado = useTecladoDeTabla({
+    cuantas: filas.length,
+    sangriaSuperior: altoCabecera,
+  });
+
   return (
     /* La pantalla reparte los turnos y sus piezas los toman: el header, la tabla
        y el pie son sus hijos, y las celdas los hijos de la tabla. El estado
@@ -587,7 +595,10 @@ function Pantalla() {
                 primera fila real: ahí es donde van a estar cuando existan. */}
             {alta.abierto && <FilasBorrador alta={alta} />}
 
-            <Table className={cn("table-fixed", SANGRIA, AIRE_FILA)}>
+            <Table
+              {...teclado.tabla}
+              className={cn("table-fixed", SANGRIA, AIRE_FILA)}
+            >
               <Columnas />
               <TableBody>
                 {filas.map((buzon, i) => {
@@ -602,6 +613,7 @@ function Pantalla() {
                     initial={recien ? "encendida" : false}
                     animate={recien ? "apagada" : undefined}
                     variants={DESTELLO}
+                    {...teclado.fila(i)}
                   >
                     {/* El nombre. Cuando el buzón es de alguien, es también el
                         disparador de la ficha de esa cuenta —la misma que abre

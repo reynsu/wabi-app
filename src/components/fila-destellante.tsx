@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { motion, type Variants } from "framer-motion";
 
 import { TableRow } from "@/components/ui/table";
@@ -63,11 +63,18 @@ export function FilaDestellante({
   /** Si esta fila es la que se acaba de tocar. */
   destella,
   children,
+  /* Y lo que la pantalla le ponga encima, tal cual: el `tabIndex`, las clases
+     del foco y los handlers con que `useTecladoDeTabla` hace la fila
+     alcanzable con el teclado. Sin esto, las cuatro pantallas que destellan
+     —Policies, Announcements, DOC Accounts y Admin › Reports— serían las
+     cuatro que no se pueden recorrer con las flechas, y no por una decisión:
+     por dónde quedó envuelta su fila. */
+  ...resto
 }: {
   index: number;
   destella: boolean;
   children: ReactNode;
-}) {
+} & Omit<ComponentProps<typeof FilaAnimada>, "index" | "children">) {
   return (
     <FilaAnimada
       index={index}
@@ -76,6 +83,7 @@ export function FilaDestellante({
       initial={false}
       animate={destella ? "destella" : undefined}
       variants={DESTELLO}
+      {...resto}
     >
       {children}
     </FilaAnimada>

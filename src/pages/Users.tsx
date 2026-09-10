@@ -78,6 +78,7 @@ import {
   BANDA_TITULOS,
   SANGRIA,
 } from "@/pages/tabla";
+import { useTecladoDeTabla } from "@/pages/tabla-teclado";
 
 /* La pantalla de usuarios: un header con la búsqueda y el `FilterMenu`, y la
    tabla debajo. Los tres filtran lo mismo —la búsqueda por nombre, el panel
@@ -659,6 +660,13 @@ function Pantalla() {
   const filas = encontrados.slice(0, cuantas);
   const quedan = cuantas < encontrados.length;
 
+  /* El teclado de la tabla: una sola parada de tabulado —la fila donde
+     quedaste— y las flechas adentro. Ver `tabla-teclado`. */
+  const teclado = useTecladoDeTabla({
+    cuantas: filas.length,
+    sangriaSuperior: altoCabecera,
+  });
+
   /* Scroll infinito: un centinela al final de la lista y un observer que pide
      el próximo tramo cuando se acerca. */
   const centinela = useRef<HTMLDivElement>(null);
@@ -822,11 +830,14 @@ function Pantalla() {
           <ScrollArea className="h-full" viewportClassName="scroll-fade">
             {/* La reserva para la cabecera que flota encima. */}
             <div style={{ paddingTop: altoCabecera ?? 0 }} />
-            <Table className={cn("table-fixed", SANGRIA, AIRE_FILA)}>
+            <Table
+              {...teclado.tabla}
+              className={cn("table-fixed", SANGRIA, AIRE_FILA)}
+            >
               <Columnas />
               <TableBody>
                 {filas.map((usuario, i) => (
-                  <TableRow key={usuario.id} index={i}>
+                  <TableRow key={usuario.id} index={i} {...teclado.fila(i)}>
                     <TableCell className="text-foreground">
                       <div className="flex items-center gap-2.5">
                         {/* El plato dice de qué tipo es la cuenta, no sus

@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 /* Sólo el tipo: se borra al compilar, así que nombrarlo no arrastra la
    biblioteca. Lo que la carga es el `import()` de adentro del efecto. */
 import type { PDFDocumentProxy } from "pdfjs-dist";
@@ -102,6 +109,11 @@ const ALTO_FILA = 28;
  *  contenido; éstas no tienen contenido, así que miden lo que se les diga. */
 const ANCHO_VACIA = 96;
 
+/** El ancho de la columna de la numeración, que está pegada a la izquierda. Es
+ *  también cuánto se aparta una celda de ella al llevarla a la vista con el
+ *  teclado: si no, la celda enfocada queda justo debajo del número. */
+const ANCHO_NUMERACION = 44;
+
 /** La letra de una columna, como en una planilla: A…Z, después AA, AB. */
 function letraDeColumna(i: number) {
   let n = i;
@@ -162,6 +174,81 @@ function Planilla({ filas }: { filas: string[][] }) {
     ? Math.max(filas.length, Math.ceil((medida.alto - ALTO_FILA) / ALTO_FILA))
     : filas.length;
 
+  /* ── El teclado ────────────────────────────────────────────────────────
+   *
+   * Una planilla se recorre celda por celda, así que acá el foco es la celda y
+   * no la fila: es lo que deja decir "andá a la C7" y llegar sin el mouse, y lo
+   * que trae aprendido cualquiera que haya usado el programa donde este archivo
+   * va a terminar abriéndose. Las flechas mueven de a una, `Inicio`/`Fin` van a
+   * las puntas del renglón —con `Ctrl`, a las de la hoja entera— y `AvPág` baja
+   * una pantalla.
+   *
+   * Una sola parada de tabulado para toda la cuadrícula: la celda donde
+   * quedaste. Es lo que promete el `role="grid"` de abajo, y es lo que evita
+   * que una hoja de cuarenta columnas sean cuarenta paradas por renglón.
+   *
+   * (Las tablas de la consola se recorren por fila y no por celda; el porqué de
+   * esa diferencia está escrito en `pages/tabla-teclado`.) */
+  const [cursor, setCursor] = useState({ fila: 0, columna: 0 });
+  /* Recortado contra la hoja de ahora: la cuadrícula crece y se encoge con el
+     panel —las filas y columnas vacías salen de cuánto lugar hay—, y una
+     posición vieja dejaría la hoja sin ninguna celda tabulable. */
+  const foco = {
+    fila: Math.min(cursor.fila, Math.max(0, total - 1)),
+    columna: Math.min(cursor.columna, Math.max(0, columnas - 1)),
+  };
+
+  const irA = (fila: number, columna: number) => {
+    const f = Math.max(0, Math.min(fila, total - 1));
+    const c = Math.max(0, Math.min(columna, columnas - 1));
+    const destino = tabla.current?.querySelector<HTMLTableCellElement>(
+      `td[data-fila="${f}"][data-columna="${c}"]`,
+    );
+    if (!destino) return;
+    setCursor({ fila: f, columna: c });
+    /* Enfocar sin mover y llevar a la vista después: el desplazamiento que hace
+       el navegador al enfocar no conoce el `scroll-margin` con el que las
+       celdas se apartan de la numeración y de las letras, que están pegadas. */
+    destino.focus({ preventScroll: true });
+    destino.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  };
+
+  const teclas = (evento: KeyboardEvent<HTMLTableElement>) => {
+    const { fila, columna } = foco;
+    /* Una pantalla de filas, menos una: la que queda a la vista es la
+       referencia de dónde se estaba. */
+    const pantalla = Math.max(
+      1,
+      Math.floor((medida?.alto ?? 0) / ALTO_FILA) - 1,
+    );
+    const salto: Record<string, [number, number]> = {
+      ArrowUp: [-1, 0],
+      ArrowDown: [1, 0],
+      ArrowLeft: [0, -1],
+      ArrowRight: [0, 1],
+      PageUp: [-pantalla, 0],
+      PageDown: [pantalla, 0],
+    };
+    const paso = salto[evento.key];
+    if (paso) {
+      evento.preventDefault();
+      return irA(fila + paso[0], columna + paso[1]);
+    }
+    /* `Inicio` y `Fin` son del renglón; con el modificador, de la hoja. Es lo
+       que hace la planilla de escritorio, y la tecla del modificador la pone el
+       sistema: `Cmd` en un Mac, `Ctrl` en el resto. */
+    if (evento.key === "Home") {
+      evento.preventDefault();
+      const alPrincipio = evento.ctrlKey || evento.metaKey;
+      return irA(alPrincipio ? 0 : fila, 0);
+    }
+    if (evento.key === "End") {
+      evento.preventDefault();
+      const alFinal = evento.ctrlKey || evento.metaKey;
+      return irA(alFinal ? total - 1 : fila, columnas - 1);
+    }
+  };
+
   const celda = "border-r border-b border-border/60";
   const encabezado = cn(
     celda,
@@ -180,6 +267,15 @@ function Planilla({ filas }: { filas: string[][] }) {
       <ScrollArea className="h-full" orientation="both">
       <table
         ref={tabla}
+        /* `grid` y no la tabla que es: acá el teclado **reemplaza** al del
+           lector de pantalla —se mueve celda por celda, que es lo que un lector
+           hace con sus propios atajos en una tabla— y por eso conviene que lo
+           anuncie como lo que se maneja así. Es al revés que en las tablas de
+           la consola, donde el foco es la fila y la lectura nativa se deja
+           intacta: ver `pages/tabla-teclado`. */
+        role="grid"
+        aria-label="Spreadsheet"
+        onKeyDown={teclas}
         className="border-separate border-spacing-0 tabular-nums"
         style={{ fontSize: escala.body }}
       >
@@ -192,7 +288,7 @@ function Planilla({ filas }: { filas: string[][] }) {
                 al correr la tabla las letras le pasarían por encima. */}
             <th
               className={cn(encabezado, "sticky top-0 left-0 z-20")}
-              style={{ height: ALTO_FILA, minWidth: 44 }}
+              style={{ height: ALTO_FILA, minWidth: ANCHO_NUMERACION }}
             />
             {Array.from({ length: columnas }, (_, j) => (
               <th
@@ -230,9 +326,37 @@ function Planilla({ filas }: { filas: string[][] }) {
                 {Array.from({ length: columnas }, (_, j) => (
                   <td
                     key={j}
-                    className={cn(celda, "px-3 whitespace-pre text-foreground")}
+                    data-fila={i}
+                    data-columna={j}
+                    /* Una sola celda tabulable —la del cursor—, y las demás
+                       alcanzables sólo con las flechas. */
+                    tabIndex={i === foco.fila && j === foco.columna ? 0 : -1}
+                    /* El clic también mueve el cursor: la celda que se toca es
+                       desde la que siguen las flechas. */
+                    onFocus={() => setCursor({ fila: i, columna: j })}
+                    className={cn(
+                      celda,
+                      "px-3 whitespace-pre text-foreground",
+                      /* El recuadro del cursor. `focus` y no `focus-visible`:
+                         en una planilla la celda parada es lo que se está
+                         mirando, se haya llegado con el mouse o con la flecha
+                         —es un cursor, no un aviso de tabulado—. Por dentro,
+                         para no correr la cuadrícula un píxel.
+
+                         Sin `outline-none` al lado: en Tailwind 4 esa clase
+                         fija `--tw-outline-style: none` para el elemento, y de
+                         esa misma variable sale el estilo de `outline-2`. Las
+                         dos juntas dan un contorno que no se dibuja. */
+                      "focus:outline-2 focus:-outline-offset-2",
+                      "focus:outline-[color:var(--focus-ring,#6B97FF)]",
+                    )}
                     style={{
                       height: ALTO_FILA,
+                      /* Lo que se aparta de la numeración y de las letras al
+                         llevar la celda a la vista: las dos están pegadas y una
+                         celda contra el borde queda debajo de ellas. */
+                      scrollMarginTop: ALTO_FILA,
+                      scrollMarginLeft: ANCHO_NUMERACION,
                       ...(j >= conDato ? { minWidth: ANCHO_VACIA } : undefined),
                     }}
                   >

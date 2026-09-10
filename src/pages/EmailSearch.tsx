@@ -84,6 +84,7 @@ import {
   BANDA_TITULOS,
   SANGRIA,
 } from "@/pages/tabla";
+import { useTecladoDeTabla } from "@/pages/tabla-teclado";
 
 /* La pantalla de Email Search: los correos de toda la residencia, no los de una
    cuenta.
@@ -635,6 +636,18 @@ function Pantalla() {
     POR_PAGINA,
   );
 
+  /* El teclado de la tabla: una sola parada de tabulado —la fila donde
+     quedaste— y las flechas adentro. Ver `tabla-teclado`.
+
+     Con `onActivar`, porque acá la fila entera hace algo: `Enter` y `Espacio`
+     abren el correo en el riel, que es lo mismo que promete el cursor de mano
+     sobre el renglón. */
+  const teclado = useTecladoDeTabla({
+    cuantas: filas.length,
+    sangriaSuperior: altoCabecera,
+    onActivar: (i) => abrirCorreo(filas[i]),
+  });
+
   return (
     /* La pantalla reparte los turnos y sus piezas los toman: el header, la
        cabecera de la tabla y el cuerpo son sus hijos, y las filas los hijos del
@@ -731,7 +744,10 @@ function Pantalla() {
                 es lo que la pantalla usa para encontrar la caja que scrollea y
                 subirla cuando cambia de página. */}
             <div ref={ancla} style={{ paddingTop: altoCabecera ?? 0 }} />
-            <Table className={cn("table-fixed", SANGRIA, AIRE_FILA)}>
+            <Table
+              {...teclado.tabla}
+              className={cn("table-fixed", SANGRIA, AIRE_FILA)}
+            >
               <Columnas />
               <TableBody>
                 {filas.map(({ email, usuario }, i) => {
@@ -746,7 +762,7 @@ function Pantalla() {
                     <TableRow
                       key={email.id}
                       index={i}
-                      className="cursor-pointer"
+                      {...teclado.fila(i, "cursor-pointer")}
                       onClick={() => abrirCorreo({ email, usuario })}
                     >
                       {/* El autor, y nada más que el autor: sin avatar, sin
