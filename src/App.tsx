@@ -55,6 +55,12 @@ import type { WorkspaceTab } from "@/components/workspace-panel";
 import { useShape } from "@/lib/shape-context";
 import { cn } from "@/lib/utils";
 import { INICIO, NAV, buscarHoja, type NavLeaf } from "@/navigation";
+import { useEsMovil } from "@/hooks/use-es-movil";
+import {
+  ConmutadorProto,
+  ShellMovilPrototipo,
+  useVariante,
+} from "@/prototipo-shell-movil";
 
 /* Los controles de la barra del panel: `Button` en su escalón compacto, con el
    ícono en gris y el plano blanco de la escalera de superficies. Se pisa
@@ -116,6 +122,9 @@ function Shell() {
   const [redimensionando, setRedimensionando] = useState(false);
   const shape = useShape();
   const riel = useRef<WidgetRailControl | null>(null);
+  const esMovil = useEsMovil();
+  const variante = useVariante();
+  const prototipo = import.meta.env.DEV && esMovil;
 
   /* Ir a una fila por id, para los lugares que la nombran sin tenerla a mano
      —el dropdown del header. */
@@ -153,7 +162,10 @@ function Shell() {
   return (
     <SidebarProvider
       defaultOpen
-      className="h-screen overflow-hidden bg-surface-1"
+      className={cn(
+        "h-screen overflow-hidden bg-surface-1",
+        prototipo && "h-dvh min-h-0 pt-8",
+      )}
     >
       <Sidebar variant="inset">
         {/* El header es un dropdown, y la marca se apila horizontal: la
@@ -320,8 +332,13 @@ function Shell() {
         </SidebarFooter>
       </Sidebar>
 
-      {/* Un solo contexto de arrastre para el panel y el riel: sin esto una
-            tarjeta no podría cruzar de uno al otro. */}
+      {/* PROTOTIPO shell móvil: se tira con la rama `prototipo/shell-movil`. */}
+      {prototipo && <ConmutadorProto variante={variante} />}
+      {prototipo && variante !== "actual" ? (
+        <ShellMovilPrototipo variante={variante} />
+      ) : (
+      /* Un solo contexto de arrastre para el panel y el riel: sin esto una
+            tarjeta no podría cruzar de uno al otro. */
       <WidgetDragProvider>
         <WorkspaceOutlet
           as="main"
@@ -456,6 +473,7 @@ function Shell() {
           )}
         </AnimatePresence>
       </WidgetDragProvider>
+      )}
 
       {/* Los toasts, montados una sola vez para toda la app: son del shell,
             como el riel y las pestañas, y una pantalla que montara el suyo
