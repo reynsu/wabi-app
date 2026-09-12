@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { animate, motion, useMotionValue } from "framer-motion";
+import { animate, motion, useMotionValue, useTransform } from "framer-motion";
 
 import type { IconComponent } from "@/lib/icon-context";
 import { spring } from "@/lib/springs";
@@ -106,6 +106,13 @@ export function Deslizable({ acciones, children, id, className }: DeslizableProp
   const arrastrando = useRef(false);
   const sustrato = useSurface();
 
+  /* Si las acciones se ven, derivado de la posición y no de un estado: se
+     encienden en cuanto la pieza se mueve un píxel y se apagan cuando volvió a
+     su lugar, sin un render de por medio ni un momento en que la posición y lo
+     pintado digan cosas distintas. */
+  const seVen = useTransform(x, (v) => (v < -1 ? 1 : 0));
+  const tocables = useTransform(x, (v) => (v < -1 ? "auto" : "none"));
+
   const ancho = acciones.length * ANCHO_ACCION;
   const abierto = cual === mio;
 
@@ -123,7 +130,13 @@ export function Deslizable({ acciones, children, id, className }: DeslizableProp
        poder salirse por el borde sin que se vea, y las acciones se quedan
        quietas mientras la pieza las descubre —no viajan con ella—. */
     <div className={cn("relative isolate overflow-hidden", className)}>
-      <span className="absolute inset-y-0 right-0 z-0 flex">
+      {/* Escondidas mientras la pieza está en su lugar, y no sólo tapadas: por
+          debajo de ellas hay un borde entre hermanos, y por esa junta se colaba
+          un filo rojo en cada fila. Siguen en el DOM —el teclado tiene que poder
+          llegar, y al enfocarse corren la pieza sola, que es lo que las
+          enciende— pero sin puntero, así un toque en la nada no bloquea una
+          cuenta. */}
+      <motion.span style={{ opacity: seVen, pointerEvents: tocables }} className="absolute inset-y-0 right-0 z-0 flex">
         {acciones.map((accion) => (
           <button
             key={accion.label}
@@ -147,7 +160,7 @@ export function Deslizable({ acciones, children, id, className }: DeslizableProp
             {accion.label}
           </button>
         ))}
-      </span>
+      </motion.span>
 
       {/* `dragDirectionLock` es lo que hace que el gesto no pelee con el scroll
           de lo que lo contenga: el primer movimiento decide el eje y el otro
