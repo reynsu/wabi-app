@@ -25,6 +25,15 @@ import type { WorkspaceTab } from "@/components/workspace-panel";
 interface Workspace {
   tabs: WorkspaceTab[];
   activeId: string | undefined;
+  /** Cuándo se miró por última vez cada pestaña abierta, en ms.
+   *
+   *  En escritorio no hace falta —la barra muestra todo lo abierto en el orden
+   *  en que se abrió, y ese orden es el que se busca con la vista—. En el
+   *  teléfono no hay barra: lo abierto se ve en Inicio, y ahí el orden útil es
+   *  el de la última vez que se miró cada cosa. Se guarda la hora y no un
+   *  orden porque de la hora sale el orden, y un "hace 3 min" si algún día
+   *  hace falta decirlo. */
+  vistas: Record<string, number>;
   /** Abre una pestaña y la enfoca. Si ya hay una con ese id no se duplica: se
    *  enfoca la que está, que es lo que uno espera al volver a pedir algo que ya
    *  tiene abierto. Con `focus: false` abre en segundo plano. */
@@ -36,19 +45,30 @@ interface Workspace {
   activateTab: (id: string) => void;
 }
 
+/* La pestaña que queda adelante se anota como vista ahora. Si no cambió, no
+   se toca: volver a pedir la que ya se está mirando no es mirarla de nuevo. */
+const verAhora = (
+  vistas: Record<string, number>,
+  antes: string | undefined,
+  despues: string | undefined,
+) => (despues && despues !== antes ? { ...vistas, [despues]: Date.now() } : vistas);
+
 export const useWorkspace = create<Workspace>()((set) => ({
   tabs: [],
   activeId: undefined,
+  vistas: {},
 
   openTab: (tab, { focus = true } = {}) =>
     set((s) => {
       const abierta = s.tabs.some((t) => t.id === tab.id);
+      const activeId = focus ? tab.id : (s.activeId ?? tab.id);
       return {
         /* Ya abierta: gana la que está. Reemplazarla por el descriptor nuevo
            remontaría su contenido y perdería lo que hubiera adentro —el scroll,
            un formulario a medio llenar—. */
         tabs: abierta ? s.tabs : [...s.tabs, tab],
-        activeId: focus ? tab.id : (s.activeId ?? tab.id),
+        activeId,
+        vistas: verAhora(s.vistas, s.activeId, activeId),
       };
     }),
 
@@ -59,15 +79,22 @@ export const useWorkspace = create<Workspace>()((set) => ({
     set((s) => {
       const i = s.tabs.findIndex((t) => t.id === id);
       if (i === -1) return s;
+      const activeId =
+        s.activeId === id ? (s.tabs[i + 1] ?? s.tabs[i - 1])?.id : s.activeId;
+      const { [id]: _cerrada, ...vistas } = s.vistas;
       return {
         tabs: s.tabs.filter((t) => t.id !== id),
-        activeId:
-          s.activeId === id ? (s.tabs[i + 1] ?? s.tabs[i - 1])?.id : s.activeId,
+        activeId,
+        vistas: verAhora(vistas, s.activeId, activeId),
       };
     }),
 
   activateTab: (id) =>
-    set((s) => (s.tabs.some((t) => t.id === id) ? { activeId: id } : s)),
+    set((s) =>
+      s.tabs.some((t) => t.id === id)
+        ? { activeId: id, vistas: verAhora(s.vistas, s.activeId, id) }
+        : s,
+    ),
 }));
 
 /** Cuál pestaña está activa. Es lo que más se lee y casi nunca junto con la

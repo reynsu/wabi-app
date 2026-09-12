@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import type { IconComponent } from "@/lib/icon-context";
+import type { WorkspaceTab } from "@/components/workspace-panel";
 import { AdminReports } from "@/pages/AdminReports";
 import { Announcements } from "@/pages/Announcements";
 import { DocAccounts } from "@/pages/DocAccounts";
@@ -149,3 +150,25 @@ export const HOJAS: NavLeaf[] = NAV.flatMap((grupo) => grupo.items);
 
 export const buscarHoja = (id: string): NavLeaf | undefined =>
   HOJAS.find((h) => h.id === id);
+
+/* El id de una copia es el de su hoja más un sufijo (`chat/search#2`). `raiz` lo
+   saca: lo que se le pregunta a la hoja —si la fila está encendida, de qué
+   sección es— se pregunta con la raíz y no con la copia. */
+export const raiz = (id: string) => id.split("#")[0];
+
+/** La pestaña de una hoja.
+ *
+ *  El id de la pestaña se pasa además al contenido: una pantalla que pone algo
+ *  en el board tiene que poder decir en cuál. Por defecto es el de la hoja, y
+ *  una copia le pasa el suyo —`tickets#2` es otra pestaña con otro board—.
+ *
+ *  Vive acá y no en `App` porque ya no la arma un solo lugar: el shell móvil
+ *  rehace pestañas a partir de la URL, y lo único que sabe rehacer son hojas.
+ *  Cada pantalla se ocupa de su propio aire: el `ChangelogPage` es la página
+ *  entera y un `max-w` acá se lo comería. */
+export const aPestaña = (hoja: NavLeaf, id: string = hoja.id): WorkspaceTab => ({
+  id,
+  label: hoja.label,
+  icon: hoja.icon,
+  content: hoja.render(id),
+});
