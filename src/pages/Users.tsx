@@ -891,6 +891,39 @@ function Pantalla() {
             {filas.map((usuario) => (
               <FilaMovil
                 key={usuario.id}
+                id={usuario.id}
+                /* Las dos del pie del vistazo, que en el teléfono no existe: el
+                   vistazo se abre con el hover. Corriendo la fila quedan a
+                   mano las mismas dos, y con la misma regla —bloquear y
+                   desbloquear son una sola, porque una cuenta está de un lado o
+                   del otro, nunca de los dos—.
+
+                   Es un atajo, no el único camino: las dos están también en el
+                   menú del perfil, que es a donde lleva la fila. Un gesto no se
+                   tabula ni lo anuncia un lector de pantalla, así que lo que
+                   viva sólo acá no existe para quien no puede hacerlo.
+
+                   Reset password no hace nada todavía, igual que su botón en el
+                   vistazo y en el perfil: no hay backend detrás. */
+                acciones={[
+                  {
+                    label: "Reset",
+                    icon: KeyRound,
+                    onSelect: () => {},
+                  },
+                  usuario.status === "blocked"
+                    ? {
+                        label: "Unblock",
+                        icon: CircleCheck,
+                        onSelect: () => cambiarEstado(usuario.id, "active"),
+                      }
+                    : {
+                        label: "Block",
+                        icon: Ban,
+                        onSelect: () => cambiarEstado(usuario.id, "blocked"),
+                        tono: "peligro" as const,
+                      },
+                ]}
                 media={
                   <span className="relative shrink-0">
                     <TipoDeCuenta usuario={usuario} />
