@@ -47,6 +47,9 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { useEsMovil } from "@/hooks/use-es-movil";
 import { useMeasuredHeight } from "@/hooks/use-measured-height";
 import { FilaMovil, ListaMovil } from "@/movil/lista";
+/* PROTOTIPO: cómo se muestra una cuenta en el teléfono. Se tira al elegir una
+   variante; ver `movil/prototipo-cuentas.tsx`. */
+import { CuentasPrototipo } from "@/movil/prototipo-cuentas";
 import {
   Table,
   TableBody,
@@ -838,6 +841,27 @@ function Pantalla() {
            Y la fila entera abre el perfil. En escritorio el nombre hace dos
            cosas —el hover lo vistaza, el clic lo abre— y en un táctil no hay
            hover: queda el clic, y el blanco pasa a ser la fila. */
+        <CuentasPrototipo
+          filas={filas.map((u) => ({
+            id: u.id,
+            nombre: u.name,
+            estado: ESTADOS[u.status],
+            tipo: TIPOS[u.accountType],
+            cuando: cuandoFue(u.lastActivity),
+            alta: fechaDia(u.addedAt),
+            media: <TipoDeCuenta usuario={u} />,
+            iniciales: iniciales(u.name),
+            last30: u.last30,
+            prev30: u.prev30,
+            bloqueados: u.blockedMessages,
+            mensajes: u.messages,
+          }))}
+          onAbrir={(id) => {
+            const usuario = filas.find((u) => u.id === id);
+            if (usuario) abrirPerfil(usuario);
+          }}
+          centinela={<div ref={centinela} aria-hidden className="h-px" />}
+          actual={
         <ScrollArea className="min-h-0 flex-1" viewportClassName="scroll-fade scrollbar-hide">
           <ListaMovil>
             {filas.map((usuario) => (
@@ -859,6 +883,8 @@ function Pantalla() {
           {/* El mismo centinela que abajo: la lista no se pagina, se sigue. */}
           <div ref={centinela} aria-hidden className="h-px" />
         </ScrollArea>
+          }
+        />
       ) : (
         <div className="relative min-h-0 flex-1">
           {/* Los títulos van afuera del scroller y flotando encima. Adentro no
