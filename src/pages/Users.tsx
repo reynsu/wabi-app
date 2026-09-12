@@ -569,6 +569,54 @@ function TipoDeCuenta({ usuario }: { usuario: Usuario }) {
   );
 }
 
+/**
+ * El estado de la cuenta, pegado al plato como la presencia de Slack — y sólo
+ * cuando hay algo que decir.
+ *
+ * En el teléfono la píldora del estado se comía noventa píxeles del ancho —los
+ * que le faltaban al nombre— para decir una de tres palabras que además se
+ * repite cuarenta veces seguidas. Como punto sobre el plato no ocupa ninguno: va
+ * encima de algo que ya estaba.
+ *
+ * **Y una cuenta activa no lleva punto.** Cuarenta y dos de las cuarenta y ocho
+ * lo están: marcar lo normal es no marcar nada, y una columna de puntos verdes
+ * es ruido con la forma de una señal. Sin punto quiere decir que está todo bien,
+ * y lo que queda encendido es lo único que pide mirar: una bloqueada o una
+ * desactivada se encuentran barriendo la lista con el ojo, sin leer.
+ *
+ * **El color no es lo único que las separa.** Bloqueada es un punto lleno en
+ * rojo —es la que tiene que gritar— y desactivada uno hueco, el mismo recurso
+ * que usa Slack para "ausente": se distinguen por forma, que es lo que necesita
+ * quien no separa el rojo del gris.
+ *
+ * El aro es del color de la superficie sobre la que se apoya la fila y no un
+ * borde gris: recorta el plato en vez de dibujar un anillo, que es lo que hace
+ * que el punto se lea encima y no al lado.
+ *
+ * Lo que no se pierde es la palabra. El punto lleva su nombre en `aria-label`, y
+ * la cuenta activa —que no dibuja nada— igual lo anuncia: para un lector de
+ * pantalla la ausencia de algo no existe, así que el silencio visual tiene que
+ * decirse. En la tabla de escritorio la píldora sigue, que allá el ancho sobra.
+ */
+function PuntoDeEstado({ estado }: { estado: Estado }) {
+  const { label, tinte } = ESTADOS[estado];
+
+  if (estado === "active") return <span className="sr-only">{label}</span>;
+
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      className="absolute -right-0.5 -bottom-0.5 size-3 rounded-full border-2 border-surface-3"
+      style={
+        estado === "deactivated"
+          ? { background: "var(--surface-3)", boxShadow: `inset 0 0 0 2px ${tinte}` }
+          : { background: tinte }
+      }
+    />
+  );
+}
+
 const COLUMNAS = [
   { id: "name", ancho: "40%" },
   { id: "status", ancho: "20%" },
@@ -843,13 +891,27 @@ function Pantalla() {
             {filas.map((usuario) => (
               <FilaMovil
                 key={usuario.id}
-                media={<TipoDeCuenta usuario={usuario} />}
+                media={
+                  <span className="relative shrink-0">
+                    <TipoDeCuenta usuario={usuario} />
+                    <PuntoDeEstado estado={usuario.status} />
+                  </span>
+                }
                 titulo={usuario.name}
-                detalle={`${usuario.id} · ${cuandoFue(usuario.lastActivity)}`}
+                /* El tipo de cuenta, escrito. El plato ya lo dice con su
+                   glifo —la casa para quien vive acá, las dos siluetas para su
+                   gente— pero eso lo aclara un tooltip, y en un táctil no hay
+                   tooltip: el que no conoce los glifos no tiene dónde
+                   preguntar. */
+                detalle={`${usuario.id} · ${TIPOS[usuario.accountType]}`}
+                /* Y cuándo se movió pasa al borde derecho, que quedó libre
+                   cuando el estado se fue al plato. Ahí arma su propia columna
+                   —todas las horas alineadas— en vez de ser la cola de una
+                   línea que cambia de largo en cada fila. */
                 extra={
-                  <Badge variant="dot" color={ESTADOS[usuario.status].color}>
-                    {ESTADOS[usuario.status].label}
-                  </Badge>
+                  <span className="text-[12px] text-muted-foreground">
+                    {cuandoFue(usuario.lastActivity)}
+                  </span>
                 }
                 onClick={() => abrirPerfil(usuario)}
               />
