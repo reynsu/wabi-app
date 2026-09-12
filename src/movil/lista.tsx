@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { useTypeScale } from "@/lib/size-context";
 import { cn } from "@/lib/utils";
 import {
   Deslizable,
@@ -23,14 +24,30 @@ import {
  *
  * Sin marco ni radio, como la tabla de escritorio: las filas llegan a los dos
  * bordes del plano y el aire lateral lo pone su propio relleno, no una caja.
+ *
+ * **La tipografía sale de la escala y no de un número escrito acá**: `body`
+ * arriba y `caption` abajo, que es exactamente lo que usa la lista de
+ * conversaciones del perfil. Son dos listas de la misma app leídas con el mismo
+ * pulgar, y una a 15px al lado de otra a 13px se leen como dos productos. De
+ * paso, la fila sigue el escalón de densidad que declare la pantalla en vez de
+ * ignorarlo.
  */
 
-/** La lista envuelve a sus filas en un grupo: correr una devuelve la que estaba
- *  corrida. Ver `Deslizable`. */
+/**
+ * La lista envuelve a sus filas en un grupo: correr una devuelve la que estaba
+ * corrida. Ver `Deslizable`.
+ *
+ * **El filete entre filas va a un tercio del token.** A pleno, doce líneas
+ * grises cada 56px pesan más que el contenido y la lista se lee como una
+ * grilla; lo que separa dos filas es el aire, y el filete sólo tiene que
+ * confirmarlo cuando se lo busca. Se baja la opacidad del mismo `--border` y no
+ * se elige otro color, así sigue el tema solo: en claro queda al borde de no
+ * verse y en oscuro, un blanco al 3%.
+ */
 export function ListaMovil({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <GrupoDeslizable>
-      <ul className={cn("flex flex-col [&>li+li]:border-t [&>li+li]:border-border", className)}>
+      <ul className={cn("flex flex-col [&>li+li]:border-t [&>li+li]:border-border/35", className)}>
         {children}
       </ul>
     </GrupoDeslizable>
@@ -67,14 +84,36 @@ export function FilaMovil({
   id,
   acciones,
 }: FilaMovilProps) {
+  const escala = useTypeScale();
+
   const dentro = (
     <>
       {media}
-      <span className="flex min-w-0 flex-1 flex-col leading-tight">
-        <span className="truncate text-[15px] font-medium">{titulo}</span>
-        {detalle && <span className="truncate text-[12px] text-muted-foreground">{detalle}</span>}
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="truncate" style={{ fontSize: escala.body }}>
+          {titulo}
+        </span>
+        {detalle && (
+          <span
+            className="truncate text-muted-foreground"
+            style={{ fontSize: escala.caption }}
+          >
+            {detalle}
+          </span>
+        )}
       </span>
-      {extra && <span className="flex shrink-0 items-center gap-2">{extra}</span>}
+      {/* Lo de la derecha, en el mismo escalón que el detalle y con cifras de
+          ancho fijo: es lo que hace escaneable la columna, y sin `tabular-nums`
+          "2 h ago" y "19 h ago" bailan una contra otra. Igual que la hora de una
+          conversación. */}
+      {extra && (
+        <span
+          className="flex shrink-0 items-center gap-2 tabular-nums text-muted-foreground"
+          style={{ fontSize: escala.caption }}
+        >
+          {extra}
+        </span>
+      )}
     </>
   );
 

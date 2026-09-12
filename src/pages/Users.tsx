@@ -779,7 +779,16 @@ function Pantalla() {
           nombre propio y la bajada tiene lugar de sobra.
 
           El campo toma todo el ancho que le deja el botón de filtros, que es lo
-          único que lo acompaña. */}
+          único que lo acompaña.
+
+          **Y los dos van en píldora.** El radio del sistema —8px, el de la
+          escalera de figuras— es el de un control apoyado sobre una pantalla
+          llena de controles; acá arriba hay dos y nada más, flotando sobre una
+          lista sin marcos. Redondeados del todo se leen como una barra de
+          búsqueda y no como la primera fila de un formulario, que es lo que un
+          teléfono espera arriba de una lista. Es una desviación de la escalera y
+          por eso vive en el call site: sólo vale para este header, y en
+          escritorio los dos siguen con el radio de la casa. */}
       {esMovil ? (
         <header className="flex shrink-0 items-center gap-2 px-4 py-3">
           <InputGroup className="min-w-0 flex-1">
@@ -791,7 +800,9 @@ function Pantalla() {
               placeholder="Search users"
               value={busqueda}
               onChange={setBusqueda}
-              className="[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border"
+              /* La caja del campo es el `div` que tiene el input adentro, no la
+                 raíz: el radio va ahí, que es lo que dibuja el marco. */
+              className="[&>div:has(>input)]:rounded-full [&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border"
             />
           </InputGroup>
 
@@ -801,6 +812,9 @@ function Pantalla() {
             variant="secondary"
             value={filtros}
             onValueChange={setFiltros}
+            /* `className` del `FilterMenu` va a su botón, que es lo único que
+               deja en el layout. */
+            className="rounded-full"
           />
         </header>
       ) : (
@@ -941,11 +955,7 @@ function Pantalla() {
                    cuando el estado se fue al plato. Ahí arma su propia columna
                    —todas las horas alineadas— en vez de ser la cola de una
                    línea que cambia de largo en cada fila. */
-                extra={
-                  <span className="text-[12px] text-muted-foreground">
-                    {cuandoFue(usuario.lastActivity)}
-                  </span>
-                }
+                extra={cuandoFue(usuario.lastActivity)}
                 onClick={() => abrirPerfil(usuario)}
               />
             ))}
