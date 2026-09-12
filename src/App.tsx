@@ -51,10 +51,11 @@ import { useBoardActivo, useBoards } from "@/stores/board";
 import { usePreviewActivo } from "@/stores/preview";
 import { useTema } from "@/stores/tema";
 import { useWorkspace } from "@/stores/workspace";
-import type { WorkspaceTab } from "@/components/workspace-panel";
 import { useShape } from "@/lib/shape-context";
 import { cn } from "@/lib/utils";
-import { INICIO, NAV, buscarHoja, type NavLeaf } from "@/navigation";
+import { INICIO, NAV, aPestaña, buscarHoja, raiz, type NavLeaf } from "@/navigation";
+import { useEsMovil } from "@/hooks/use-es-movil";
+import { ShellMovil } from "@/movil/shell-movil";
 
 /* Los controles de la barra del panel: `Button` en su escalón compacto, con el
    ícono en gris y el plano blanco de la escalera de superficies. Se pisa
@@ -67,31 +68,14 @@ const CONTROL = [
   "[&>span:first-child]:[--btn-bg:var(--surface-3)]",
 ].join(" ");
 
-/* Cada pantalla se ocupa de su propio aire: el `ChangelogPage` es la página
-   entera y un `max-w` acá se lo comería. */
-/* El id de la pestaña se pasa además al contenido: una pantalla que pone algo
-   en el board tiene que poder decir en cuál. Por defecto es el de la hoja, y
-   una copia le pasa el suyo —`tickets#2` es otra pestaña con otro board—. */
-const toTab = (hoja: NavLeaf, id: string = hoja.id): WorkspaceTab => ({
-  id,
-  label: hoja.label,
-  icon: hoja.icon,
-  content: hoja.render(id),
-});
-
 /** La pestaña con la que abre la app: la fila que el diseño muestra
  *  encendida. */
 const INICIAL = buscarHoja(INICIO) ?? NAV[0].items[0];
 
-/* El id de una copia es el de su hoja más un sufijo (`chat/search#2`). `raiz` lo
-   saca: preguntar si la fila del sidebar está encendida se hace con la raíz y no
-   con la copia. */
-const raiz = (id: string) => id.split("#")[0];
-
 /* La pestaña con la que abre la app, puesta una sola vez y acá afuera.
    `openTab` no duplica por id, así que si el refresco en caliente vuelve a
    evaluar este módulo esto no agrega una segunda. */
-useWorkspace.getState().openTab(toTab(INICIAL));
+useWorkspace.getState().openTab(aPestaña(INICIAL));
 
 export default function App() {
   return <Shell />;
@@ -116,12 +100,16 @@ function Shell() {
   const [redimensionando, setRedimensionando] = useState(false);
   const shape = useShape();
   const riel = useRef<WidgetRailControl | null>(null);
+  /* El teléfono no recibe el panel ni el riel: recibe su propio shell. Se
+     pregunta con el mismo corte que el sidebar —ver `useEsMovil`—, así que el
+     sidebar se vuelve hoja justo cuando el panel se vuelve Inicio. */
+  const esMovil = useEsMovil();
 
   /* Ir a una fila por id, para los lugares que la nombran sin tenerla a mano
      —el dropdown del header. */
   const irA = (id: string) => {
     const destino = buscarHoja(id);
-    if (destino) openTab(toTab(destino));
+    if (destino) openTab(aPestaña(destino));
   };
 
   /* Duplicar una fila. La pestaña se identifica por id y `openTab` deja ganar
@@ -135,7 +123,7 @@ function Shell() {
     const usados = new Set(tabs.map((t) => t.id));
     let id = hoja.id;
     for (let n = 2; usados.has(id); n++) id = `${hoja.id}#${n}`;
-    openTab(toTab(hoja, id));
+    openTab(aPestaña(hoja, id));
   };
 
   const rielVisible = board.open || preview !== null;
@@ -153,7 +141,10 @@ function Shell() {
   return (
     <SidebarProvider
       defaultOpen
-      className="h-screen overflow-hidden bg-surface-1"
+      /* `dvh` en el teléfono: el `100vh` de Safari cuenta la barra de
+         direcciones aunque esté a la vista, y el pie del shell quedaba abajo de
+         ella. */
+      className={cn("h-screen overflow-hidden bg-surface-1", esMovil && "h-dvh")}
     >
       <Sidebar variant="inset">
         {/* El header es un dropdown, y la marca se apila horizontal: la
@@ -285,7 +276,7 @@ function Shell() {
                       isActive={
                         activeId !== undefined && raiz(activeId) === hoja.id
                       }
-                      onClick={() => openTab(toTab(hoja))}
+                      onClick={() => openTab(aPestaña(hoja))}
                     >
                       {hoja.label}
                     </SidebarMenuButton>
@@ -320,8 +311,11 @@ function Shell() {
         </SidebarFooter>
       </Sidebar>
 
-      {/* Un solo contexto de arrastre para el panel y el riel: sin esto una
-            tarjeta no podría cruzar de uno al otro. */}
+      {esMovil ? (
+        <ShellMovil />
+      ) : (
+        /* Un solo contexto de arrastre para el panel y el riel: sin esto una
+            tarjeta no podría cruzar de uno al otro. */
       <WidgetDragProvider>
         <WorkspaceOutlet
           as="main"
@@ -456,6 +450,7 @@ function Shell() {
           )}
         </AnimatePresence>
       </WidgetDragProvider>
+      )}
 
       {/* Los toasts, montados una sola vez para toda la app: son del shell,
             como el riel y las pestañas, y una pantalla que montara el suyo
