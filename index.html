@@ -3,7 +3,37 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- `viewport-fit=cover` deja que la app pinte hasta el borde del aparato,
+         debajo del notch y de la barra de inicio; el shell del teléfono se
+         aparta de ellos con `env(safe-area-inset-*)`. Sin esto, iOS reserva esas
+         franjas y el plano de marca termina antes del borde. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+
+    <!-- El color con el que el navegador pinta lo suyo —la barra de estado en
+         Android, el fondo que asoma al rebotar el scroll—: el techo del plano de
+         marca, en cada tema. Es el mismo par que `PANEL_ART`, así que el chrome
+         del navegador se funde con la app en vez de recortarla. -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#3d3038" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1d1a1e" />
+
+    <!-- Instalada en la pantalla de inicio, la app abre sin el chrome del
+         navegador: pantalla completa de verdad. Es la única manera de llegar ahí
+         en un teléfono —el navegador no deja que una página se ponga en pantalla
+         completa sola, y en iOS ni siquiera con un gesto—.
+
+         `black-translucent` hace que el contenido pase por debajo de la barra de
+         estado; lo que la esquiva es el relleno del shell. -->
+    <link rel="manifest" href="manifest.webmanifest" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Wabi" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+
     <title>Wabi App</title>
   </head>
   <body>

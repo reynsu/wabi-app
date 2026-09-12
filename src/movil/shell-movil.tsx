@@ -51,6 +51,13 @@ import { irAInicio, useHistorialMovil, useNavegacionMovil, volver } from "./nave
  *  más dos—, para que lo que se monta adentro se levante igual en los dos. */
 const PLANO = 3;
 
+/* El aire de la barra de inicio, y va en cada caja que scrollea y no en el plano
+   que las contiene: un `inset-0` se mide contra la **caja de relleno**, así que
+   un `padding` del plano queda tapado por sus propios hijos y no aparta nada.
+   Puesto en el scroller, la última fila termina arriba de la barra y el plano
+   sigue llegando al borde del aparato. */
+const SIN_PISAR_LA_BARRA = { paddingBottom: "env(safe-area-inset-bottom)" };
+
 /* El botón del header, sobre el plano de marca: la tinta y el realce del
    `login-block`, que es de donde sale el fondo. El `Button` saca su relleno de
    `--hover` y `--active`, negros sobre claro; acá el fondo es oscuro en los dos
@@ -117,7 +124,14 @@ export function ShellMovil() {
           style={{ background: PANEL_ART[oscuro ? "dark" : "light"] }}
         />
 
-        <header className={cn("flex h-12 shrink-0 items-center gap-0.5 px-1.5", PANEL_INK.ink)}>
+        {/* El header se corre abajo del notch. Con la app instalada en la
+            pantalla de inicio, iOS deja el contenido pasar por debajo de la
+            barra de estado —`black-translucent`— y el plano de marca, que está
+            atrás de todo, la pinta; lo que se aparta es la fila de controles. */}
+        <header
+          style={{ paddingTop: "env(safe-area-inset-top)" }}
+          className={cn("flex h-12 shrink-0 items-center gap-0.5 px-1.5 box-content", PANEL_INK.ink)}
+        >
           <Button
             variant="ghost"
             size="icon"
@@ -175,12 +189,9 @@ export function ShellMovil() {
             tabla que hay adentro, y con el degradado detrás alcanza un filo para
             que se entienda que son dos capas.
 
-            Abajo llega hasta el borde. Lo que cede ante la barra de inicio es el
-            **relleno** y no el margen: la superficie sigue hasta el fondo del
-            aparato —si no, queda una banda de degradado bajo la mano— y lo que
-            se apoya adentro empieza más arriba. Va como `padding` del plano, y
-            los planos de las pestañas lo respetan porque un `inset-0` se mide
-            contra la caja de relleno.
+            Abajo llega hasta el borde del aparato: si cediera él, quedaría una
+            banda de degradado debajo de la mano. Lo que se aparta de la barra de
+            inicio es lo que se apoya adentro —ver `SIN_PISAR_LA_BARRA`—.
 
             **Sólo se redondean las esquinas de arriba.** Ése es el borde libre
             —el que hace que el plano se lea levantado, y el número sale de la
@@ -193,9 +204,14 @@ export function ShellMovil() {
             al relleno: lo que lo separa del sustrato es la sombra, porque en
             claro la escalera es plana en blanco de la tercera para arriba. */}
         <div
-          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+          style={{
+            /* Los 2px de aire, salvo que el aparato pida más: en horizontal, el
+               notch se come un costado. */
+            marginLeft: "max(2px, env(safe-area-inset-left))",
+            marginRight: "max(2px, env(safe-area-inset-right))",
+          }}
           className={cn(
-            "relative mx-0.5 min-h-0 flex-1 overflow-hidden rounded-t-[28px]",
+            "relative min-h-0 flex-1 overflow-hidden rounded-t-[28px]",
             surfaceClasses(PLANO, PLANO + 2),
           )}
         >
@@ -211,6 +227,7 @@ export function ShellMovil() {
                   role="region"
                   aria-label={tab.label}
                   inert={oculta}
+                  style={SIN_PISAR_LA_BARRA}
                   className={cn("absolute inset-0 overflow-auto", oculta && "invisible")}
                 >
                   {tab.content}
@@ -221,7 +238,10 @@ export function ShellMovil() {
             {/* Inicio no scrollea entero: adentro, lo único que se corre es la
                 lista de pantallas. Ver `inicio.tsx`. */}
             {enInicio && (
-              <div className="absolute inset-0 overflow-hidden animate-in fade-in-0 duration-150">
+              <div
+                style={SIN_PISAR_LA_BARRA}
+                className="absolute inset-0 overflow-hidden animate-in fade-in-0 duration-150"
+              >
                 <Inicio />
               </div>
             )}
