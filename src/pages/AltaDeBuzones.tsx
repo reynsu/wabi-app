@@ -18,6 +18,7 @@ import {
   type EstadoBuzon,
   type PedidoDeAlta,
 } from "@/pages/buzones";
+import { contiene } from "@/pages/texto";
 import { direccionDe } from "@/pages/emails";
 import { fechaDia } from "@/pages/tiempo";
 import { HOY, type Usuario } from "@/pages/usuarios";
@@ -298,7 +299,7 @@ export function BarraDeAlta({ alta }: { alta: Alta }) {
   const reducido = useReducedMotion() ?? false;
   const [texto, setTexto] = useState("");
 
-  const t = texto.trim().toLowerCase();
+  const t = texto.trim();
   /* Los candidatos: las cuentas que matchean y que no están ya en el borrador.
      Una cuenta elegida sale de la lista en vez de quedar tildada: acá no se
      destilda desde la lista, se saca la fila, y una opción que no hace nada al
@@ -306,7 +307,7 @@ export function BarraDeAlta({ alta }: { alta: Alta }) {
   const candidatos = alta.usuarios.filter(
     (u) =>
       !alta.ids.includes(u.id) &&
-      (u.name.toLowerCase().includes(t) || u.id.toLowerCase().includes(t)),
+      contiene([u.name, u.id], t),
   );
 
   const elegir = (id: string) => {

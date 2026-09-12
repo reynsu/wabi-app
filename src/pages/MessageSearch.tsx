@@ -37,6 +37,7 @@ import {
 } from "@/components/filter-menu";
 import { useWorkspace } from "@/stores/workspace";
 import { Button } from "@/components/ui/button";
+import { contiene } from "@/pages/texto";
 import { esFoto, esNota, type Conversacion } from "@/pages/conversaciones";
 import { InputField, InputGroup } from "@/components/ui/input-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -396,15 +397,12 @@ const TEXTOS: Record<string, (f: MensajeEnContexto) => string[]> = {
   recipient: (f) => [destinatarioDe(f).nombre],
 };
 
-const contiene = (donde: string[], que: string) =>
-  donde.some((d) => d.toLowerCase().includes(que.toLowerCase()));
-
 function pasa(
   fila: MensajeEnContexto,
   busqueda: string,
   filtros: FilterSelection,
 ) {
-  const texto = busqueda.trim().toLowerCase();
+  const texto = busqueda.trim();
   /* La barra de arriba busca en lo que la fila muestra —los dos nombres y el
      mensaje— y además en el id de la cuenta: la tabla no lo tiene en ninguna
      columna, pero es lo primero que uno pega ahí cuando llegó desde un

@@ -68,6 +68,7 @@ import {
   useCuentasDOC,
   type CuentaDOC,
 } from "@/pages/cuentas-doc";
+import { contiene } from "@/pages/texto";
 import { useAltaDeCuenta } from "@/pages/NuevaCuentaDOC";
 import { fechaDia, tramoAlta } from "@/pages/tiempo";
 import {
@@ -224,11 +225,8 @@ const CAMPOS: Record<string, (c: CuentaDOC) => string[]> = {
   effective: (c) => [tramoAlta(diaDe(c.desde))],
 };
 
-const contiene = (donde: string[], que: string) =>
-  donde.some((d) => d.toLowerCase().includes(que.toLowerCase()));
-
 function pasa(cuenta: CuentaDOC, busqueda: string, filtros: FilterSelection) {
-  const texto = busqueda.trim().toLowerCase();
+  const texto = busqueda.trim();
   /* La barra busca en lo que identifica a la fila: el nombre, el correo y dónde
      trabaja. El correo primero en importancia aunque vaya segundo en la tabla:
      con dos personas del mismo nombre, es lo único que separa una fila de la

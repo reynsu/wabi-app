@@ -45,6 +45,7 @@ import { usePaginacion } from "@/hooks/use-paginacion";
 import { SizeProvider, useTypeScale } from "@/lib/size-context";
 import { spring } from "@/lib/springs";
 import { cn } from "@/lib/utils";
+import { contiene } from "@/pages/texto";
 import { useCuentasDOC, type CuentaDOC } from "@/pages/cuentas-doc";
 import { GLIFOS, claseDeArchivo } from "@/lib/archivos";
 import { useBajadaDOC } from "@/pages/bajar-reporte-doc";
@@ -233,16 +234,13 @@ const CAMPOS: Record<string, (r: ReporteDOC) => string[]> = {
   requested: (r) => [tramoDePedido(r)],
 };
 
-const contiene = (donde: string[], que: string) =>
-  donde.some((d) => d.toLowerCase().includes(que.toLowerCase()));
-
 function pasa(
   reporte: ReporteDOC,
   quien: string,
   busqueda: string,
   filtros: FilterSelection,
 ) {
-  const texto = busqueda.trim().toLowerCase();
+  const texto = busqueda.trim();
   /* La barra busca en lo que se lee, más quién lo pidió: "todo lo que pidió
      Sabrina" es algo que uno escribe antes de acordarse de que hay un panel, y
      es la única de las cuatro cosas que no tiene columna. El nombre ya trae el

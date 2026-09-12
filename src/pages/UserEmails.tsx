@@ -45,6 +45,7 @@ import {
   type Carpeta,
   type Email,
 } from "@/pages/emails";
+import { contiene } from "@/pages/texto";
 import { cuandoCorto, diasDesde, fechaLarga } from "@/pages/tiempo";
 import { iniciales, type Usuario } from "@/pages/usuarios";
 
@@ -368,14 +369,9 @@ function Lista({
      la barra y el panel es Y —lo que uno escribe **y** lo que marcó—, que es lo
      que ya hacen las tablas de esta consola. */
   const encontrados = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
+    const q = busqueda.trim();
     return emails.filter(
-      (e) =>
-        pasa(e, filtros) &&
-        (!q ||
-          e.contacto.toLowerCase().includes(q) ||
-          e.asunto.toLowerCase().includes(q) ||
-          e.cuerpo.some((p) => p.toLowerCase().includes(q))),
+      (e) => pasa(e, filtros) && (!q || contiene([e.contacto, e.asunto, ...e.cuerpo], q)),
     );
   }, [emails, busqueda, filtros]);
 

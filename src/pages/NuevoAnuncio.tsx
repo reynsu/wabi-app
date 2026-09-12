@@ -32,6 +32,7 @@ import {
   type Adjunto,
   type Destinatario,
 } from "@/pages/anuncios";
+import { contiene } from "@/pages/texto";
 import { useBuzones } from "@/pages/buzones";
 import { fechaDia } from "@/pages/tiempo";
 import { useUsuarios } from "@/pages/usuarios";
@@ -231,9 +232,9 @@ function BuscarDestinatario({ d, enviando }: { d: Draft; enviando: boolean }) {
             cuenta: u.id,
           }));
 
-    const q = texto.trim().toLowerCase();
+    const q = texto.trim();
     return lista
-      .filter((o) => (q ? o.nombre.toLowerCase().includes(q) : true))
+      .filter((o) => (q ? contiene([o.nombre], q) : true))
       .filter((o) => !d.b.objetivos.some((y) => y.id === o.id))
       .slice(0, 3);
   }, [clase, texto, buzones, usuarios, d.b.objetivos]);

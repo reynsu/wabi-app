@@ -34,6 +34,7 @@ import { MenuItem } from "@/components/ui/menu-item";
 import type { WidgetDefinition } from "@/components/widget";
 import { useTypeScale } from "@/lib/size-context";
 import { cn } from "@/lib/utils";
+import { contiene } from "@/pages/texto";
 import { useBuzones } from "@/pages/buzones";
 import {
   ALCANCES,
@@ -342,9 +343,9 @@ function BuscarObjetivo({ d, enviando }: { d: Draft; enviando: boolean }) {
   const candidatos = useMemo(() => {
     const lista =
       clase === "facility" ? instalaciones : usuarios.map((u) => u.name);
-    const q = texto.trim().toLowerCase();
+    const q = texto.trim();
     return lista
-      .filter((n) => (q ? n.toLowerCase().includes(q) : true))
+      .filter((n) => (q ? contiene([n], q) : true))
       .filter((n) => !d.b.objetivos.some((o) => o.nombre === n))
       .slice(0, 3);
   }, [clase, texto, instalaciones, usuarios, d.b.objetivos]);

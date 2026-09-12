@@ -69,6 +69,7 @@ import {
   type Email,
   type EmailConDueno,
 } from "@/pages/emails";
+import { contiene } from "@/pages/texto";
 import { tabDePerfil } from "@/pages/perfil-tab";
 import { diasDesde, fechaLarga, haceCuanto } from "@/pages/tiempo";
 import { TarjetaUsuario } from "@/pages/Users";
@@ -493,15 +494,12 @@ const TEXTOS: Record<string, (f: EmailConDueno) => string[]> = {
   author: (f) => [autorDe(f.email, f.usuario)],
 };
 
-const contiene = (donde: string[], que: string) =>
-  donde.some((d) => d.toLowerCase().includes(que.toLowerCase()));
-
 function pasa(
   fila: EmailConDueno,
   busqueda: string,
   filtros: FilterSelection,
 ) {
-  const texto = busqueda.trim().toLowerCase();
+  const texto = busqueda.trim();
   /* La barra de arriba busca en lo que la fila muestra —el autor y el asunto— y
      además en el nombre de la cuenta: la tabla no lo tiene en ninguna columna,
      pero es lo primero que uno pega ahí cuando llegó desde un perfil. */

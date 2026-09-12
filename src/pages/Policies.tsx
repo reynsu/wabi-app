@@ -54,6 +54,7 @@ import { SizeProvider, useTypeScale } from "@/lib/size-context";
 import { spring } from "@/lib/springs";
 import { cn } from "@/lib/utils";
 import { PolicyTargets } from "@/components/policy-targets";
+import { contiene } from "@/pages/texto";
 import { BorrarPolitica } from "@/pages/BorrarPolitica";
 import { useAltaDePolitica } from "@/pages/NuevaPolitica";
 import {
@@ -217,16 +218,13 @@ const CAMPOS: Record<string, (p: Politica) => string[]> = {
   created: (p) => [tramoAlta(p.creadaEl)],
 };
 
-const contiene = (donde: string[], que: string) =>
-  donde.some((d) => d.toLowerCase().includes(que.toLowerCase()));
-
 function pasa(
   politica: Politica,
   alcance: string,
   busqueda: string,
   filtros: FilterSelection,
 ) {
-  const texto = busqueda.trim().toLowerCase();
+  const texto = busqueda.trim();
   /* La barra de arriba busca en las tres columnas que se leen: lo que la regla
      dice, sobre quién rige y quién la escribió. "Todo lo que escribió Irene" es
      algo que uno escribe antes de acordarse de que hay un panel. */

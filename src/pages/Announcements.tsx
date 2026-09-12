@@ -43,6 +43,7 @@ import { usePaginacion } from "@/hooks/use-paginacion";
 import { SizeProvider, useTypeScale } from "@/lib/size-context";
 import { spring } from "@/lib/springs";
 import { cn } from "@/lib/utils";
+import { contiene } from "@/pages/texto";
 import { useAltaDeAnuncio } from "@/pages/NuevoAnuncio";
 import {
   AUDIENCIAS,
@@ -202,9 +203,6 @@ const CAMPOS: Record<string, (a: Anuncio) => string[]> = {
   sent: (a) => [tramoAlta(a.enviadoEl)],
 };
 
-const contiene = (donde: string[], que: string) =>
-  donde.some((d) => d.toLowerCase().includes(que.toLowerCase()));
-
 /** Contra qué busca la barra de arriba: lo que el anuncio dice, a quiénes salió
  *  y quién lo mandó.
  *
@@ -228,7 +226,7 @@ function pasa(
   busqueda: string,
   filtros: FilterSelection,
 ) {
-  const texto = busqueda.trim().toLowerCase();
+  const texto = busqueda.trim();
   if (texto && !contiene(buscable(anuncio, aQuienes), texto)) return false;
 
   return Object.entries(filtros).every(([id, valores]) => {

@@ -59,6 +59,7 @@ import { useShape } from "@/lib/shape-context";
 import { SizeProvider, useTypeScale } from "@/lib/size-context";
 import { cn } from "@/lib/utils";
 import { tabDePerfil } from "@/pages/perfil-tab";
+import { contiene } from "@/pages/texto";
 import { fechaDia, tramoAlta } from "@/pages/tiempo";
 import {
   DIA,
@@ -498,22 +499,14 @@ const CAMPOS: Record<string, (u: Usuario) => string[]> = {
 };
 
 function pasa(usuario: Usuario, busqueda: string, filtros: FilterSelection) {
-  const texto = busqueda.trim().toLowerCase();
-  if (
-    texto &&
-    !usuario.name.toLowerCase().includes(texto) &&
-    !usuario.id.toLowerCase().includes(texto)
-  ) {
-    return false;
-  }
+  const texto = busqueda.trim();
+  if (texto && !contiene([usuario.name, usuario.id], texto)) return false;
 
   return Object.entries(filtros).every(([id, valores]) => {
     // El atributo de texto del panel no tiene opciones: el valor es lo que se
     // escribió, y se busca adentro del nombre igual que la barra de arriba.
     if (id === "name") {
-      return valores.some((v) =>
-        usuario.name.toLowerCase().includes(v.toLowerCase()),
-      );
+      return valores.some((v) => contiene([usuario.name], v));
     }
     const campo = CAMPOS[id];
     if (!campo) return true;

@@ -25,6 +25,7 @@ import {
 } from "@/components/animated-empty";
 import { punto } from "@/components/color-dot";
 import { GLIFOS, claseDeArchivo } from "@/lib/archivos";
+import { contiene } from "@/pages/texto";
 import { useBajada } from "@/pages/bajar-reporte";
 import { tabDeReporte } from "@/pages/reporte-tab";
 import { Segmentado } from "@/components/ficha";
@@ -223,11 +224,8 @@ const CAMPOS: Record<string, (r: Reporte) => string[]> = {
   period: (r) => [tramoDePeriodo(r)],
 };
 
-const contiene = (donde: string[], que: string) =>
-  donde.some((d) => d.toLowerCase().includes(que.toLowerCase()));
-
 function pasa(reporte: Reporte, busqueda: string, filtros: FilterSelection) {
-  const texto = busqueda.trim().toLowerCase();
+  const texto = busqueda.trim();
   /* La barra busca en lo que se lee: el nombre, el estado y las dos fechas del
      período **escritas como se ven**. Buscar "Jul 23" es lo que uno escribe
      antes de acordarse de que hay un panel, y contra el día suelto —`2026-07-23`—

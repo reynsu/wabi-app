@@ -39,6 +39,7 @@ import {
   type Organizacion,
   type RolDOC,
 } from "@/pages/cuentas-doc";
+import { contiene } from "@/pages/texto";
 import { HOY } from "@/pages/usuarios";
 import { useBoards } from "@/stores/board";
 
@@ -524,8 +525,8 @@ function Organizaciones({ d, enviando }: { d: Draft; enviando: boolean }) {
   const puestas = d.b.organizaciones;
 
   const encontradas = useMemo(() => {
-    const q = texto.trim().toLowerCase();
-    return ORGANIZACIONES.filter((o) => o.toLowerCase().includes(q));
+    const q = texto.trim();
+    return ORGANIZACIONES.filter((o) => contiene([o], q));
   }, [texto]);
 
   return (

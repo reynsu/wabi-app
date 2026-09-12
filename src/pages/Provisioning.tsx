@@ -64,6 +64,7 @@ import {
   useBuzones,
   type Buzon,
 } from "@/pages/buzones";
+import { contiene } from "@/pages/texto";
 import { tabDePerfil } from "@/pages/perfil-tab";
 import { fechaDia, tramoAlta } from "@/pages/tiempo";
 import { TarjetaUsuario } from "@/pages/Users";
@@ -340,11 +341,8 @@ const TEXTOS: Record<string, (b: Buzon) => string[]> = {
   address: (b) => [b.direccion],
 };
 
-const contiene = (donde: string[], que: string) =>
-  donde.some((d) => d.toLowerCase().includes(que.toLowerCase()));
-
 function pasa(buzon: Buzon, busqueda: string, filtros: FilterSelection) {
-  const texto = busqueda.trim().toLowerCase();
+  const texto = busqueda.trim();
   /* La barra de arriba busca en las tres columnas que se leen: el nombre, la
      dirección y quién lo creó. El creador tiene su propio atributo en el panel,
      pero "todo lo que dio de alta Irene" es algo que uno escribe antes de

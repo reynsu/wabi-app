@@ -50,6 +50,7 @@ import {
   ultimo,
   type Conversacion,
 } from "@/pages/conversaciones";
+import { contiene } from "@/pages/texto";
 import { cuandoCorto, diasDesde } from "@/pages/tiempo";
 import { iniciales, type Usuario } from "@/pages/usuarios";
 
@@ -359,13 +360,11 @@ function Lista({
      la barra y el panel es Y —lo que uno escribe **y** lo que marcó—, que es lo
      que ya hacen las cinco tablas de esta consola. */
   const encontradas = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
+    const q = busqueda.trim();
     return conversaciones.filter(
       (c) =>
         pasa(c, filtros) &&
-        (!q ||
-          c.contacto.toLowerCase().includes(q) ||
-          c.mensajes.some((m) => m.texto.toLowerCase().includes(q))),
+        (!q || contiene([c.contacto, ...c.mensajes.map((m) => m.texto)], q)),
     );
   }, [conversaciones, busqueda, filtros]);
 

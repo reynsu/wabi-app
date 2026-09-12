@@ -40,6 +40,7 @@ import { useProximityHover } from "@/hooks/use-proximity-hover";
 import { useTypeScale } from "@/lib/size-context";
 import { spring } from "@/lib/springs";
 import { cn } from "@/lib/utils";
+import { contiene } from "@/pages/texto";
 import { cuandoCorto, diaLargo, diasDesde, hora } from "@/pages/tiempo";
 import {
   ESTADOS_TICKET,
@@ -307,21 +308,24 @@ function Lista({
      referencia es la que más se usa —llega dictada por teléfono— y por eso es
      lo primero que se compara. */
   const encontrados = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
+    const q = busqueda.trim();
 
     const recortadas = filas.filter(
       (fila) =>
         pasa(fila, filtros) &&
         (!q ||
-          fila.ticket.referencia.toLowerCase().includes(q) ||
-          /* También por lo que la fila muestra grande, sea el asunto o el
-             nombre de quien lo abrió: es lo que el que busca tiene en la
-             cabeza. */
-          fila.principal.toLowerCase().includes(q) ||
-          fila.ticket.asunto.toLowerCase().includes(q) ||
-          fila.ticket.categoria.toLowerCase().includes(q) ||
-          fila.ticket.novedades.some((n) =>
-            n.texto.toLowerCase().includes(q),
+          contiene(
+            [
+              fila.ticket.referencia,
+              /* También por lo que la fila muestra grande, sea el asunto o el
+                 nombre de quien lo abrió: es lo que el que busca tiene en la
+                 cabeza. */
+              fila.principal,
+              fila.ticket.asunto,
+              fila.ticket.categoria,
+              ...fila.ticket.novedades.map((n) => n.texto),
+            ],
+            q,
           )),
     );
 
