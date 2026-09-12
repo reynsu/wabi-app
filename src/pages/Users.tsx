@@ -44,7 +44,9 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { InputField, InputGroup } from "@/components/ui/input-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip } from "@/components/ui/tooltip";
+import { useEsMovil } from "@/hooks/use-es-movil";
 import { useMeasuredHeight } from "@/hooks/use-measured-height";
+import { FilaMovil, ListaMovil } from "@/movil/lista";
 import {
   Table,
   TableBody,
@@ -607,19 +609,25 @@ function scrollerDe(el: HTMLElement | null) {
 }
 
 export function Users() {
+  /* Compacta en escritorio y normal en el teléfono. La densidad compacta existe
+     porque son cuarenta y ocho filas peleando por el alto de una ventana; en un
+     teléfono lo que pelea no es el alto sino el dedo, y el escalón de 28px es
+     más chico que la yema. */
+  const esMovil = useEsMovil();
+
   return (
     /* Una región densa entera, declarada una vez: el buscador, el panel de
        filtros y la tabla leen el escalón de acá y no lo reciben cada uno por
        su cuenta. Es lo que dice el sistema de tamaños —envolver la región, no
-       repetir `size="compact"` en cada pieza—, y de paso pasar la pantalla a
-       la densidad normal es cambiar esta palabra. */
-    <SizeProvider size="compact">
+       repetir `size="compact"` en cada pieza—. */
+    <SizeProvider size={esMovil ? "default" : "compact"}>
       <Pantalla />
     </SizeProvider>
   );
 }
 
 function Pantalla() {
+  const esMovil = useEsMovil();
   const [busqueda, setBusqueda] = useState("");
   const [filtros, setFiltros] = useState<FilterSelection>({});
   /* La lista viva, de la tienda del módulo y no de un `useState` de acá: el
@@ -722,9 +730,42 @@ function Pantalla() {
        el panel, y una tabla centrada adentro de un panel que ya está centrado
        deja dos márgenes peleando. */
     <div className="flex h-full min-h-0 w-full flex-col">
-      {/* El aire lateral es del header, no de la pantalla: así la tabla llega
-          a los dos bordes y son sus celdas las que se alinean con él. */}
-      <header className="flex shrink-0 flex-wrap items-center justify-between gap-4 px-6 py-4">
+      {/* En el teléfono, el header es el buscador y nada más.
+
+          Se va el título con su bajada: el header del shell ya dice dónde
+          estás —"Chat / Accounts"—, y repetirlo acá cuesta dos renglones de
+          los diez que hay. En escritorio se queda: allá el panel no lleva
+          nombre propio y la bajada tiene lugar de sobra.
+
+          El campo toma todo el ancho que le deja el botón de filtros, que es lo
+          único que lo acompaña. */}
+      {esMovil ? (
+        <header className="flex shrink-0 items-center gap-2 px-4 py-3">
+          <InputGroup className="min-w-0 flex-1">
+            <InputField
+              index={0}
+              label="Search users"
+              labelHidden
+              icon={Search}
+              placeholder="Search users"
+              value={busqueda}
+              onChange={setBusqueda}
+              className="[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border"
+            />
+          </InputGroup>
+
+          <FilterMenu
+            groups={GRUPOS}
+            align="end"
+            variant="secondary"
+            value={filtros}
+            onValueChange={setFiltros}
+          />
+        </header>
+      ) : (
+        /* El aire lateral es del header, no de la pantalla: así la tabla llega
+           a los dos bordes y son sus celdas las que se alinean con él. */
+        <header className="flex shrink-0 flex-wrap items-center justify-between gap-4 px-6 py-4">
         {/* De qué es esta pantalla. El título no repite la etiqueta de la fila
             del sidebar: la fila nombra el lugar —Accounts— y acá se dice qué
             se hace ahí. Los dos tamaños salen de la escala de tipos —`title` y
@@ -776,6 +817,7 @@ function Pantalla() {
           />
         </div>
       </header>
+      )}
 
       {filas.length === 0 ? (
         <AnimatedEmpty>
@@ -790,6 +832,40 @@ function Pantalla() {
             </AnimatedEmptyDescription>
           </AnimatedEmptyHeader>
         </AnimatedEmpty>
+      ) : esMovil ? (
+        /* La tabla se deshace en filas —ver `ListaMovil`—. Qué sobrevive:
+           arriba el nombre, abajo el id y cuándo se movió por última vez, y
+           contra el borde el estado, que es la columna por la que se escanea
+           esta lista.
+
+           **Se cae "Date Added"**, que es la columna que menos se mira y la
+           única que no distingue una cuenta de otra; está entera en el Timeline
+           del perfil, a un toque de acá.
+
+           Y la fila entera abre el perfil. En escritorio el nombre hace dos
+           cosas —el hover lo vistaza, el clic lo abre— y en un táctil no hay
+           hover: queda el clic, y el blanco pasa a ser la fila. */
+        <ScrollArea className="min-h-0 flex-1" viewportClassName="scroll-fade scrollbar-hide">
+          <ListaMovil>
+            {filas.map((usuario) => (
+              <FilaMovil
+                key={usuario.id}
+                media={<TipoDeCuenta usuario={usuario} />}
+                titulo={usuario.name}
+                detalle={`${usuario.id} · ${cuandoFue(usuario.lastActivity)}`}
+                extra={
+                  <Badge variant="dot" color={ESTADOS[usuario.status].color}>
+                    {ESTADOS[usuario.status].label}
+                  </Badge>
+                }
+                onClick={() => abrirPerfil(usuario)}
+              />
+            ))}
+          </ListaMovil>
+
+          {/* El mismo centinela que abajo: la lista no se pagina, se sigue. */}
+          <div ref={centinela} aria-hidden className="h-px" />
+        </ScrollArea>
       ) : (
         <div className="relative min-h-0 flex-1">
           {/* Los títulos van afuera del scroller y flotando encima. Adentro no
