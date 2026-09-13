@@ -127,6 +127,41 @@ const MEDIDAS = {
   },
 } as const;
 
+/* El teléfono, en la escala de la app y no en la de la foto.
+   
+   La barra se dibujó mirando el referente y salió con las medidas del
+   referente: 56px de alto, una cápsula de 40, un play de 36 y el reloj en 17px.
+   Eso es una app de mensajería a pantalla completa, donde el reproductor *es* la
+   pantalla. Acá vive adentro de una burbuja de un hilo, al lado de texto de
+   13px: quedaba más alto que dos renglones del mensaje que lo acompaña y se
+   leía como un widget pegado, no como parte de la conversación.
+
+   Así que las medidas bajan un escalón y se enganchan a la escala de la casa:
+   44 de alto —lo que mide una fila táctil—, cápsula de 32, botones de 28 y 24
+   —el escalón compacto de los controles— y el reloj en `escala.body`, el mismo
+   cuerpo que el texto que tiene al lado. Lo que no cambia son los colores ni el
+   punteado de la onda: eso es lo que hacía reconocible al referente, y no era
+   el tamaño.
+
+   Juntas acá y no repartidas por el JSX porque el conjunto sólo cierra si se
+   miran a la vez: el play tiene que entrar en la cápsula, la cápsula en la
+   barra y el reloj no puede ser más grande que lo que hay al lado. */
+const TELEFONO = {
+  barra: "h-11 px-1.5 gap-1",
+  pastilla: "h-8 pl-3 pr-0.5 gap-2",
+  tacho: "size-6",
+  tachoGlifo: 13,
+  play: "size-7",
+  playGlifo: 14,
+  cerrar: "size-[30px]",
+  cerrarGlifo: 17,
+  /** El alto de la onda, en px: lo pide `wavesurfer` como número. */
+  onda: 16,
+  /** Plegada: el chip que queda. */
+  chip: "h-9 px-1 pr-3.5 gap-2",
+  chipPlay: "size-7",
+} as const;
+
 /* Cuánto mide la cápsula de escritorio: una base más un poco por segundo, hasta
    un techo. Una nota de cuatro segundos y una de cuarenta no pueden ocupar lo
    mismo, y el largo de la cápsula es el único lugar donde eso se ve antes de
@@ -216,7 +251,7 @@ export function AudioMessage({
 
     const ws = WaveSurfer.create({
       container: caja.current,
-      height: esMovil ? 20 : medidas.onda,
+      height: esMovil ? TELEFONO.onda : medidas.onda,
       ...(esMovil ? ONDA_MOVIL : ONDA_ESCRITORIO),
       /* Sin cursor: el avance ya se lee en el color, y una línea vertical sobre
          una onda de veinte píxeles de alto es más ruido que dato. */
@@ -303,18 +338,30 @@ export function AudioMessage({
                `w-full` en el teléfono —se lo pide la barra desplegada— y sin
                esto el chip se estiraría de punta a punta pretendiendo ser algo
                más grande de lo que es. */
-            "flex h-10 w-fit max-w-full cursor-pointer items-center gap-2 rounded-full px-1 pr-4",
+            "flex w-fit max-w-full cursor-pointer items-center rounded-full",
+            TELEFONO.chip,
             className,
           )}
           style={{ background: REFERENCIA.pastilla }}
         >
           <span
-            className="flex size-8 shrink-0 items-center justify-center rounded-full text-white"
+            className={cn(
+              "flex shrink-0 items-center justify-center rounded-full text-white",
+              TELEFONO.chipPlay,
+            )}
             style={{ background: REFERENCIA.avance }}
           >
-            <Play size={14} strokeWidth={2} fill="currentColor" className="translate-x-px" />
+            <Play
+              size={TELEFONO.playGlifo}
+              strokeWidth={2}
+              fill="currentColor"
+              className="translate-x-px"
+            />
           </span>
-          <span className="tabular-nums" style={{ color: REFERENCIA.tiempo, fontSize: 15 }}>
+          <span
+            className="tabular-nums"
+            style={{ color: REFERENCIA.tiempo, fontSize: escala.body }}
+          >
             {reloj(segundos)}
           </span>
         </button>
@@ -328,7 +375,8 @@ export function AudioMessage({
          pantalla. */
       <div
         className={cn(
-          "flex h-14 w-full min-w-0 items-center gap-1 rounded-[28px] px-2 shadow-sm",
+          "flex w-full min-w-0 items-center rounded-full shadow-sm",
+          TELEFONO.barra,
           className,
         )}
         style={{ background: REFERENCIA.barra }}
@@ -337,13 +385,16 @@ export function AudioMessage({
         {/* La cápsula gris. Todo lo que es la nota vive acá adentro; la × queda
             afuera porque no es de la nota, es de la barra. */}
         <div
-          className="flex h-10 min-w-0 flex-1 items-center gap-2.5 rounded-full pl-3.5 pr-1"
+          className={cn(
+            "flex min-w-0 flex-1 items-center rounded-full",
+            TELEFONO.pastilla,
+          )}
           style={{ background: REFERENCIA.pastilla }}
         >
           {/* El tiempo, grande y a la izquierda, como en la foto. */}
           <span
             className="shrink-0 tabular-nums"
-            style={{ color: REFERENCIA.tiempo, fontSize: 17 }}
+            style={{ color: REFERENCIA.tiempo, fontSize: escala.body }}
           >
             {reloj_}
           </span>
@@ -356,26 +407,37 @@ export function AudioMessage({
             type="button"
             onClick={descartar}
             aria-label="Discard playback"
-            className="flex size-[30px] shrink-0 cursor-pointer items-center justify-center rounded-full outline-none transition-[filter] duration-150 hover:brightness-95 focus-visible:ring-2 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]"
+            className={cn(
+              "flex shrink-0 cursor-pointer items-center justify-center rounded-full outline-none transition-[filter] duration-150 hover:brightness-95 focus-visible:ring-2 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
+              TELEFONO.tacho,
+            )}
             style={{ background: REFERENCIA.tacho, color: REFERENCIA.glifo }}
           >
-            <Trash size={16} strokeWidth={1.75} />
+            <Trash size={TELEFONO.tachoGlifo} strokeWidth={1.75} />
           </button>
 
           <button
             type="button"
             onClick={alternar}
             aria-label={reproduciendo ? "Pause voice note" : "Play voice note"}
-            className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-white outline-none transition-[filter] duration-150 hover:brightness-110 focus-visible:ring-2 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]"
+            className={cn(
+              "flex shrink-0 cursor-pointer items-center justify-center rounded-full text-white outline-none transition-[filter] duration-150 hover:brightness-110 focus-visible:ring-2 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
+              TELEFONO.play,
+            )}
             style={{ background: REFERENCIA.avance }}
           >
             {/* El triángulo, corrido un pelo a la derecha: centrado por su caja
                 se ve corrido a la izquierda —su peso está de ese lado—. La
                 pausa son dos barras simétricas y no necesita el empujón. */}
             {reproduciendo ? (
-              <Pause size={16} strokeWidth={2} fill="currentColor" />
+              <Pause size={TELEFONO.playGlifo} strokeWidth={2} fill="currentColor" />
             ) : (
-              <Play size={16} strokeWidth={2} fill="currentColor" className="translate-x-px" />
+              <Play
+                size={TELEFONO.playGlifo}
+                strokeWidth={2}
+                fill="currentColor"
+                className="translate-x-px"
+              />
             )}
           </button>
         </div>
@@ -384,10 +446,13 @@ export function AudioMessage({
           type="button"
           onClick={() => setAbierta(false)}
           aria-label="Close player"
-          className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full outline-none transition-[background] duration-150 hover:bg-black/5 focus-visible:ring-2 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]"
+          className={cn(
+            "flex shrink-0 cursor-pointer items-center justify-center rounded-full outline-none transition-[background] duration-150 hover:bg-black/5 focus-visible:ring-2 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
+            TELEFONO.cerrar,
+          )}
           style={{ color: REFERENCIA.glifo }}
         >
-          <X size={20} strokeWidth={1.75} />
+          <X size={TELEFONO.cerrarGlifo} strokeWidth={1.75} />
         </button>
       </div>
     );
