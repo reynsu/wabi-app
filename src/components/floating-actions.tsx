@@ -55,6 +55,7 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 import { SendHorizontal, X } from "lucide-react";
 
+import { useEsMovil } from "@/hooks/use-es-movil";
 import type { IconComponent } from "@/lib/icon-context";
 import { Elevated } from "@/lib/elevated";
 import { useShape } from "@/lib/shape-context";
@@ -109,6 +110,7 @@ export function FloatingActions({
 }: FloatingActionsProps) {
   const shape = useShape();
   const escala = useTypeScale();
+  const esMovil = useEsMovil();
   const [enPanel, setEnPanel] = useState(false);
   const [texto, setTexto] = useState("");
   const cancha = useRef<HTMLDivElement>(null);
@@ -143,8 +145,15 @@ export function FloatingActions({
   ];
 
   /* Que la fila esté entera o desvanecida. El foco cuenta igual que el puntero:
-     quien llega con el teclado también la está usando. */
-  const despierta = enPanel || cerca || arrastrando;
+     quien llega con el teclado también la está usando.
+
+     **En el teléfono está siempre entera.** Desvanecerse en reposo es una
+     respuesta al puntero: se apaga cuando la mano no está y vuelve cuando se
+     acerca. Sin puntero no hay acercarse, así que la barra se quedaba al 45%
+     para siempre —y una barra a medio pintar no se lee como "apartada", se lee
+     como deshabilitada—. Lo que la corre del camino en un táctil es el
+     arrastre, que también está. */
+  const despierta = esMovil || enPanel || cerca || arrastrando;
 
   return (
     /* La cancha del arrastre: todo lo que la barra cubre. Es también lo que la
@@ -154,13 +163,20 @@ export function FloatingActions({
     <div
       ref={cancha}
       className={cn(
-        "pointer-events-none absolute inset-0 z-20 flex items-end px-4 pb-4",
+        "pointer-events-none absolute inset-0 z-20 flex items-end px-4",
         /* La lista se va contra el borde derecho y la fila se queda al medio. Es
            lo que la separa: no es la barra con otra cara, es algo que se corrió a
            un costado para dejar ver la conversación que hay detrás. */
         enPanel ? "justify-end" : "justify-center",
         className,
       )}
+      /* Los 16px de siempre, más lo que se coma la barra de gestos del
+         teléfono. Con la app instalada la pantalla llega hasta el borde de
+         abajo —`viewport-fit=cover`—, y ahí la barra flotante quedaba debajo
+         del indicador del sistema: se la ve, pero el dedo toca el gesto de
+         Android antes que el botón. En cualquier otro lado `env()` vale cero y
+         esto es exactamente el `pb-4` que había. */
+      style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
     >
       <motion.div
         layout
