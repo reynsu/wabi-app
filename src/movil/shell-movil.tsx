@@ -30,7 +30,13 @@ import { useTema } from "@/stores/tema";
 import { useWorkspace } from "@/stores/workspace";
 import { Hoja } from "./hoja";
 import { Inicio } from "./inicio";
-import { irAInicio, useHistorialMovil, useNavegacionMovil, volver } from "./navegacion";
+import {
+  irAInicio,
+  useAtrasCierra,
+  useHistorialMovil,
+  useNavegacionMovil,
+  volver,
+} from "./navegacion";
 
 /**
  * El shell del teléfono: lo que por debajo de 768px ocupa el lugar del
@@ -99,6 +105,14 @@ export function ShellMovil() {
     if (preview !== null) cerrarPreview();
     else setBoardEn(null);
   };
+
+  /* Y el atrás del sistema la cierra, como a cualquier cosa que se abra encima.
+     Antes la hoja llegaba al 85% y dejaba ver la pantalla de abajo, así que se
+     leía como algo puesto sobre otra cosa que seguía ahí; ahora tapa todo, y
+     tapando todo el atrás tiene que devolver *esto*, no irse de la pestaña. Sin
+     esto, un toque de atrás cambiaba de pestaña y de paso cerraba la hoja: dos
+     cosas por un gesto, y ninguna de las dos pedida. */
+  useAtrasCierra(hojaAbierta, cerrarHoja);
 
   /* Lo que el riel hace con el board, contra el de la pestaña que se mira. */
   const editar = (fn: Parameters<typeof editarBoard>[1]) => activeId && editarBoard(activeId, fn);

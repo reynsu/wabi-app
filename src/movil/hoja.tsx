@@ -19,6 +19,19 @@ import { SurfaceProvider } from "@/lib/surface-context";
  * cuerpo: el cuerpo scrollea, y si el gesto de bajar la hoja empezara ahí se
  * comería el de scrollear. Pasados 90px —o soltada con envión— se cierra; si
  * no, vuelve a su lugar.
+ *
+ * **Y ocupa la pantalla entera.** Subía hasta el 85% y dejaba ver una franja de
+ * lo que había abajo. Esa franja es lo que hace que una hoja se lea como algo
+ * puesto encima —"esto no reemplaza a lo de atrás"— y acá no compraba nada: lo
+ * que muestra no es un vistazo de dos renglones sino una conversación entera o
+ * el board de la pestaña, lo mismo que en escritorio vive en el riel, que allá
+ * es una columna de alto completo. La franja no se puede tocar —la hoja es
+ * modal— así que sólo recordaba dónde estabas, y eso ya lo dice el título; a
+ * cambio le sacaba 120px al contenido, que en un teléfono son dos mensajes.
+ *
+ * Llegando arriba de todo se va el radio —no hay nada atrás que asome por las
+ * esquinas— y hay que apartarse del notch a mano: la hoja sale del plano, así
+ * que el aire de las barras del sistema no lo hereda de nadie.
  */
 
 const UMBRAL = 90;
@@ -71,11 +84,14 @@ export function Hoja({ abierta, onCerrar, titulo, sinCabecera, children }: HojaP
         <DialogPrimitive.Popup
           ref={popup}
           className={cn(
-            "fixed inset-x-0 bottom-0 z-50 flex max-h-[85dvh] flex-col rounded-t-2xl bg-surface-2 shadow-surface-5 outline-none",
+            "fixed inset-0 z-50 flex flex-col bg-surface-2 outline-none",
             "data-open:animate-in data-open:slide-in-from-bottom data-open:duration-250",
             "data-closed:animate-out data-closed:slide-out-to-bottom data-closed:duration-200",
           )}
-          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+          style={{
+            paddingTop: "env(safe-area-inset-top)",
+            paddingBottom: "env(safe-area-inset-bottom)",
+          }}
         >
           <div
             className="shrink-0 cursor-grab touch-none select-none"
