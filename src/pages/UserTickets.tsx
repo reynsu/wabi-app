@@ -36,9 +36,11 @@ import type { WidgetDefinition } from "@/components/widget";
 import { InputField, InputGroup } from "@/components/ui/input-group";
 import { useEsMovil } from "@/hooks/use-es-movil";
 import { BOTON_EN_PILDORA, CAMPO_EN_PILDORA } from "@/movil/buscador";
+import { SANGRIA_MOVIL } from "@/movil/lista";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ListPane } from "@/components/list-pane";
 import { MaestroDetalle } from "@/movil/maestro-detalle";
+import { useMarcada } from "@/movil/seleccion";
 import { useProximityHover } from "@/hooks/use-proximity-hover";
 import { useTypeScale } from "@/lib/size-context";
 import { spring } from "@/lib/springs";
@@ -217,6 +219,7 @@ function Fila({
   onElegir: () => void;
 }) {
   const escala = useTypeScale();
+  const esMovil = useEsMovil();
   const estado = ESTADOS_TICKET[ticket.estado];
   const vivo = sigueAbierto(ticket);
   const ultimo = ultimoDelCliente(ticket);
@@ -232,6 +235,7 @@ function Fila({
       className={cn(
         "relative flex w-full cursor-pointer flex-col gap-1 px-3 py-2.5 text-left outline-none",
         "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
+        esMovil && SANGRIA_MOVIL,
       )}
     >
       <span className="flex min-w-0 items-baseline gap-2">
@@ -362,7 +366,9 @@ function Lista({
       {/* El buscador y el filtro, en la misma fila. El campo se lleva lo que
           sobra y el botón mide lo suyo: los dos recortan la misma lista, y
           ponerlos en dos renglones haría creer que son dos cosas. */}
-      <div className="flex shrink-0 items-center gap-2 p-3">
+      {/* La cabecera acompaña a las filas: mismo aire lateral, o el campo
+          arranca de un lado y los nombres de otro. */}
+      <div className={cn("flex shrink-0 items-center gap-2 p-3", esMovil && SANGRIA_MOVIL)}>
         <InputGroup className="min-w-0 flex-1">
           <InputField
             index={0}
@@ -844,6 +850,10 @@ export function PanelDeTickets({
   const [enElTicket, setEnElTicket] = useState(false);
   const abiertoAhora =
     filas.find((f) => f.ticket.id === elegido)?.ticket ?? filas[0]?.ticket;
+  /* Cuál se ve elegida en la lista. En el teléfono, ninguna hasta que se abra
+     una; ver `useMarcada`. Antes del `return` temprano de la lista vacía: es un
+     hook. */
+  const marcado = useMarcada(abiertoAhora?.id ?? "", enElTicket);
 
   const mostrarWidgets = useBoards((b) => b.mostrarWidgets);
   const widgets = useMemo(
@@ -889,7 +899,7 @@ export function PanelDeTickets({
         lista={
           <Lista
             filas={filas}
-            elegido={abiertoAhora.id}
+            elegido={marcado}
             onElegir={(id) => {
               setElegido(id);
               setEnElTicket(true);

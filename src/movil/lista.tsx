@@ -34,6 +34,27 @@ import {
  */
 
 /**
+ * La sangría de una lista en el teléfono: 16px a cada lado.
+ *
+ * No es un número elegido acá, es **el mismo para las cuatro listas** que un
+ * pulgar recorre en esta app —Accounts, y las conversaciones, los correos y los
+ * tickets del perfil—. Estaban en 12, 12, 20 y 16: cada una tenía su razón
+ * mirada sola —la de correos entra un escalón bajo el encabezado de su carpeta,
+ * las otras vienen del panel angosto de escritorio, donde 12 es lo que sobra—, y
+ * ninguna sobrevive al cambio de pantalla. Pasar de una a otra movía la columna
+ * de nombres tres veces, y eso se lee como que cambió la app, no la sección.
+ *
+ * 16 y no 12: en el teléfono la lista llega a los dos bordes del plano, sin
+ * columna ni marco que la separen de nada, así que la sangría de la fila es
+ * todo el aire que hay contra el vidrio.
+ *
+ * En escritorio cada una se queda como estaba: ahí las listas viven en una
+ * columna angosta al lado de lo elegido, y 12 es lo que deja pasar un asunto
+ * más largo.
+ */
+export const SANGRIA_MOVIL = "px-4";
+
+/**
  * La lista envuelve a sus filas en un grupo: correr una devuelve la que estaba
  * corrida. Ver `Deslizable`.
  *

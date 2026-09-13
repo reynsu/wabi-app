@@ -26,9 +26,11 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { InputField, InputGroup } from "@/components/ui/input-group";
 import { useEsMovil } from "@/hooks/use-es-movil";
 import { BOTON_EN_PILDORA, CAMPO_EN_PILDORA } from "@/movil/buscador";
+import { SANGRIA_MOVIL } from "@/movil/lista";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ListPane } from "@/components/list-pane";
 import { MaestroDetalle } from "@/movil/maestro-detalle";
+import { useMarcada } from "@/movil/seleccion";
 import { useProximityHover } from "@/hooks/use-proximity-hover";
 import { useShape } from "@/lib/shape-context";
 import { useTypeScale } from "@/lib/size-context";
@@ -108,6 +110,7 @@ function Fila({
   onElegir: () => void;
 }) {
   const escala = useTypeScale();
+  const esMovil = useEsMovil();
   const sinAbrir = !email.leido;
 
   return (
@@ -121,6 +124,10 @@ function Fila({
       className={cn(
         "relative flex w-full cursor-pointer flex-col gap-1 py-2.5 pl-5 pr-3 text-left outline-none",
         "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
+        /* En el teléfono se levanta el escalón: no hay bajo qué entrar —la
+           lista es plana— y la fila arranca donde arrancan las de las otras
+           tres listas. Ver `SANGRIA_MOVIL`. */
+        esMovil && SANGRIA_MOVIL,
       )}
     >
       {/* El correo entra un escalón respecto del encabezado: ocho píxeles,
@@ -134,7 +141,12 @@ function Fila({
       {sinAbrir && (
         <span
           aria-label="Unread"
-          className="absolute left-2 top-[18px] h-[5px] w-[5px] rounded-full bg-foreground"
+          className={cn(
+            "absolute top-[18px] h-[5px] w-[5px] rounded-full bg-foreground",
+            /* El punto sigue al texto: sin el escalón queda pegado, así que se
+               corre cuatro píxeles y conserva el aire que tenía. */
+            esMovil ? "left-1" : "left-2",
+          )}
         />
       )}
 
@@ -408,6 +420,37 @@ function Lista({
     [encontrados],
   );
 
+  /* En el teléfono no hay carpetas: una sola tira, del correo más nuevo al más
+     viejo.
+
+     Agrupar por carpeta es de escritorio, donde la columna está siempre a la
+     vista al lado de lo que se lee y los encabezados son un índice: se ve de
+     una cuántas cosas hay en cada una y se puede plegar la que no interesa. En
+     375px la columna *es* la pantalla y no hay nada al lado, así que los
+     encabezados dejan de ser un índice y pasan a ser tres renglones fijos entre
+     medio de lo que uno vino a leer —y con `Inbox` pegado arriba mientras se
+     desplaza, uno de ellos siempre está ocupando lugar—.
+
+     Plana hay que ordenarla acá: agrupada, el orden salía de las carpetas
+     —primero lo que llegó, después lo que salió— y adentro de cada una las
+     filas venían por fecha. Sin carpetas eso se lee como un desorden, así que
+     se ordena por lo único que ordena una bandeja: lo último que pasó, arriba.
+
+     Se guarda el índice que cada correo tiene en `encontrados` porque es con lo
+     que el hover por proximidad numera sus filas —ver el comentario de las
+     carpetas—: acá cambia el orden de dibujo, no la numeración. */
+  const plana = useMemo(
+    () =>
+      encontrados
+        .map((email, indice) => ({ email, indice }))
+        .sort(
+          (a, b) =>
+            new Date(b.email.cuando).getTime() -
+            new Date(a.email.cuando).getTime(),
+        ),
+    [encontrados],
+  );
+
   /* Memorizadas por el mismo motivo que en Conversations: una arrow escrita en
      el `map` cambia de identidad en cada render y el hook lo lee como que la
      fila se fue y volvió. */
@@ -434,7 +477,9 @@ function Lista({
           redimensionable: con el ancho fijo, arrastrarlo para ver los asuntos
           enteros deja el buscador parado donde estaba y un hueco a su
           derecha. */}
-      <div className="flex shrink-0 items-center gap-2 p-3">
+      {/* La cabecera acompaña a las filas: mismo aire lateral, o el campo
+          arranca de un lado y los asuntos de otro. */}
+      <div className={cn("flex shrink-0 items-center gap-2 p-3", esMovil && SANGRIA_MOVIL)}>
         <InputGroup className="min-w-0 flex-1">
           <InputField
             index={0}
@@ -519,7 +564,24 @@ function Lista({
             )}
           </AnimatePresence>
 
-          {carpetas.map((grupo) => {
+          {esMovil ? (
+            <motion.div
+              variants={cascadaLista}
+              initial="oculto"
+              animate="visible"
+            >
+              {plana.map(({ email, indice }) => (
+                <Fila
+                  key={email.id}
+                  email={email}
+                  elegido={email.id === elegido}
+                  registrar={registrar[indice]}
+                  onElegir={() => onElegir(email.id)}
+                />
+              ))}
+            </motion.div>
+          ) : (
+            carpetas.map((grupo) => {
             const plegada = plegadas.has(grupo.carpeta);
             const idCuerpo = `${idLista}-${grupo.carpeta}`;
             const { label, icon: Icono } = CARPETAS[grupo.carpeta];
@@ -532,9 +594,8 @@ function Lista({
                     Lleva fondo propio porque los fondos del hover y de lo
                     elegido van detrás y le pasarían por encima.
 
-                    Es un botón que pliega la carpeta. El `px-3` es el mismo de
-                    las filas, así que el nombre del grupo y el texto de sus
-                    correos arrancan en la misma columna. */}
+                    Es un botón que pliega la carpeta. Sólo de escritorio: en
+                    el teléfono la lista es plana y no hay encabezados. */}
                 <button
                   type="button"
                   onClick={() => plegar(grupo.carpeta)}
@@ -620,8 +681,9 @@ function Lista({
                   </motion.div>
                 )}
               </Fragment>
-            );
-          })}
+              );
+            })
+          )}
 
           {encontrados.length === 0 && (
             <p
@@ -777,6 +839,9 @@ export function UserEmails({
      correo desde afuera. */
   const [enElCorreo, setEnElCorreo] = useState(foco !== undefined);
   const abierto = emails.find((e) => e.id === elegido) ?? emails[0];
+  /* Cuál se ve elegido en la lista. En el teléfono, ninguno hasta que se abra
+     uno; ver `useMarcada`. Antes del `return` temprano del vacío: es un hook. */
+  const marcado = useMarcada(abierto?.id ?? "", enElCorreo);
 
   if (!abierto) {
     return (
@@ -801,7 +866,7 @@ export function UserEmails({
         lista={
           <Lista
             emails={emails}
-            elegido={abierto.id}
+            elegido={marcado}
             onElegir={(id) => {
               setElegido(id);
               setEnElCorreo(true);

@@ -38,9 +38,11 @@ import { Button } from "@/components/ui/button";
 import { InputField, InputGroup } from "@/components/ui/input-group";
 import { useEsMovil } from "@/hooks/use-es-movil";
 import { BOTON_EN_PILDORA, CAMPO_EN_PILDORA } from "@/movil/buscador";
+import { SANGRIA_MOVIL } from "@/movil/lista";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ListPane } from "@/components/list-pane";
 import { MaestroDetalle } from "@/movil/maestro-detalle";
+import { useMarcada } from "@/movil/seleccion";
 import { useProximityHover } from "@/hooks/use-proximity-hover";
 import { useShape } from "@/lib/shape-context";
 import { SizeProvider, useTypeScale } from "@/lib/size-context";
@@ -117,6 +119,7 @@ function Fila({
   registrar: (node: HTMLElement | null) => void;
 }) {
   const escala = useTypeScale();
+  const esMovil = useEsMovil();
   const shape = useShape();
   const final = ultimo(conversacion);
 
@@ -131,6 +134,7 @@ function Fila({
       className={cn(
         "relative flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left outline-none",
         "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
+        esMovil && SANGRIA_MOVIL,
       )}
     >
       <Avatar className={cn("shrink-0", shape.item, "after:rounded-[inherit]")}>
@@ -401,7 +405,9 @@ function Lista({
           redimensionable: con el ancho fijo, arrastrarlo para ver los nombres
           enteros deja el buscador parado donde estaba y un hueco a su
           derecha. */}
-      <div className="flex shrink-0 items-center gap-2 p-3">
+      {/* La cabecera acompaña a las filas: mismo aire lateral, o el campo
+          arranca de un lado y los nombres de otro. */}
+      <div className={cn("flex shrink-0 items-center gap-2 p-3", esMovil && SANGRIA_MOVIL)}>
         <InputGroup className="min-w-0 flex-1">
           <InputField
             index={0}
@@ -775,6 +781,9 @@ export function UserConversations({
   const [enElHilo, setEnElHilo] = useState(foco !== undefined);
   const abierta =
     conversaciones.find((c) => c.id === elegida) ?? conversaciones[0];
+  /* Cuál se ve elegida en la lista. En el teléfono, ninguna hasta que se abra
+     una; ver `useMarcada`. Antes del `return` temprano del vacío: es un hook. */
+  const marcada = useMarcada(abierta?.id ?? "", enElHilo);
 
   if (!abierta) {
     return (
@@ -803,7 +812,7 @@ export function UserConversations({
         lista={
           <Lista
             conversaciones={conversaciones}
-            elegida={abierta.id}
+            elegida={marcada}
             onElegir={(id) => {
               setElegida(id);
               setEnElHilo(true);
