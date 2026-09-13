@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { create } from "zustand";
 
 import type { WorkspaceTab } from "@/components/workspace-panel";
@@ -105,6 +105,53 @@ export function mostrar(tab: WorkspaceTab) {
 }
 
 export const volver = () => history.back();
+
+/**
+ * Que el atrás del sistema cierre lo que está abierto encima, en vez de irse de
+ * la pestaña.
+ *
+ * Lo usa cualquier cosa que se abra *dentro* de una pantalla y tape lo que
+ * había —el detalle de una sección del perfil, y mañana una hoja—. Mientras
+ * está abierto hay una entrada de más en el historial, así que el gesto de
+ * volver la consume y cierra; cerrando desde la pantalla, la entrada se saca
+ * para no dejar un atrás que no hace nada.
+ *
+ * La entrada copia el estado de la de abajo, así que para el shell sigue siendo
+ * la misma pestaña: su `popstate` la mira, ve el mismo id y no hace nada. Los
+ * dos escuchan el mismo evento y cada uno se ocupa de lo suyo.
+ */
+export function useAtrasCierra(abierto: boolean, cerrar: () => void) {
+  /* `cerrar` en un ref: el efecto se ata a `abierto` y nada más. Si dependiera
+     también de la función —que casi siempre es una arrow nueva por render— se
+     desarmaría y volvería a empujar una entrada en cada pintada. */
+  const alCerrar = useRef(cerrar);
+  // Se escribe en un efecto y no al pintar: es el ref el que sigue al render,
+  // no al revés.
+  useEffect(() => {
+    alCerrar.current = cerrar;
+  });
+
+  useEffect(() => {
+    if (!abierto) return;
+
+    const previa = history.state;
+    history.pushState({ ...previa, encima: (previa?.encima ?? 0) + 1 }, "");
+    let mia = true;
+
+    const alVolver = () => {
+      mia = false;
+      alCerrar.current();
+    };
+    window.addEventListener("popstate", alVolver, { once: true });
+
+    return () => {
+      window.removeEventListener("popstate", alVolver);
+      /* Se cerró desde la pantalla y la entrada quedó puesta: se la saca, o el
+         próximo atrás no haría nada visible. */
+      if (mia) history.back();
+    };
+  }, [abierto]);
+}
 
 /**
  * Engancha la tienda de pestañas al historial. Se monta una vez, en el shell

@@ -55,6 +55,8 @@ import { Analiticas } from "@/pages/Users";
 import { Elevated } from "@/lib/elevated";
 import { useProximityHover } from "@/hooks/use-proximity-hover";
 import type { IconComponent } from "@/lib/icon-context";
+import { useEsMovil } from "@/hooks/use-es-movil";
+import { MarcoDelDetalle } from "@/movil/maestro-detalle";
 import { useShape } from "@/lib/shape-context";
 import { spring } from "@/lib/springs";
 import { useTypeScale } from "@/lib/size-context";
@@ -247,6 +249,7 @@ function Secciones({
   usuario: Usuario;
 }) {
   const escala = useTypeScale();
+  const esMovil = useEsMovil();
   const fila = useRef<HTMLDivElement>(null);
 
   const {
@@ -320,7 +323,15 @@ function Secciones({
          fondo del hover —para que termine parejo con los otros dos— y no de la
          maqueta, así que no tiene por qué empujar al menú veinte píxeles más
          lejos. Con esto el botón queda donde estaba. */
-      className="relative -mr-5 grid grid-cols-3 items-stretch"
+      className={cn(
+        "relative grid grid-cols-3 items-stretch",
+        /* A lo ancho en el teléfono, y con la mitad del aire lateral: con
+           `px-5` en tres columnas de 114px, "Support Tickets" se cortaba. El
+           `-mr-5` es de escritorio —devuelve el padding de la última columna
+           para que el menú de al lado no se corra—, y acá no hay menú al
+           lado. */
+        esMovil ? "w-full" : "-mr-5",
+      )}
     >
       {/* El fondo que viaja. `key` es la sesión de hover, así que entra
           apareciendo cada vez que el puntido entra a la fila y se desliza
@@ -393,7 +404,8 @@ function Secciones({
             tabIndex={elegida ? 0 : -1}
             onClick={() => onCambio(seccion.value)}
             className={cn(
-              "relative flex min-w-0 cursor-pointer flex-col gap-0.5 px-5 text-left outline-none",
+              "relative flex min-w-0 cursor-pointer flex-col gap-0.5 text-left outline-none",
+              esMovil ? "px-2.5" : "px-5",
               "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
               /* El filete arranca en la segunda: a la izquierda de la primera
                  no hay nada de qué separarla. El `px-5` va en las tres, así la
@@ -423,7 +435,10 @@ function Secciones({
               <motion.span
                 layoutId="seccion-activa"
                 aria-hidden
-                className="absolute inset-x-5 -bottom-1.5 h-0.5 bg-foreground"
+                className={cn(
+                  "absolute -bottom-1.5 h-0.5 bg-foreground",
+                  esMovil ? "inset-x-2.5" : "inset-x-5",
+                )}
                 transition={spring.moderate}
               />
             )}
@@ -737,69 +752,23 @@ function Perfil({
      misma página, y `conversations-panel` repetido deja al `aria-controls` de
      una apuntando al panel de la otra. */
   const idBase = useId();
+  const esMovil = useEsMovil();
+  /* Si la sección que se mira abrió su detalle encima de la lista. Sólo pasa en
+     el teléfono —ver `MarcoDelDetalle`—, y lo único que cambia acá es que el
+     header se va: leyendo un hilo, la cara y el riel de secciones no ubican
+     nada y se llevan 116 de los 812px de alto. */
+  const [detalleEncima, setDetalleEncima] = useState(false);
+  const aPantalla = esMovil && detalleEncima;
 
-  return (
-    <div className="flex h-full min-h-0 w-full flex-col">
-      {/* El header dice de quién es la pantalla y nada más: la cara, el nombre
-          y el id. Mismo aire lateral que el header de Accounts —`px-6 py-4`—,
-          para que las dos pestañas empiecen a la misma altura y contra el
-          mismo margen. */}
-      <header className="flex shrink-0 items-center justify-between gap-4 px-6 py-4">
-        <div className="flex min-w-0 items-center gap-3">
-          {/* El escalón grande del avatar —40px—: es lo que mide el bloque de
-              dos líneas que tiene al lado, igual que en la fila de la tabla el
-              de 32px medía su celda. El radio sale del sistema de figuras en
-              vez de ser redondo, y el aro y el plato lo heredan. */}
-          <Avatar
-            size="lg"
-            className={cn("shrink-0", shape.item, "after:rounded-[inherit]")}
-          >
-            <AvatarFallback
-              className="rounded-[inherit]"
-              style={{ fontSize: escala.body }}
-            >
-              {iniciales(usuario.name)}
-            </AvatarFallback>
-          </Avatar>
-
-          <div className="flex min-w-0 flex-col gap-0.5">
-            {/* El nombre entero y no el primero: en la pestaña compite por el
-                ancho con las otras, acá tiene la línea para él. */}
-            <h1
-              className="truncate font-medium tracking-tight"
-              style={{ fontSize: escala.title }}
-            >
-              {usuario.name}
-            </h1>
-            {/* El id, en el mismo lugar que en la fila que abrió esto: debajo
-                del nombre y en el color secundario. `tabular-nums` porque es
-                un número con forma de código y se lee de a dígitos. */}
-            <p
-              className="truncate tabular-nums text-muted-foreground"
-              style={{ fontSize: escala.caption }}
-            >
-              {usuario.id}
-            </p>
-          </div>
-        </div>
-
-        {/* Lo que se está mirando y lo que se le puede hacer, juntos contra el
-            borde derecho. El `gap` es más grande que el que separa entre sí a
-            las piezas del selector, así que los botones se leen como algo
-            aparte y no como una sección más. */}
-        <div className="flex shrink-0 items-center gap-6">
-          <Secciones
-            activa={activa}
-            onCambio={setActiva}
-            idBase={idBase}
-            usuario={usuario}
-          />
-
-          {/* Los dos menús, juntos y con el aire de un grupo de controles: son
-              dos cosas distintas —qué se mira y qué se le hace— pero las dos
-              cuelgan del mismo rincón, así que van pegadas entre sí y separadas
-              del selector por el `gap-6` de la caja de afuera. */}
-          <div className="flex items-center gap-2">
+  /* Los dos menús del header, en una variable porque el teléfono los pone en
+     otro lado: allá van arriba, al lado del nombre, y no debajo con las
+     secciones —el pulgar llega al borde de arriba, y el selector necesita el
+     ancho entero—. Escribirlos dos veces sería mantener dos menús. */
+  /* Juntos y con el aire de un grupo de controles: son dos cosas distintas
+     —qué se mira y qué se le hace— pero las dos cuelgan del mismo rincón, así
+     que van pegadas entre sí y separadas de lo que tengan al lado. */
+  const menus = (
+    <div className="flex items-center gap-2">
             {/* Qué se mira de la cuenta. En su propio botón y no adentro del
                 menú de acciones: ahí las tres filas necesitaban un rótulo para
                 no leerse como cosas que se le *hacen* a la cuenta, y un rótulo
@@ -932,6 +901,93 @@ function Perfil({
               </DropdownContent>
             </DropdownMenu>
           </div>
+  );
+
+  return (
+    <div className="flex h-full min-h-0 w-full flex-col">
+      {/* El header dice de quién es la pantalla y nada más: la cara, el nombre
+          y el id. Mismo aire lateral que el header de Accounts —`px-6 py-4`—,
+          para que las dos pestañas empiecen a la misma altura y contra el
+          mismo margen.
+
+          **En el teléfono se apila.** Los tres bloques —quién es, qué se mira,
+          qué se le hace— no entran en 375px: en una fila medían 516. Arriba
+          quedan el nombre y los dos menús, que es lo que se toca de a ratos;
+          abajo el selector de secciones, con el ancho entero, que es lo que se
+          toca todo el tiempo y necesita blancos de dedo. */}
+      <header
+        className={
+          /* Escondido cambiando la clase entera y no agregándole `hidden` al
+             lado de `flex`: son las dos `display`, y cuál gana lo decide el
+             orden en que salieron impresas. Mismo criterio que los paneles de
+             más abajo. */
+          aPantalla
+            ? "hidden"
+            : cn(
+                "flex shrink-0 gap-4",
+                esMovil
+                  ? "flex-col gap-3 px-4 py-3"
+                  : "items-center justify-between px-6 py-4",
+              )
+        }
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          {/* El escalón grande del avatar —40px—: es lo que mide el bloque de
+              dos líneas que tiene al lado, igual que en la fila de la tabla el
+              de 32px medía su celda. El radio sale del sistema de figuras en
+              vez de ser redondo, y el aro y el plato lo heredan. */}
+          <Avatar
+            size="lg"
+            className={cn("shrink-0", shape.item, "after:rounded-[inherit]")}
+          >
+            <AvatarFallback
+              className="rounded-[inherit]"
+              style={{ fontSize: escala.body }}
+            >
+              {iniciales(usuario.name)}
+            </AvatarFallback>
+          </Avatar>
+
+          <div className="flex min-w-0 flex-col gap-0.5">
+            {/* El nombre entero y no el primero: en la pestaña compite por el
+                ancho con las otras, acá tiene la línea para él. */}
+            <h1
+              className="truncate font-medium tracking-tight"
+              style={{ fontSize: escala.title }}
+            >
+              {usuario.name}
+            </h1>
+            {/* El id, en el mismo lugar que en la fila que abrió esto: debajo
+                del nombre y en el color secundario. `tabular-nums` porque es
+                un número con forma de código y se lee de a dígitos. */}
+            <p
+              className="truncate tabular-nums text-muted-foreground"
+              style={{ fontSize: escala.caption }}
+            >
+              {usuario.id}
+            </p>
+          </div>
+
+          {/* En el teléfono los menús suben acá, contra el borde de arriba y
+              pegados al nombre: abajo, al lado del selector, le sacarían el
+              ancho a lo único que se toca seguido. */}
+          {esMovil && <div className="ml-auto shrink-0">{menus}</div>}
+        </div>
+
+        {/* Lo que se está mirando y lo que se le puede hacer, juntos contra el
+            borde derecho. El `gap` es más grande que el que separa entre sí a
+            las piezas del selector, así que los botones se leen como algo
+            aparte y no como una sección más. En el teléfono los menús ya
+            subieron, y el selector se queda con la fila entera. */}
+        <div className={cn("flex items-center gap-6", esMovil ? "w-full" : "shrink-0")}>
+          <Secciones
+            activa={activa}
+            onCambio={setActiva}
+            idBase={idBase}
+            usuario={usuario}
+          />
+
+          {!esMovil && menus}
         </div>
       </header>
 
@@ -984,14 +1040,29 @@ function Perfil({
             aria-labelledby={`${idBase}-tab-${seccion.value}`}
             hidden={seccion.value !== activa}
             className={
-              seccion.value === activa
-                ? "flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-xl"
-                : "hidden"
+              seccion.value !== activa
+                ? "hidden"
+                : cn(
+                    "flex min-h-0 flex-1 flex-col overflow-hidden",
+                    /* El radio de arriba es lo que hace que el panel se lea
+                       apoyado sobre el header. Sin header —el detalle a
+                       pantalla— no hay nada sobre lo que apoyarse: la esquina
+                       quedaría adentro de la del plano, dos curvas distintas a
+                       tres píxeles una de la otra. */
+                    !aPantalla && "rounded-t-xl",
+                  )
             }
           >
-            {seccion.contenido?.(usuario, tabId, foco) ?? (
-              <Vacio seccion={seccion} />
-            )}
+            {/* Cada sección sabe apartar al header, pero sólo la que se está
+                mirando: las otras dos siguen montadas con lo suyo abierto. */}
+            <MarcoDelDetalle
+              onEncima={setDetalleEncima}
+              visible={seccion.value === activa}
+            >
+              {seccion.contenido?.(usuario, tabId, foco) ?? (
+                <Vacio seccion={seccion} />
+              )}
+            </MarcoDelDetalle>
           </Elevated>
         ))}
       </div>

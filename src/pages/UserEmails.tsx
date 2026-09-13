@@ -24,8 +24,11 @@ import {
 import { Adjuntos } from "@/components/adjuntos";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { InputField, InputGroup } from "@/components/ui/input-group";
+import { useEsMovil } from "@/hooks/use-es-movil";
+import { BOTON_EN_PILDORA, CAMPO_EN_PILDORA } from "@/movil/buscador";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ListPane } from "@/components/list-pane";
+import { MaestroDetalle } from "@/movil/maestro-detalle";
 import { useProximityHover } from "@/hooks/use-proximity-hover";
 import { useShape } from "@/lib/shape-context";
 import { useTypeScale } from "@/lib/size-context";
@@ -337,6 +340,7 @@ function Lista({
   elegido: string;
   onElegir: (id: string) => void;
 }) {
+  const esMovil = useEsMovil();
   const escala = useTypeScale();
   const [busqueda, setBusqueda] = useState("");
   const [filtros, setFiltros] = useState<FilterSelection>({});
@@ -440,7 +444,10 @@ function Lista({
             placeholder="Search emails"
             value={busqueda}
             onChange={setBusqueda}
-            className="[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border"
+            className={cn(
+              "[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border",
+              esMovil && CAMPO_EN_PILDORA,
+            )}
           />
         </InputGroup>
 
@@ -450,6 +457,7 @@ function Lista({
           variant="secondary"
           value={filtros}
           onValueChange={setFiltros}
+          className={esMovil ? BOTON_EN_PILDORA : undefined}
         />
       </div>
 
@@ -764,6 +772,10 @@ export function UserEmails({
   const escala = useTypeScale();
   const emails = emailsDe(usuario);
   const [elegido, setElegido] = useState(foco ?? emails[0]?.id ?? "");
+  /* Si el correo abierto está tapando la lista. Sólo en el teléfono; ver
+     `MaestroDetalle`. Arranca cerrado salvo que alguien haya pedido *ese*
+     correo desde afuera. */
+  const [enElCorreo, setEnElCorreo] = useState(foco !== undefined);
   const abierto = emails.find((e) => e.id === elegido) ?? emails[0];
 
   if (!abierto) {
@@ -783,11 +795,24 @@ export function UserEmails({
 
   return (
     <div className="flex min-h-0 flex-1">
-      <Lista emails={emails} elegido={abierto.id} onElegir={setElegido} />
-      {/* `key`: abrir otro correo es cambiar de contenido, no actualizarlo —
-          sin esto el scroll del anterior se queda puesto en el nuevo, y la
-          entrada no se vuelve a reproducir. */}
-      <Vista key={abierto.id} email={abierto} usuario={usuario} />
+      <MaestroDetalle
+        abierto={enElCorreo}
+        onVolver={() => setEnElCorreo(false)}
+        lista={
+          <Lista
+            emails={emails}
+            elegido={abierto.id}
+            onElegir={(id) => {
+              setElegido(id);
+              setEnElCorreo(true);
+            }}
+          />
+        }
+        /* `key`: abrir otro correo es cambiar de contenido, no actualizarlo —
+           sin esto el scroll del anterior se queda puesto en el nuevo, y la
+           entrada no se vuelve a reproducir. */
+        detalle={<Vista key={abierto.id} email={abierto} usuario={usuario} />}
+      />
     </div>
   );
 }

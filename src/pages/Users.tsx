@@ -46,6 +46,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useEsMovil } from "@/hooks/use-es-movil";
 import { useMeasuredHeight } from "@/hooks/use-measured-height";
+import { BOTON_EN_PILDORA, CAMPO_EN_PILDORA } from "@/movil/buscador";
 import { FilaMovil, ListaMovil } from "@/movil/lista";
 import {
   Table,
@@ -781,14 +782,8 @@ function Pantalla() {
           El campo toma todo el ancho que le deja el botón de filtros, que es lo
           único que lo acompaña.
 
-          **Y los dos van en píldora.** El radio del sistema —8px, el de la
-          escalera de figuras— es el de un control apoyado sobre una pantalla
-          llena de controles; acá arriba hay dos y nada más, flotando sobre una
-          lista sin marcos. Redondeados del todo se leen como una barra de
-          búsqueda y no como la primera fila de un formulario, que es lo que un
-          teléfono espera arriba de una lista. Es una desviación de la escalera y
-          por eso vive en el call site: sólo vale para este header, y en
-          escritorio los dos siguen con el radio de la casa. */}
+          **Y los dos van en píldora**, como en las secciones del perfil: el
+          porqué está en `movil/buscador`. */}
       {esMovil ? (
         <header className="flex shrink-0 items-center gap-2 px-4 py-3">
           <InputGroup className="min-w-0 flex-1">
@@ -800,9 +795,10 @@ function Pantalla() {
               placeholder="Search users"
               value={busqueda}
               onChange={setBusqueda}
-              /* La caja del campo es el `div` que tiene el input adentro, no la
-                 raíz: el radio va ahí, que es lo que dibuja el marco. */
-              className="[&>div:has(>input)]:rounded-full [&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border"
+              className={cn(
+                "[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border",
+                CAMPO_EN_PILDORA,
+              )}
             />
           </InputGroup>
 
@@ -812,9 +808,7 @@ function Pantalla() {
             variant="secondary"
             value={filtros}
             onValueChange={setFiltros}
-            /* `className` del `FilterMenu` va a su botón, que es lo único que
-               deja en el layout. */
-            className="rounded-full"
+            className={BOTON_EN_PILDORA}
           />
         </header>
       ) : (

@@ -36,8 +36,11 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { InputField, InputGroup } from "@/components/ui/input-group";
+import { useEsMovil } from "@/hooks/use-es-movil";
+import { BOTON_EN_PILDORA, CAMPO_EN_PILDORA } from "@/movil/buscador";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ListPane } from "@/components/list-pane";
+import { MaestroDetalle } from "@/movil/maestro-detalle";
 import { useProximityHover } from "@/hooks/use-proximity-hover";
 import { useShape } from "@/lib/shape-context";
 import { SizeProvider, useTypeScale } from "@/lib/size-context";
@@ -342,6 +345,7 @@ function Lista({
   elegida: string;
   onElegir: (id: string) => void;
 }) {
+  const esMovil = useEsMovil();
   const escala = useTypeScale();
   const [busqueda, setBusqueda] = useState("");
   const [filtros, setFiltros] = useState<FilterSelection>({});
@@ -407,7 +411,10 @@ function Lista({
             placeholder="Search conversations"
             value={busqueda}
             onChange={setBusqueda}
-            className="[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border"
+            className={cn(
+              "[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border",
+              esMovil && CAMPO_EN_PILDORA,
+            )}
           />
         </InputGroup>
 
@@ -417,6 +424,7 @@ function Lista({
           variant="secondary"
           value={filtros}
           onValueChange={setFiltros}
+          className={esMovil ? BOTON_EN_PILDORA : undefined}
         />
       </div>
 
@@ -559,6 +567,7 @@ const GRUPOS_DEL_HILO: FilterGroup[] = [
    que usa el vistazo del riel en Messages Search. */
 function Hilo({ conversacion }: { conversacion: Conversacion }) {
   const escala = useTypeScale();
+  const esMovil = useEsMovil();
   /* Lo que se escribió y lo que se marcó. Vive acá porque los dos controles son
      de esta cabecera, y no en la sección: dos hilos abiertos en dos pestañas
      tienen que poder estar buscando cosas distintas.
@@ -600,9 +609,15 @@ function Hilo({ conversacion }: { conversacion: Conversacion }) {
           initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
           transition={spring.fast}
-          className="flex shrink-0 items-center justify-end gap-2 border-b border-border px-4 py-3"
+          className={cn(
+            "flex shrink-0 items-center gap-2 border-b border-border px-4 py-3",
+            /* En el teléfono el campo se lleva el renglón: no hay una lista al
+               lado contra la que alinear nada, y 224px fijos dejaban medio
+               renglón vacío a la izquierda. */
+            esMovil ? "justify-start" : "justify-end",
+          )}
         >
-          <InputGroup className="w-56">
+          <InputGroup className={esMovil ? "min-w-0 flex-1" : "w-56"}>
             <InputField
               index={0}
               label="Search this conversation"
@@ -611,7 +626,10 @@ function Hilo({ conversacion }: { conversacion: Conversacion }) {
               placeholder="Search this conversation"
               value={busqueda}
               onChange={setBusqueda}
-              className="[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border"
+              className={cn(
+                "[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border",
+                esMovil && CAMPO_EN_PILDORA,
+              )}
             />
           </InputGroup>
 
@@ -626,6 +644,7 @@ function Hilo({ conversacion }: { conversacion: Conversacion }) {
             labelHidden
             value={filtros}
             onValueChange={setFiltros}
+            className={esMovil ? BOTON_EN_PILDORA : undefined}
           />
 
           {/* Lo que se le hace al hilo, en un menú y no en tres botones sueltos.
@@ -654,6 +673,7 @@ function Hilo({ conversacion }: { conversacion: Conversacion }) {
                   variant="secondary"
                   size="icon-compact"
                   aria-label="Conversation actions"
+                  className={esMovil ? BOTON_EN_PILDORA : undefined}
                 />
               }
             >
@@ -747,6 +767,12 @@ export function UserConversations({
   /* La primera abierta de entrada: un panel derecho vacío al lado de una lista
      llena es medio segundo de preguntarse si hay que hacer algo. */
   const [elegida, setElegida] = useState(foco ?? conversaciones[0]?.id ?? "");
+  /* Si el hilo está tapando la lista. Sólo lo mira el teléfono —en escritorio
+     los dos están a la vista—, y arranca cerrado aunque haya una elegida: la
+     primera se abre para que el panel de la derecha no nazca vacío, y acá no
+     hay panel de la derecha. Con `foco` sí abre: eso es alguien que llegó desde
+     afuera pidiendo *ese* hilo. */
+  const [enElHilo, setEnElHilo] = useState(foco !== undefined);
   const abierta =
     conversaciones.find((c) => c.id === elegida) ?? conversaciones[0];
 
@@ -771,15 +797,24 @@ export function UserConversations({
 
   return (
     <div className="flex min-h-0 flex-1">
-      <Lista
-        conversaciones={conversaciones}
-        elegida={abierta.id}
-        onElegir={setElegida}
+      <MaestroDetalle
+        abierto={enElHilo}
+        onVolver={() => setEnElHilo(false)}
+        lista={
+          <Lista
+            conversaciones={conversaciones}
+            elegida={abierta.id}
+            onElegir={(id) => {
+              setElegida(id);
+              setEnElHilo(true);
+            }}
+          />
+        }
+        /* `key` en el hilo: cambiar de conversación es cambiar de contenido, no
+           actualizarlo. Sin esto React reusaría el mismo árbol y el scroll de la
+           conversación anterior se quedaría puesto en la nueva. */
+        detalle={<Hilo key={abierta.id} conversacion={abierta} />}
       />
-      {/* `key` en el hilo: cambiar de conversación es cambiar de contenido, no
-          actualizarlo. Sin esto React reusaría el mismo árbol y el scroll de la
-          conversación anterior se quedaría puesto en la nueva. */}
-      <Hilo key={abierta.id} conversacion={abierta} />
     </div>
   );
 }

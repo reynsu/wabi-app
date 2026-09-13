@@ -34,8 +34,11 @@ import { useBoards } from "@/stores/board";
 import { FloatingActions } from "@/components/floating-actions";
 import type { WidgetDefinition } from "@/components/widget";
 import { InputField, InputGroup } from "@/components/ui/input-group";
+import { useEsMovil } from "@/hooks/use-es-movil";
+import { BOTON_EN_PILDORA, CAMPO_EN_PILDORA } from "@/movil/buscador";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ListPane } from "@/components/list-pane";
+import { MaestroDetalle } from "@/movil/maestro-detalle";
 import { useProximityHover } from "@/hooks/use-proximity-hover";
 import { useTypeScale } from "@/lib/size-context";
 import { spring } from "@/lib/springs";
@@ -294,6 +297,7 @@ function Lista({
   elegido: string;
   onElegir: (id: string) => void;
 }) {
+  const esMovil = useEsMovil();
   const escala = useTypeScale();
   const [busqueda, setBusqueda] = useState("");
   const [filtros, setFiltros] = useState<FilterSelection>({});
@@ -368,7 +372,10 @@ function Lista({
             placeholder="Search tickets"
             value={busqueda}
             onChange={setBusqueda}
-            className="[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border"
+            className={cn(
+              "[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border",
+              esMovil && CAMPO_EN_PILDORA,
+            )}
           />
         </InputGroup>
 
@@ -378,6 +385,7 @@ function Lista({
           variant="secondary"
           value={filtros}
           onValueChange={setFiltros}
+          className={esMovil ? BOTON_EN_PILDORA : undefined}
         />
       </div>
 
@@ -831,6 +839,9 @@ export function PanelDeTickets({
 }) {
   const escala = useTypeScale();
   const [elegido, setElegido] = useState(filas[0]?.ticket.id ?? "");
+  /* Si el ticket abierto está tapando la lista. Sólo en el teléfono; ver
+     `MaestroDetalle`. */
+  const [enElTicket, setEnElTicket] = useState(false);
   const abiertoAhora =
     filas.find((f) => f.ticket.id === elegido)?.ticket ?? filas[0]?.ticket;
 
@@ -872,9 +883,22 @@ export function PanelDeTickets({
        `ScrollArea` de adentro no entraban a jugar y la barra flotante quedaba
        miles de píxeles debajo del pliegue. */
     <div className="flex h-full min-h-0 flex-1">
-      <Lista filas={filas} elegido={abiertoAhora.id} onElegir={setElegido} />
-      {/* `key`: abrir otro ticket es cambiar de contenido, no actualizarlo. */}
-      <Chat key={abiertoAhora.id} ticket={abiertoAhora} />
+      <MaestroDetalle
+        abierto={enElTicket}
+        onVolver={() => setEnElTicket(false)}
+        lista={
+          <Lista
+            filas={filas}
+            elegido={abiertoAhora.id}
+            onElegir={(id) => {
+              setElegido(id);
+              setEnElTicket(true);
+            }}
+          />
+        }
+        /* `key`: abrir otro ticket es cambiar de contenido, no actualizarlo. */
+        detalle={<Chat key={abiertoAhora.id} ticket={abiertoAhora} />}
+      />
     </div>
   );
 }

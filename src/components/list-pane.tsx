@@ -19,11 +19,17 @@
  * Y es por sección, y no uno solo para las tres: arrastrar la lista de
  * conversaciones no tiene por qué mover la de tickets. Lo que sí es uno solo es
  * **de cuánto arranca**, que es otra cosa —ver `DEFECTO`—.
+ *
+ * **En el teléfono no hay columna: hay pantalla.** La lista toma todo el ancho,
+ * y con eso se van las dos cosas que sólo existen porque al lado hay algo: el
+ * ancho ajustable —no hay de quién sacarle lugar— y el filete de la derecha, que
+ * separaba de lo elegido. Lo elegido ahora tapa la lista; ver `MaestroDetalle`.
  */
 
 import { useRef, useState, type ReactNode } from "react";
 import { create } from "zustand";
 
+import { useEsMovil } from "@/hooks/use-es-movil";
 import { cn } from "@/lib/utils";
 
 /** Los topes, iguales para todas. Abajo, lo que necesita una fila de tres
@@ -85,6 +91,7 @@ export function ListPane({
   className?: string;
 }) {
   const px = useAncho(id);
+  const esMovil = useEsMovil();
   const [arrastrando, setArrastrando] = useState(false);
   const caja = useRef<HTMLDivElement>(null);
 
@@ -143,6 +150,10 @@ export function ListPane({
     e.preventDefault();
     fijarAncho(id, px + paso);
   };
+
+  if (esMovil) {
+    return <div className={cn("relative flex min-h-0 flex-1 flex-col", className)}>{children}</div>;
+  }
 
   return (
     <div
