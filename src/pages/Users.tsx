@@ -1,11 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import {
   Ban,
   CalendarPlus,
@@ -45,6 +38,7 @@ import { InputField, InputGroup } from "@/components/ui/input-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useEsMovil } from "@/hooks/use-es-movil";
+import { useListaInfinita } from "@/hooks/use-lista-infinita";
 import { useMeasuredHeight } from "@/hooks/use-measured-height";
 import { BOTON_EN_PILDORA, CAMPO_EN_PILDORA } from "@/movil/buscador";
 import { FilaMovil, ListaMovil } from "@/movil/lista";
@@ -635,21 +629,6 @@ function Columnas() {
   );
 }
 
-/** Cuántas filas se agregan cada vez que el final entra en pantalla. */
-const PASO = 12;
-
-/* La caja que scrollea, buscada subiendo desde el centinela. Se la busca en
-   vez de nombrar al panel de la pestaña: esta pantalla no tiene por qué saber
-   quién la está conteniendo, y así funciona igual el día que la metan en un
-   diálogo o en el riel del costado. */
-function scrollerDe(el: HTMLElement | null) {
-  for (let padre = el?.parentElement; padre; padre = padre.parentElement) {
-    const desborde = getComputedStyle(padre).overflowY;
-    if (desborde === "auto" || desborde === "scroll") return padre;
-  }
-  return null;
-}
-
 export function Users() {
   /* Compacta en escritorio y normal en el teléfono. La densidad compacta existe
      porque son cuarenta y ocho filas peleando por el alto de una ventana; en un
@@ -697,18 +676,11 @@ function Pantalla() {
     [openTab],
   );
 
-  /* La ventana lleva puesta la clave de lo que estaba filtrado cuando creció.
-     Cambiar el filtro la vuelve a `PASO` sin pasar por un efecto: el ajuste se
-     hace al derivar, en el mismo render, y no después de pintar cuarenta filas
-     que ya no corresponden. Es el mismo patrón que usa `Pagination` para
-     saber desde qué dígito rueda. */
+  /* La lista no se pagina, se sigue: ver `useListaInfinita`. La clave es lo que
+     estaba filtrado cuando la ventana creció, así que cambiar el filtro la
+     devuelve a un tramo. */
   const clave = `${busqueda}|${JSON.stringify(filtros)}`;
-  const [ventana, setVentana] = useState({ clave, cuantas: PASO });
-  const cuantas = ventana.clave === clave ? ventana.cuantas : PASO;
-  if (ventana.clave !== clave) setVentana({ clave, cuantas: PASO });
-
-  const filas = encontrados.slice(0, cuantas);
-  const quedan = cuantas < encontrados.length;
+  const { filas, centinela } = useListaInfinita(encontrados, clave);
 
   /* El teclado de la tabla: una sola parada de tabulado —la fila donde
      quedaste— y las flechas adentro. Ver `tabla-teclado`. */
@@ -717,53 +689,6 @@ function Pantalla() {
     sangriaSuperior: altoCabecera,
   });
 
-  /* Scroll infinito: un centinela al final de la lista y un observer que pide
-     el próximo tramo cuando se acerca. */
-  const centinela = useRef<HTMLDivElement>(null);
-
-  /* Cambiar lo filtrado vuelve arriba. Sin esto, filtrar desde el fondo de la
-     lista deja la vista a la altura de la fila 40 de un resultado que recién
-     empieza, y el centinela —que sigue ahí abajo— pide tramo tras tramo hasta
-     alcanzarla: con una API detrás, media tabla traída para nada. */
-  useEffect(() => {
-    scrollerDe(centinela.current)?.scrollTo({ top: 0 });
-  }, [clave]);
-
-  useEffect(() => {
-    const el = centinela.current;
-    if (!el || !quedan) return;
-
-    /* La raíz es la caja que scrollea y no el viewport: contra el viewport el
-       `rootMargin` no sirve de nada, porque un ancestro que recorta deja al
-       centinela fuera de la intersección aunque caiga adentro del margen, y el
-       tramo llegaba recién al tocar fondo. */
-    const scroller = scrollerDe(el);
-
-    const observer = new IntersectionObserver(
-      ([entrada]) => {
-        if (!entrada.isIntersecting) return;
-        /* Una pestaña que no estás mirando sigue montada y escondida con
-           `visibility`, y un IntersectionObserver no mira la visibilidad: sin
-           esto, una copia de esta pantalla en segundo plano se traería la
-           tabla entera sin que nadie scrollee. Con una API detrás serían
-           páginas pedidas de gusto. */
-        if (getComputedStyle(el).visibility === "hidden") return;
-        setVentana((v) =>
-          v.clave === clave ? { ...v, cuantas: v.cuantas + PASO } : v,
-        );
-      },
-      // Pide el tramo antes de llegar al final, así la lista no se corta.
-      { root: scroller, rootMargin: "240px" },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-    /* `cuantas` va en las dependencias aunque el efecto no lo lea: un
-       IntersectionObserver avisa cuando la intersección *cambia*, y después de
-       agregar un tramo el centinela sigue visible, así que no vuelve a avisar
-       nunca. Rearmando el observer se lo pregunta de nuevo, y la lista se
-       sigue llenando hasta tapar la pantalla —que es donde el centinela por
-       fin sale de cuadro y esto se queda quieto esperando que scrollees. */
-  }, [clave, quedan, cuantas]);
 
   return (
     /* La pantalla mide lo que mide la pestaña y no scrollea: el header se

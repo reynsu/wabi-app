@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Captions, Pause, Play, Trash, X } from "lucide-react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
+import { Captions, Pause, Play, X } from "lucide-react";
 import WaveSurfer from "wavesurfer.js";
 
 import { PeekCard } from "@/components/peek-card";
@@ -23,8 +23,8 @@ import { notaDeVoz, reloj } from "@/pages/nota-de-voz";
  *   medio, botón a la derecha—. Los dos anillos son la mitad de lo que hace que
  *   se lea como un reproductor y no como texto adentro de una celda: el marco
  *   va tintado y la cápsula clara, así que el control se despega de la fila
- *   aunque la fila sea blanca. Lo que no lleva son el tacho y la ×, que son de
- *   la barra del teléfono. Su ancho crece con la duración —una nota de cuatro
+ *   aunque la fila sea blanca. Lo que no lleva es la ×, que es de la barra del
+ *   teléfono. Su ancho crece con la duración —una nota de cuatro
  *   segundos no ocupa lo que una de treinta— y sus colores son los del sistema.
  *
  *   Al lado de la cápsula, adentro del mismo marco, puede ir el botón de la
@@ -44,20 +44,20 @@ import { notaDeVoz, reloj } from "@/pages/nota-de-voz";
  *
  * - **En teléfono**, la barra del diseño de referencia, entera y con sus
  *   colores: la cápsula gris sobre la barra blanca, el tiempo grande a la
- *   izquierda, la onda punteada, el tacho, el botón azul y la × afuera. Ocupa
- *   todo el ancho, porque en un teléfono no hay ancho que repartir.
+ *   izquierda, la onda punteada, el botón de la transcripción, el botón azul y
+ *   la × afuera. Ocupa todo el ancho, porque en un teléfono no hay ancho que
+ *   repartir.
  *
- * Sobre los dos controles que el referente trae y esta consola no tenía dónde
- * poner —van implementados, y sin inventar una función que la consola no
- * hace—:
+ *   **Donde el referente pone un tacho va la transcripción.** El tacho
+ *   descartaba la escucha —paraba y volvía al principio, sin borrar nada,
+ *   porque esta consola todavía no borra mensajes— y era el control menos
+ *   pedido de la barra: lo mismo se consigue tocando play de nuevo. En su lugar
+ *   está lo que en el teléfono no tenía puerta: el texto de la nota. En
+ *   escritorio se llega con el puntero al hermano de la cápsula; sin puntero,
+ *   sin botón, la transcripción no existía.
  *
  * - **La ×** cierra el reproductor: la barra se pliega y queda el chip para
  *   volver a abrirla. Es lo que una × promete —cerrar esto— y es reversible.
- * - **El tacho** descarta la escucha: para y vuelve al principio. No borra el
- *   mensaje: esta consola todavía no borra mensajes, y un tacho que dijera que
- *   sí sería la peor clase de botón. Si el tacho tiene que borrar de verdad,
- *   hace falta primero una tienda de mensajes —como la que `usuarios.ts` tiene
- *   para los estados— y esa decisión no es de este archivo.
  */
 
 /* ─────────────────────────── Los colores ───────────────────────────
@@ -89,6 +89,7 @@ const REFERENCIA = {
      que la hace visible es el fiel. */
   onda: "#C9CDD2",
   avance: "#3A4ADE",
+  /** El plato gris de los botones secundarios de la barra. */
   tacho: "#E8EAED",
   glifo: "#3C4043",
 } as const;
@@ -149,8 +150,9 @@ const MEDIDAS = {
 const TELEFONO = {
   barra: "h-11 px-1.5 gap-1",
   pastilla: "h-8 pl-3 pr-0.5 gap-2",
-  tacho: "size-6",
-  tachoGlifo: 13,
+  /** El botón de la transcripción, hermano de la cápsula: su mismo alto. */
+  texto: "size-8",
+  textoGlifo: 15,
   play: "size-7",
   playGlifo: 14,
   cerrar: "size-[30px]",
@@ -308,17 +310,111 @@ export function AudioMessage({
 
   const alternar = () => void onda.current?.playPause();
 
-  /* El tacho: descarta la escucha. Para y vuelve al principio — ver la nota de
-     arriba sobre por qué no borra el mensaje. */
-  const descartar = () => {
-    onda.current?.stop();
-    setReproduciendo(false);
-    setCursor(0);
-  };
-
   const reloj_ = reloj(reproduciendo || cursor > 0 ? cursor : segundos);
 
   /* ─────────────────── El teléfono: la barra del referente ─────────────────── */
+
+  /* La tarjeta de la transcripción, y lo que la abre. Una sola, y el
+     disparador lo pone cada cara: en escritorio es el hermano de la cápsula, en
+     el teléfono un botón más de la barra. Lo que muestran es lo mismo, así que
+     está escrito una vez.
+
+     `align="end"`: el botón está pegado al borde derecho y la tarjeta es mucho
+     más ancha que él, así que alineada por la izquierda se le iría de la
+     pantalla. Alineada por la derecha crece hacia adentro, sobre la lista.
+
+     Una sola pestaña, así que el `PeekCard` no dibuja riel —lo decide él, ver
+     el comentario allá— y la tarjeta queda en lo que tiene que estar: el título
+     y el texto. El título es el que nombra lo que se está mostrando, que con el
+     riel afuera es el único rótulo que queda. */
+  const tarjetaDelTexto = (disparador: ReactElement) =>
+    transcripcion ? (
+      <PeekCard
+          open={leyendo}
+          onOpenChange={setLeyendo}
+          title="Transcript"
+          /* Sin ícono: en el diseño el título va solo con su chip al lado, y un
+             glifo delante le corre el nombre del borde donde se lo busca. */
+          align="end"
+          width={340}
+          /* El plato. El color va por `style` y no por clase: `Elevated` le
+             pinta su propio `bg-surface-N`, y una utilidad de Tailwind pierde
+             contra eso por especificidad.
+
+             El aire del cuerpo se le achica desde acá con un selector de
+             descendiente. `PeekCard` no expone el relleno de sus zonas —y está
+             bien que no lo haga, es lo que hace que todas las tarjetas del
+             sistema se vean iguales—, pero acá el panel tiene que llegar casi
+             al borde: es el gesto del diseño, un papel que ocupa la tarjeta y
+             no una nota en el medio de un margen. Es la misma manera en que las
+             tablas de esta app se corren la sangría.
+
+             Y los dos radios se acompañan: 18 afuera, 12 adentro, 6 de aire
+             entre los dos. Un radio interior que no es el exterior menos el
+             aire deja las dos curvas peleadas, y a esta distancia se ve. */
+          className={cn(
+            "rounded-[18px]",
+            "[&_[data-slot=card-content]]:px-1.5",
+            "[&_[data-slot=card-content]]:pt-1.5",
+          )}
+          style={{ background: tarjeta.fondo, color: tarjeta.titulo }}
+          /* Cuánto dura, pegado al nombre: dice cuál de todas es esta. */
+          badge={
+            <span
+              className="shrink-0 rounded-full px-2 py-0.5 tabular-nums"
+              style={{
+                background: tarjeta.chip,
+                color: tarjeta.chipTexto,
+                fontSize: escala.caption,
+              }}
+            >
+              {reloj(segundos)}
+            </span>
+          }
+          /* El pie: de dónde salió el texto. Una transcripción no es lo que
+             alguien escribió, y en una consola que modera vale la pena que eso
+             esté dicho y no supuesto. */
+          footer={
+            <span
+              className="w-full text-center"
+              style={{ color: tarjeta.apagado, fontSize: escala.caption }}
+            >
+              Transcribed from the voice note
+            </span>
+          }
+          tabs={[
+            {
+              label: "Transcript",
+              /* El texto en su propio panel, más claro que el plato: es el
+                 gesto del diseño —un papel apoyado sobre la tarjeta— y es lo
+                 que separa lo que se dijo del marco que lo presenta. Sin
+                 sombra: el color alcanza, y la tarjeta entera mide dos
+                 centímetros —una sombra ahí adentro es una segunda tarjeta
+                 flotando dentro de la primera—.
+
+                 El tamaño va escrito: un `<p>` pelado hereda los 16px del
+                 documento, y en una tarjeta de región compacta eso es tres
+                 escalones más grande que todo lo que tiene alrededor. Sale del
+                 mismo escalón que lee la fila, que es el que la tarjeta hereda
+                 —el `PeekCard` sigue al `SizeProvider` de acá afuera—. */
+              content: (
+                <p
+                  className="rounded-[12px] px-3.5 py-3 leading-relaxed"
+                  style={{
+                    background: tarjeta.panel,
+                    color: tarjeta.texto,
+                    fontSize: escala.body,
+                  }}
+                >
+                  {transcripcion}
+                </p>
+              ),
+            },
+          ]}
+        >
+        {disparador}
+      </PeekCard>
+    ) : null;
 
   if (esMovil) {
     if (!abierta) {
@@ -405,19 +501,6 @@ export function AudioMessage({
 
           <button
             type="button"
-            onClick={descartar}
-            aria-label="Discard playback"
-            className={cn(
-              "flex shrink-0 cursor-pointer items-center justify-center rounded-full outline-none transition-[filter] duration-150 hover:brightness-95 focus-visible:ring-2 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
-              TELEFONO.tacho,
-            )}
-            style={{ background: REFERENCIA.tacho, color: REFERENCIA.glifo }}
-          >
-            <Trash size={TELEFONO.tachoGlifo} strokeWidth={1.75} />
-          </button>
-
-          <button
-            type="button"
             onClick={alternar}
             aria-label={reproduciendo ? "Pause voice note" : "Play voice note"}
             className={cn(
@@ -441,6 +524,31 @@ export function AudioMessage({
             )}
           </button>
         </div>
+
+        {/* La transcripción, con el mismo botón que en escritorio: hermano de
+            la cápsula, del mismo diámetro, y pintado con el acento mientras la
+            tarjeta está abierta. Acá adentro es además lo que reemplaza al
+            tacho —descartar la escucha no es algo que se le haga a una nota en
+            una lista de resultados— y lo que hace falta en su lugar es leerla:
+            en un teléfono no hay hover que la asome, así que sin este botón el
+            texto de una nota de voz no existía. */}
+        {tarjetaDelTexto(
+          <button
+            type="button"
+            aria-label={leyendo ? "Hide transcript" : "Show transcript"}
+            className={cn(
+              "flex shrink-0 cursor-pointer items-center justify-center rounded-full outline-none transition-[filter,background] duration-150 hover:brightness-95 focus-visible:ring-2 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
+              TELEFONO.texto,
+            )}
+            style={
+              leyendo
+                ? { background: REFERENCIA.avance, color: "#FFFFFF" }
+                : { background: REFERENCIA.tacho, color: REFERENCIA.glifo }
+            }
+          >
+            <Captions size={TELEFONO.textoGlifo} strokeWidth={1.75} />
+          </button>,
+        )}
 
         <button
           type="button"
@@ -540,105 +648,11 @@ export function AudioMessage({
         </button>
       </div>
 
-      {/* El botón de la transcripción, y la tarjeta que abre.
-          `align="end"`: el botón está pegado al borde derecho del marco y la
-          tarjeta es mucho más ancha que él, así que alineada por la izquierda
-          se le iría de la pantalla. Alineada por la derecha crece hacia
-          adentro, sobre la lista.
-
-          Una sola pestaña, así que el `PeekCard` no dibuja riel —lo decide él,
-          ver el comentario allá— y la tarjeta queda en lo que tiene que estar:
-          el título y el texto. El título es el que nombra lo que se está
-          mostrando, que con el riel afuera es el único rótulo que queda. */}
-      {transcripcion && (
-        <PeekCard
-          open={leyendo}
-          onOpenChange={setLeyendo}
-          title="Transcript"
-          /* Sin ícono: en el diseño el título va solo con su chip al lado, y un
-             glifo delante le corre el nombre del borde donde se lo busca. */
-          align="end"
-          width={340}
-          /* El plato. El color va por `style` y no por clase: `Elevated` le
-             pinta su propio `bg-surface-N`, y una utilidad de Tailwind pierde
-             contra eso por especificidad.
-
-             El aire del cuerpo se le achica desde acá con un selector de
-             descendiente. `PeekCard` no expone el relleno de sus zonas —y está
-             bien que no lo haga, es lo que hace que todas las tarjetas del
-             sistema se vean iguales—, pero acá el panel tiene que llegar casi
-             al borde: es el gesto del diseño, un papel que ocupa la tarjeta y
-             no una nota en el medio de un margen. Es la misma manera en que las
-             tablas de esta app se corren la sangría.
-
-             Y los dos radios se acompañan: 18 afuera, 12 adentro, 6 de aire
-             entre los dos. Un radio interior que no es el exterior menos el
-             aire deja las dos curvas peleadas, y a esta distancia se ve. */
-          className={cn(
-            "rounded-[18px]",
-            "[&_[data-slot=card-content]]:px-1.5",
-            "[&_[data-slot=card-content]]:pt-1.5",
-          )}
-          style={{ background: tarjeta.fondo, color: tarjeta.titulo }}
-          /* Cuánto dura, pegado al nombre: dice cuál de todas es esta. */
-          badge={
-            <span
-              className="shrink-0 rounded-full px-2 py-0.5 tabular-nums"
-              style={{
-                background: tarjeta.chip,
-                color: tarjeta.chipTexto,
-                fontSize: escala.caption,
-              }}
-            >
-              {reloj(segundos)}
-            </span>
-          }
-          /* El pie: de dónde salió el texto. Una transcripción no es lo que
-             alguien escribió, y en una consola que modera vale la pena que eso
-             esté dicho y no supuesto. */
-          footer={
-            <span
-              className="w-full text-center"
-              style={{ color: tarjeta.apagado, fontSize: escala.caption }}
-            >
-              Transcribed from the voice note
-            </span>
-          }
-          tabs={[
-            {
-              label: "Transcript",
-              /* El texto en su propio panel, más claro que el plato: es el
-                 gesto del diseño —un papel apoyado sobre la tarjeta— y es lo
-                 que separa lo que se dijo del marco que lo presenta. Sin
-                 sombra: el color alcanza, y la tarjeta entera mide dos
-                 centímetros —una sombra ahí adentro es una segunda tarjeta
-                 flotando dentro de la primera—.
-
-                 El tamaño va escrito: un `<p>` pelado hereda los 16px del
-                 documento, y en una tarjeta de región compacta eso es tres
-                 escalones más grande que todo lo que tiene alrededor. Sale del
-                 mismo escalón que lee la fila, que es el que la tarjeta hereda
-                 —el `PeekCard` sigue al `SizeProvider` de acá afuera—. */
-              content: (
-                <p
-                  className="rounded-[12px] px-3.5 py-3 leading-relaxed"
-                  style={{
-                    background: tarjeta.panel,
-                    color: tarjeta.texto,
-                    fontSize: escala.body,
-                  }}
-                >
-                  {transcripcion}
-                </p>
-              ),
-            },
-          ]}
-        >
-          {/* Hermano de la cápsula y no un control pegado afuera: mismo
-              diámetro que ella y misma cáscara —claro con filete— para que se
-              lean como dos piezas del mismo anillo. Abierto se pinta con el
-              acento, que es el único estado que hace falta: o está mostrando el
-              texto o no. */}
+      {/* Hermano de la cápsula y no un control pegado afuera: mismo diámetro
+          que ella y misma cáscara —claro con filete— para que se lean como dos
+          piezas del mismo anillo. Abierto se pinta con el acento, que es el
+          único estado que hace falta: o está mostrando el texto o no. */}
+      {tarjetaDelTexto(
           <button
             type="button"
             aria-label={leyendo ? "Hide transcript" : "Show transcript"}
@@ -657,7 +671,6 @@ export function AudioMessage({
           >
             <Captions size={medidas.accion} strokeWidth={1.75} />
           </button>
-        </PeekCard>
       )}
     </div>
   );

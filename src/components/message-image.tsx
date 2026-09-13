@@ -1,6 +1,7 @@
 "use client";
 
 import { PeekCard } from "@/components/peek-card";
+import { useEsMovil } from "@/hooks/use-es-movil";
 import { fotoDeMensaje, type Foto } from "@/pages/foto";
 import { cn } from "@/lib/utils";
 
@@ -52,6 +53,7 @@ export function MessageImage({
   className?: string;
 }) {
   const thumb = variant === "thumb";
+  const esMovil = useEsMovil();
 
   const comun = {
     src: fotoDeMensaje(id, foto),
@@ -67,6 +69,31 @@ export function MessageImage({
     loading: "lazy" as const,
     draggable: false,
   };
+
+  /* En el teléfono la miniatura es una imagen y nada más. Lo que la envuelve
+     abajo es una tarjeta que se asoma al pasar el puntero, y acá no hay
+     puntero: quedaría un disparador que sólo abre al tocarlo, robándole el
+     toque a la fila —que es la que lleva a la conversación, donde la foto está
+     entera—. La pregunta que contesta el asomo, "¿me importa esta foto?", en un
+     teléfono la contesta ese mismo toque. */
+  if (thumb && esMovil) {
+    return (
+      <img
+        {...comun}
+        /* Más grande que en la tabla: cuarenta y ocho y no treinta y dos. Los
+           treinta y dos de escritorio alcanzan porque son el pie de una escalera
+           —reconocer acá, asomarse con el puntero, abrir el hilo si vale la
+           pena— y en el teléfono ese escalón del medio no existe: lo que se ve
+           en la fila es todo lo que se va a ver antes de decidir. Cuarenta y
+           ocho es lo que mide la fila de dos renglones, así que crece contra el
+           alto que ya había y no empuja nada. */
+        className={cn(
+          "size-12 shrink-0 select-none rounded-lg bg-muted object-cover",
+          className,
+        )}
+      />
+    );
+  }
 
   if (!thumb) {
     return (

@@ -49,7 +49,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useEsMovil } from "@/hooks/use-es-movil";
+import { useListaInfinita } from "@/hooks/use-lista-infinita";
 import { useMeasuredHeight } from "@/hooks/use-measured-height";
+import { BOTON_EN_PILDORA, CAMPO_EN_PILDORA } from "@/movil/buscador";
+import { FilaMovil, ListaMovil } from "@/movil/lista";
 import { usePaginacion } from "@/hooks/use-paginacion";
 import { SizeProvider, useTypeScale } from "@/lib/size-context";
 import { spring } from "@/lib/springs";
@@ -461,17 +465,23 @@ function Columnas() {
 const POR_PAGINA = 40;
 
 export function MessageSearch() {
+  /* Compacta en escritorio y normal en el teléfono, como Accounts: el escalón
+     denso existe porque son cuarenta filas peleando por el alto de una
+     ventana, y en un teléfono lo que pelea no es el alto sino el dedo. */
+  const esMovil = useEsMovil();
+
   return (
     /* Una región densa entera, como las otras dos tablas: el buscador, el panel
        y la tabla leen el escalón de acá y no lo reciben cada uno por su
        cuenta. */
-    <SizeProvider size="compact">
+    <SizeProvider size={esMovil ? "default" : "compact"}>
       <Pantalla />
     </SizeProvider>
   );
 }
 
 function Pantalla() {
+  const esMovil = useEsMovil();
   const [busqueda, setBusqueda] = useState("");
   const [filtros, setFiltros] = useState<FilterSelection>({});
   /* Los mensajes de todas las cuentas, del más nuevo al más viejo. Salen de la
@@ -541,11 +551,26 @@ function Pantalla() {
      total, y cambiar de página vuelve arriba. Las tres decisiones viven en el
      hook —lo mismo hacen Provisioning y Email Search—. */
   const clave = `${busqueda}|${JSON.stringify(filtros)}`;
-  const { pagina, paginas, desde, filas, dir, ancla, irA } = usePaginacion(
-    encontrados,
-    clave,
-    POR_PAGINA,
-  );
+  const {
+    pagina,
+    paginas,
+    desde,
+    dir,
+    ancla,
+    irA,
+    filas: paginadas,
+  } = usePaginacion(encontrados, clave, POR_PAGINA);
+  /* Y en el teléfono no hay páginas: la lista se sigue. Un pager es de
+     escritorio —hay un pie fijo, un teclado para saltar a la siete y un "de
+     cuántos" que ubica—; en un teléfono el pulgar ya está haciendo el gesto de
+     bajar, y cortarlo cada cuarenta filas para que toque una flecha es pedirle
+     que cambie de modo para seguir haciendo lo mismo. Ver `useListaInfinita`.
+
+     Los dos hooks se llaman siempre y se elige uno: son hooks, y el que no se
+     usa no hace nada —el de la lista sólo mira el centinela, que en escritorio
+     no se monta—. */
+  const { filas: seguidas, centinela } = useListaInfinita(encontrados, clave);
+  const filas = esMovil ? seguidas : paginadas;
 
   /* El teclado de la tabla: una sola parada de tabulado —la fila donde
      quedaste— y las flechas adentro. Ver `tabla-teclado`.
@@ -570,8 +595,44 @@ function Pantalla() {
       animate="visible"
       className="flex h-full min-h-0 w-full flex-col"
     >
-      {/* El aire lateral es del header, no de la pantalla: así la tabla llega a
-          los dos bordes y son sus celdas las que se alinean con él. */}
+      {/* En el teléfono el header es el buscador y nada más: el header del
+          shell ya dice dónde estás —"Chat / Search"—, y el título con su bajada
+          cuesta dos renglones de los diez que hay. Mismo criterio, mismo aire y
+          misma píldora que Accounts: son dos maneras de buscar en la misma
+          consola y no tienen por qué recibir distinto. */}
+      {esMovil ? (
+        <motion.header
+          variants={entraBloque}
+          className="flex shrink-0 items-center gap-2 px-4 py-3"
+        >
+          <InputGroup className="min-w-0 flex-1">
+            <InputField
+              index={0}
+              label="Search messages"
+              labelHidden
+              icon={Search}
+              placeholder="Search messages"
+              value={busqueda}
+              onChange={setBusqueda}
+              className={cn(
+                "[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border",
+                CAMPO_EN_PILDORA,
+              )}
+            />
+          </InputGroup>
+
+          <FilterMenu
+            groups={GRUPOS}
+            align="end"
+            variant="secondary"
+            value={filtros}
+            onValueChange={setFiltros}
+            className={BOTON_EN_PILDORA}
+          />
+        </motion.header>
+      ) : (
+      /* El aire lateral es del header, no de la pantalla: así la tabla llega a
+          los dos bordes y son sus celdas las que se alinean con él. */
       <motion.header
         variants={entraBloque}
         className="flex shrink-0 flex-wrap items-center justify-between gap-4 px-6 py-4"
@@ -615,6 +676,7 @@ function Pantalla() {
           />
         </div>
       </motion.header>
+      )}
 
       {filas.length === 0 ? (
         <AnimatedEmpty>
@@ -629,6 +691,102 @@ function Pantalla() {
             </AnimatedEmptyDescription>
           </AnimatedEmptyHeader>
         </AnimatedEmpty>
+      ) : esMovil ? (
+        /* En el teléfono la tabla se deshace en filas apiladas —ver
+           `movil/lista`—. Las tres columnas no se angostan, se truncan: a 375px
+           "Valentina Bermúdez" quedaba en "Valentina B…", el mensaje —que es lo
+           que uno vino a buscar— en cinco palabras, y "Just now" en "Jus…".
+
+           Sobrevive lo mismo que en la tabla, repartido de otra manera: arriba
+           quién le escribió a quién, abajo lo que dice, y a la derecha cuándo,
+           que es la columna por la que se barre la lista.
+
+           El nombre no es un botón acá. En escritorio el remitente lleva a su
+           perfil y la fila al hilo —dos blancos en la misma fila, que con un
+           puntero se distinguen y con un pulgar no—, así que en el teléfono la
+           fila hace una sola cosa: abre el hilo en la hoja. Al perfil se llega
+           desde el pie del vistazo, que es donde ya estaba. */
+        <ScrollArea
+          className="min-h-0 flex-1"
+          viewportClassName="scroll-fade scrollbar-hide"
+        >
+          <ListaMovil>
+            {filas.map((fila) => {
+              const remitente = remitenteDe(fila);
+              const destinatario = destinatarioDe(fila);
+
+              return (
+                <FilaMovil
+                  key={fila.mensaje.id}
+                  id={fila.mensaje.id}
+                  /* Los dos nombres en el mismo renglón, el segundo en gris: es
+                     el mismo par que la tabla pone en dos, y acá dos renglones
+                     de nombres dejarían al mensaje de tercero. Se truncan
+                     juntos, y el que se corta primero es el destinatario, que
+                     es el que se mira segundo. */
+                  titulo={
+                    <>
+                      {remitente.nombre}
+                      <span className="text-muted-foreground">
+                        {" "}to {destinatario.nombre}
+                      </span>
+                    </>
+                  }
+                  /* Lo que dice. Una foto entra con su miniatura al lado del
+                     pie, como en la tabla: treinta y dos píxeles no son para
+                     mirar la foto sino para reconocerla —qué es y de qué color
+                     es—, y eso vale igual en un teléfono. */
+                  /* Y una nota de voz no lleva texto en la fila: lo que se
+                     dijo está en la transcripción, y la transcripción tiene su
+                     propio botón adentro del reproductor —igual que en la
+                     tabla—. Escribirla además acá sería que el botón prometa
+                     mostrar algo que ya se está viendo. */
+                  detalle={
+                    fila.mensaje.voz ? undefined : fila.mensaje.foto ? (
+                      <span className="flex min-w-0 items-center gap-2">
+                        <MessageImage
+                          id={fila.mensaje.id}
+                          foto={fila.mensaje.foto}
+                          pie={fila.mensaje.texto}
+                          variant="thumb"
+                        />
+                        <span className="min-w-0 truncate">
+                          {fila.mensaje.texto}
+                        </span>
+                      </span>
+                    ) : (
+                      fila.mensaje.texto
+                    )
+                  }
+                  extra={haceCuanto(fila.mensaje.cuando)}
+                  /* Y una nota de voz se escucha acá. Un glifo delante del
+                     texto decía "esto fue dicho, no escrito" y nada más: para
+                     oírlo había que abrir el hilo, cuando lo que hace falta son
+                     veintitrés segundos que ya están cargados. Es el mismo
+                     reproductor de la tabla de escritorio y del hilo, en la
+                     medida del teléfono.
+
+                     Debajo y no en el renglón del texto: la barra mide 44px de
+                     alto y tiene botones adentro, así que no es una línea ni
+                     puede vivir dentro del botón de la fila —ver `debajo`—. */
+                  debajo={
+                    fila.mensaje.voz && (
+                      <AudioMessage
+                        id={fila.mensaje.id}
+                        segundos={fila.mensaje.voz.segundos}
+                        transcripcion={fila.mensaje.texto}
+                      />
+                    )
+                  }
+                  onClick={() => abrirHilo(fila)}
+                />
+              );
+            })}
+          </ListaMovil>
+
+          {/* El final de la lista: cuando se acerca, entra el próximo tramo. */}
+          <div ref={centinela} aria-hidden className="h-px" />
+        </ScrollArea>
       ) : (
         <motion.div variants={entraTabla} className="relative min-h-0 flex-1">
           {/* Los títulos van afuera del scroller y flotando encima: adentro,
@@ -806,8 +964,13 @@ function Pantalla() {
           de la lista—, así que el pager no se va con el scroll.
 
           Sólo cuando hay resultados. Un pager sobre una tabla vacía ofrece
-          páginas que no existen. */}
-      {filas.length > 0 && (
+          páginas que no existen. Y sólo en escritorio: en el teléfono no hay
+          páginas por las que pasar, así que la franja de 49px que las ofrecía
+          se la queda la lista. Con ella se va el "1–40 of 727", que es la
+          cuenta que le da escala a lo buscado; sigue estando en Email Search y
+          en las otras tablas, y acá el que necesita saber si afinar la búsqueda
+          lo ve en cuánto tarda en llegar al fondo. */}
+      {!esMovil && filas.length > 0 && (
         <motion.footer
           variants={entraBloque}
           className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border px-6 py-3"

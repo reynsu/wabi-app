@@ -94,6 +94,19 @@ interface FilaMovilProps {
   /** Lo que aparece al correr la fila hacia la izquierda —ver `Deslizable`—.
    *  La fila no sabe nada del gesto: sólo dice qué se le puede hacer. */
   acciones?: AccionDeslizable[];
+  /** Lo que va debajo, a lo ancho de la fila. Para lo que no es una línea de
+   *  texto: un reproductor de audio, una miniatura grande.
+   *
+   *  **Va afuera del botón, y por eso existe.** Un botón no puede contener otro
+   *  —el navegador cierra el de afuera y la fila se parte en dos—, así que
+   *  cualquier cosa con controles adentro tiene que vivir al lado del blanco
+   *  que abre la fila y no adentro. El blanco sigue siendo todo el renglón de
+   *  arriba, que es lo que el pulgar busca.
+   *
+   *  No se corre con `acciones`: el gesto mueve el botón y esto se queda
+   *  quieto. Las dos cosas juntas piden envolver la fila entera, y ninguna
+   *  pantalla lo necesita todavía. */
+  debajo?: ReactNode;
 }
 
 export function FilaMovil({
@@ -104,6 +117,7 @@ export function FilaMovil({
   onClick,
   id,
   acciones,
+  debajo,
 }: FilaMovilProps) {
   const escala = useTypeScale();
 
@@ -167,6 +181,9 @@ export function FilaMovil({
       ) : (
         cuerpo
       )}
+      {/* Pegado a lo de arriba —el botón ya puso su propio aire abajo— y con la
+          misma sangría que la fila. */}
+      {debajo && <div className="-mt-1 px-4 pb-2.5">{debajo}</div>}
     </li>
   );
 }
