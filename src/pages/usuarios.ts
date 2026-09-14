@@ -47,6 +47,43 @@ export type Tipo = keyof typeof TIPOS;
  *  haya alas, pisos o habitaciones, y hasta entonces todos caen acá. */
 export const UBICACION_POR_DEFECTO = "Facility Base";
 
+/* ─────────────────────── A qué organización pertenece ───────────────────────
+
+   Las unidades de la casa: quién responde por una cuenta. Es lo que agrupa a
+   los buzones cuando se los provisiona —no se da de alta "una cuenta", se da de
+   alta la gente de un equipo— y por eso la lista de Provisioning lo muestra.
+
+   Los allegados no pertenecen a ninguna unidad: pertenecen a la familia del
+   residente que los trajo, así que su organización es su apellido. */
+export const ORGANIZACIONES = [
+  "Wabi House",
+  "Care Team",
+  "Facilities",
+  "Front Office",
+  "Kitchen",
+] as const;
+
+/** La organización de la casa, para lo que no es de nadie: los buzones que la
+ *  casa usa para escribir —recepción, facturación, mantenimiento—. */
+export const ORGANIZACION_DE_LA_CASA = ORGANIZACIONES[0];
+
+const numeroDe = (id: string) => Number(id.replace(/\D/g, "")) || 0;
+
+/** A qué organización pertenece una cuenta.
+ *
+ *  Se reparte por el número del id —el mismo truco que usa `emails.ts` con sus
+ *  plantillas— y no se guarda en el modelo: es un hecho del fixture, y escrito
+ *  cuarenta y ocho veces a mano sería cuarenta y ocho lugares donde equivocarse
+ *  el día que las unidades cambien de nombre. Cuando esto salga de una API, lo
+ *  que hay del otro lado es el campo, y esta función se va con el fixture. */
+export function organizacionDe(usuario: Usuario) {
+  if (usuario.accountType === "friends") {
+    const apellido = usuario.name.split(" ").filter(Boolean).slice(-1)[0] ?? "";
+    return `${apellido} Family`;
+  }
+  return ORGANIZACIONES[numeroDe(usuario.id) % ORGANIZACIONES.length];
+}
+
 export interface Usuario {
   /** El id que se ve: va debajo del nombre, así que es el de la cuenta y no un
    *  número de fila. También es por donde busca la barra de arriba: si está a

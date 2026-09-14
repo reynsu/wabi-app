@@ -6,6 +6,8 @@ import { sileo } from "@/lib/avisos";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { InputField, InputGroup } from "@/components/ui/input-group";
+import { useEsMovil } from "@/hooks/use-es-movil";
+import { SANGRIA_MOVIL } from "@/movil/lista";
 import { Elevated } from "@/lib/elevated";
 import { useShape } from "@/lib/shape-context";
 import { useTypeScale } from "@/lib/size-context";
@@ -297,6 +299,7 @@ export function BarraDeAlta({ alta }: { alta: Alta }) {
   const escala = useTypeScale();
   const shape = useShape();
   const reducido = useReducedMotion() ?? false;
+  const esMovil = useEsMovil();
   const [texto, setTexto] = useState("");
 
   const t = texto.trim();
@@ -336,8 +339,17 @@ export function BarraDeAlta({ alta }: { alta: Alta }) {
         exit="oculto"
         className="overflow-hidden border-b border-dashed border-border bg-accent/30"
       >
-      <div className="flex flex-wrap items-center gap-3 px-6 py-2.5">
-        <div className="w-72">
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-3 py-2.5",
+          /* El mismo aire que las filas de la lista; ver `SANGRIA_MOVIL`. */
+          esMovil ? SANGRIA_MOVIL : "px-6",
+        )}
+      >
+        {/* En el teléfono el campo se lleva el renglón y lo demás baja al de
+            abajo: los 288px fijos vienen de una barra que tiene media pantalla
+            libre a la derecha, y acá no hay derecha. */}
+        <div className={esMovil ? "w-full" : "w-72"}>
           <InputGroup>
             <InputField
               index={0}
@@ -439,7 +451,10 @@ export function BarraDeAlta({ alta }: { alta: Alta }) {
             animate="visible"
             exit="oculto"
             className={cn(
-              "absolute top-full left-6 z-20 mt-1 max-h-64 w-72 overflow-y-auto p-1",
+              "absolute top-full z-20 mt-1 max-h-64 overflow-y-auto p-1",
+              /* En el teléfono cuelga de los dos bordes, porque el campo mide
+                 el renglón entero. */
+              esMovil ? "inset-x-4" : "left-6 w-72",
               shape.container,
             )}
           >
@@ -495,6 +510,7 @@ export function BarraDeAlta({ alta }: { alta: Alta }) {
 export function FilasBorrador({ alta }: { alta: Alta }) {
   const escala = useTypeScale();
   const reducido = useReducedMotion() ?? false;
+  const esMovil = useEsMovil();
   const estado = ESTADOS_BUZON[ESTADO_INICIAL];
 
   return (
@@ -514,11 +530,47 @@ export function FilasBorrador({ alta }: { alta: Alta }) {
               este sistema apaga un control deshabilitado, y dura lo que dura la
               espera. */}
           <motion.div
-            className="grid items-center"
-            style={{ gridTemplateColumns: REJILLA }}
+            className={esMovil ? "flex min-h-14 items-center gap-3 px-4 py-2" : "grid items-center"}
+            style={esMovil ? undefined : { gridTemplateColumns: REJILLA }}
             animate={{ opacity: alta.enviando ? 0.45 : 1 }}
             transition={spring.moderate}
           >
+            {/* En el teléfono el borrador tiene la forma de la fila que va a
+                ser: el nombre arriba, la dirección abajo, y a la derecha lo que
+                dice que todavía no existe. Se cae el creador —siempre soy yo—,
+                la fecha —siempre hoy— y el estado, que en un borrador siempre
+                es el mismo: lo único que aporta de ese lado es la palabra
+                "Draft". */}
+            {esMovil ? (
+              <>
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span
+                    className="truncate text-foreground"
+                    style={{ fontSize: escala.body }}
+                  >
+                    {u.name}
+                  </span>
+                  <span
+                    className="truncate"
+                    style={{ fontSize: escala.caption }}
+                  >
+                    {direccionDe(u)}
+                  </span>
+                </span>
+                <Badge color="gray">Draft</Badge>
+                {!alta.enviando && (
+                  <button
+                    type="button"
+                    aria-label={`Drop ${u.name}`}
+                    onClick={() => alta.quitar(u.id)}
+                    className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground active:bg-hover"
+                  >
+                    <X size={16} strokeWidth={1.5} />
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
             <span className={cn(CELDA, "pl-6 text-foreground")}>{u.name}</span>
             <span className={CELDA}>{direccionDe(u)}</span>
             <span className={CELDA}>{CREADOR}</span>
@@ -544,6 +596,8 @@ export function FilasBorrador({ alta }: { alta: Alta }) {
                 </button>
               )}
             </span>
+              </>
+            )}
           </motion.div>
         </motion.div>
       ))}
