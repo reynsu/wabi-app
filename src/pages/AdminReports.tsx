@@ -41,7 +41,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useMeasuredHeight } from "@/hooks/use-measured-height";
+import { useEsMovil } from "@/hooks/use-es-movil";
+import { useListaInfinita } from "@/hooks/use-lista-infinita";
 import { usePaginacion } from "@/hooks/use-paginacion";
+import { BOTON_EN_PILDORA, CAMPO_EN_PILDORA } from "@/movil/buscador";
+import { Deslizable, type AccionDeslizable } from "@/movil/deslizable";
+import { ListaMovil } from "@/movil/lista";
+import { ReportesPrototipo } from "@/movil/prototipo-reportes";
 import { SizeProvider, useTypeScale } from "@/lib/size-context";
 import { spring } from "@/lib/springs";
 import { cn } from "@/lib/utils";
@@ -372,6 +378,109 @@ function BajarReporte({ reporte }: { reporte: ReporteDOC }) {
   );
 }
 
+/* ─────────────────────── La fila del teléfono ───────────────────────
+
+   Cinco columnas no entran en 375px: al nombre le tocaban 122 y quedaba en
+   "User ID R…", y la pastilla del estado se dibujaba encima de la fecha. La
+   fila se apila en dos renglones:
+
+     📄 User ID Report — 08/26/2026
+        ● Completed  Marcela Vidal              4 d ago
+
+   **El nombre se lleva el primer renglón entero** —con el glifo del archivo
+   delante, que es lo que dice que hay algo para abrir y de qué clase es—, y
+   abajo van el estado, quién lo pidió y cuándo.
+
+   **Y se cae la columna Type**, que es la única que se cae. No se pierde nada:
+   el nombre de un reporte *es* su tipo y el día que se pidió —"User ID Report —
+   08/26/2026"—, así que la columna lo escribía dos veces. En la tabla eso vale
+   la pena porque es por donde se agrupa con la vista; en una lista de dos
+   renglones, repetir media frase debajo de ella es gastar el renglón que
+   necesita el estado.
+
+   Lo que se toca: la fila abre el reporte —lo mismo que en la tabla hace su
+   nombre— y correrla ofrece bajarlo. Un reporte que todavía no está listo no
+   abre ni baja: no hay archivo todavía, y una fila que prometa abrirlo miente.
+   Ahí el gesto no muestra nada, que es lo que `Deslizable` hace con una lista
+   de acciones vacía. */
+function FilaDeReporte({
+  reporte,
+  quien,
+  onAbrir,
+}: {
+  reporte: ReporteDOC;
+  /** Quién lo pidió. */
+  quien: string;
+  onAbrir: () => void;
+}) {
+  const escala = useTypeScale();
+  const estado = ESTADOS_DE_REPORTE[reporte.estado];
+  const listo = sePuedeBajar(reporte);
+  const { bajando, alTocar } = useBajadaDOC(reporte);
+
+  const acciones: AccionDeslizable[] = listo
+    ? [{ label: bajando ? "…" : "Download", icon: Download, onSelect: alTocar }]
+    : [];
+
+  const cuerpo = (
+    <span className="flex min-h-14 flex-col justify-center gap-1 px-4 py-2.5">
+      <span className="flex min-w-0 items-center gap-2">
+        <GlifoDelArchivo reporte={reporte} />
+        <span className="min-w-0 truncate" style={{ fontSize: escala.body }}>
+          {reporte.nombre}
+        </span>
+      </span>
+
+      <span className="flex min-w-0 items-center gap-2">
+        {/* Un escalón más chica que lo que pide la región: la pastilla es el
+            adjetivo del nombre que tiene arriba, y a la altura de un control
+            competía con él. Lo mismo que en la fila de Email Search. */}
+        <Badge variant="dot" size="compact" color={estado.color}>
+          {estado.label}
+        </Badge>
+        {/* Quién lo pidió. En la tabla vive en el `title` de la fecha —a un
+            hover de distancia— y acá no hay hover, así que sube al renglón. Es
+            lo que esta pantalla promete en su propia bajada: "y quién lo
+            pidió". Ocupa el lugar que dejó la columna Type. */}
+        <span
+          className="min-w-0 flex-1 truncate text-muted-foreground"
+          style={{ fontSize: escala.caption }}
+        >
+          {quien}
+        </span>
+        <span
+          className="shrink-0 tabular-nums text-muted-foreground"
+          style={{ fontSize: escala.caption }}
+        >
+          {haceCuanto(reporte.pedidoEl)}
+        </span>
+      </span>
+    </span>
+  );
+
+  return (
+    <li>
+      <Deslizable id={reporte.id} acciones={acciones}>
+        {listo ? (
+          <button
+            type="button"
+            onClick={onAbrir}
+            data-cuelume-press="tick"
+            className={cn(
+              "w-full cursor-pointer text-left outline-none",
+              "active:bg-hover focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
+            )}
+          >
+            {cuerpo}
+          </button>
+        ) : (
+          cuerpo
+        )}
+      </Deslizable>
+    </li>
+  );
+}
+
 /* ─────────────────────────── La pantalla ─────────────────────────── */
 
 /** `tabId` es el de la pestaña que la monta: la ficha del pedido se pone en
@@ -379,16 +488,22 @@ function BajarReporte({ reporte }: { reporte: ReporteDOC }) {
  *  siguen montadas, y escribir contra "la activa" le pondría la ficha en la cara
  *  a otra. */
 export function AdminReports({ tabId }: { tabId?: string }) {
+  /* Compacta en escritorio y normal en el teléfono, como las otras tablas: el
+     escalón denso es para cuarenta filas peleando por el alto de una ventana, y
+     en un teléfono lo que pelea es el dedo. */
+  const esMovil = useEsMovil();
+
   return (
     /* Una región densa entera, como las otras tablas: el buscador, el panel y la
        tabla leen el escalón de acá y no lo reciben cada uno por su cuenta. */
-    <SizeProvider size="compact">
+    <SizeProvider size={esMovil ? "default" : "compact"}>
       <Pantalla tabId={tabId} />
     </SizeProvider>
   );
 }
 
 function Pantalla({ tabId }: { tabId?: string }) {
+  const esMovil = useEsMovil();
   /* Abrir un reporte es abrir una pestaña, igual que abrir un perfil desde una
      tabla de cuentas. */
   const openTab = useWorkspace((w) => w.openTab);
@@ -431,11 +546,19 @@ function Pantalla({ tabId }: { tabId?: string }) {
      cambiar el filtro vuelve a la primera, y la página se acota contra el total.
      Es el mismo hook que usan las otras cinco tablas. */
   const clave = `${busqueda}|${JSON.stringify(filtros)}`;
-  const { pagina, paginas, desde, filas, dir, ancla, irA } = usePaginacion(
-    encontrados,
-    clave,
-    POR_PAGINA,
-  );
+  const {
+    pagina,
+    paginas,
+    desde,
+    dir,
+    ancla,
+    irA,
+    filas: paginadas,
+  } = usePaginacion(encontrados, clave, POR_PAGINA);
+  /* Y en el teléfono no hay páginas: la lista se sigue, como en las otras
+     siete. Ver `useListaInfinita`. */
+  const { filas: seguidas, centinela } = useListaInfinita(encontrados, clave);
+  const filas = esMovil ? seguidas : paginadas;
 
   /* El teclado de la tabla: una sola parada de tabulado —la fila donde
      quedaste— y las flechas adentro. Ver `tabla-teclado`. */
@@ -451,8 +574,47 @@ function Pantalla({ tabId }: { tabId?: string }) {
       animate="visible"
       className="flex h-full min-h-0 w-full flex-col"
     >
-      {/* El aire lateral es del header, no de la pantalla: así la tabla llega a
-          los dos bordes y son sus celdas las que se alinean con él. */}
+      {/* En el teléfono el header es el buscador, el filtro y el pedido: el
+          título con su bajada se va —el header del shell ya dice "Admin /
+          Reports"— y esos dos renglones se los queda la lista. */}
+      {esMovil ? (
+        <motion.header
+          variants={entraBloque}
+          className="flex shrink-0 items-center gap-2 px-4 py-3"
+        >
+          <InputGroup className="min-w-0 flex-1">
+            <InputField
+              index={0}
+              label="Search reports"
+              labelHidden
+              icon={Search}
+              placeholder="Search reports"
+              value={busqueda}
+              onChange={setBusqueda}
+              className={cn(
+                "[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border",
+                CAMPO_EN_PILDORA,
+              )}
+            />
+          </InputGroup>
+
+          <FilterMenu
+            groups={GRUPOS}
+            align="end"
+            variant="secondary"
+            labelHidden
+            value={filtros}
+            onValueChange={setFiltros}
+            className={BOTON_EN_PILDORA}
+          />
+
+          <BotonDeAlta onClick={alta.abrir} disponible={alta.disponible}>
+            Report
+          </BotonDeAlta>
+        </motion.header>
+      ) : (
+      /* El aire lateral es del header, no de la pantalla: así la tabla llega a
+          los dos bordes y son sus celdas las que se alinean con él. */
       <motion.header
         variants={entraBloque}
         className="flex shrink-0 flex-wrap items-center justify-between gap-4 px-6 py-4"
@@ -513,6 +675,7 @@ function Pantalla({ tabId }: { tabId?: string }) {
           </BotonDeAlta>
         </div>
       </motion.header>
+      )}
 
       {filas.length === 0 ? (
         <AnimatedEmpty>
@@ -527,6 +690,34 @@ function Pantalla({ tabId }: { tabId?: string }) {
             </AnimatedEmptyDescription>
           </AnimatedEmptyHeader>
         </AnimatedEmpty>
+      ) : esMovil ? (
+        /* PROTOTIPO — se tira. Ver `movil/prototipo-reportes`: la lista de hoy
+           entra como "actual" y las otras cuatro se prueban con `?reportes=`. */
+        <ReportesPrototipo
+          filas={filas}
+          centinela={<div ref={centinela} aria-hidden className="h-px" />}
+          onAbrir={(reporte) => openTab(tabDeReporteDOC(reporte))}
+          actual={
+        <ScrollArea
+          className="min-h-0 flex-1"
+          viewportClassName="scroll-fade scrollbar-hide"
+        >
+          <ListaMovil>
+            {filas.map(({ reporte, quien }) => (
+              <FilaDeReporte
+                key={reporte.id}
+                reporte={reporte}
+                quien={quien}
+                onAbrir={() => openTab(tabDeReporteDOC(reporte))}
+              />
+            ))}
+          </ListaMovil>
+
+          {/* El final de la lista: cuando se acerca, entra el próximo tramo. */}
+          <div ref={centinela} aria-hidden className="h-px" />
+        </ScrollArea>
+          }
+        />
       ) : (
         <motion.div variants={entraTabla} className="relative min-h-0 flex-1">
           {/* Los títulos van afuera del scroller y flotando encima: adentro,
@@ -720,7 +911,7 @@ function Pantalla({ tabId }: { tabId?: string }) {
       {/* El pie: de cuántos se está viendo cuáles, y por dónde se pasa a los que
           siguen. Va afuera del scroller y pegado abajo —es del mueble, no de la
           lista—, así que el pager no se va con el scroll. */}
-      {filas.length > 0 && (
+      {!esMovil && filas.length > 0 && (
         <motion.footer
           variants={entraBloque}
           className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border px-6 py-3"
