@@ -217,6 +217,7 @@ function CorreoEnElRiel({
 }) {
   const escala = useTypeScale();
   const shape = useShape();
+  const esMovil = useEsMovil();
   const carpeta = CARPETAS[email.carpeta];
   const propio = loEscribioLaCuenta(email.carpeta);
   /* Quién escribió y quién recibió, derivados de la carpeta y del dueño del
@@ -231,7 +232,16 @@ function CorreoEnElRiel({
       title={email.asunto}
       subtitle={`${carpeta.label} · ${usuario.name}`}
       icon={carpeta.icon}
-      onClose={onClose}
+      /* Sin botón de cerrar en el teléfono. El vistazo vive en el riel, donde
+         la × es la única manera de devolverlo; en el teléfono vive adentro de
+         la hoja, que ya se baja con la manija y con el atrás del sistema —y que
+         por eso no tiene cabecera propia, ver `movil/hoja`—. Una × ahí es un
+         tercer camino para lo mismo, en la esquina donde más cuesta llegar con
+         el pulgar.
+
+         Va acá y no adentro de `LateralPreview`: el componente es del registry,
+         y una desviación adentro se la lleva puesta la próxima instalación. */
+      onClose={esMovil ? undefined : onClose}
       footer={
         <Button
           variant="secondary"
@@ -337,11 +347,20 @@ function CorreoEnElRiel({
    tabla de sesenta es ruido con forma de dato: lo normal no lleva insignia, y
    marcar todo es no marcar nada. */
 
-function Adjuntos({ cuantos }: { cuantos: number }) {
+function Adjuntos({
+  cuantos,
+  /** El escalón de la marca. La fila del teléfono las pide compactas aunque su
+   *  región no lo sea; ver `FilaDeCorreo`. */
+  size,
+}: {
+  cuantos: number;
+  size?: "compact";
+}) {
   return (
     <MarcaAnimada
       variants={entraMarca}
       color="gray"
+      size={size}
       className="shrink-0 tabular-nums"
       aria-label={`${cuantos} ${cuantos === 1 ? "attachment" : "attachments"}`}
     >
@@ -350,7 +369,7 @@ function Adjuntos({ cuantos }: { cuantos: number }) {
           bloque —lo deja así el preflight de Tailwind—, así que sueltos se
           apilaban uno arriba del otro. */}
       <span className="inline-flex items-center gap-1">
-        <Paperclip size={12} strokeWidth={1.5} aria-hidden />
+        <Paperclip size={size === "compact" ? 11 : 12} strokeWidth={1.5} aria-hidden />
         {cuantos}
       </span>
     </MarcaAnimada>
@@ -597,16 +616,22 @@ function FilaDeCorreo({
           >
             {email.asunto}
           </span>
+          {/* Un escalón más chicas que lo que pide la región. La pantalla se
+              declara normal en el teléfono porque lo que pelea ahí es el dedo,
+              y eso está bien para lo que se toca; una marca no se toca. A 24px
+              de alto competían con el asunto que acompañan —son el adjetivo, no
+              el sustantivo— y le comían el ancho justo a lo que se lee para
+              decidir. */}
           {email.adjuntos.length > 0 && (
-            <Adjuntos cuantos={email.adjuntos.length} />
+            <Adjuntos cuantos={email.adjuntos.length} size="compact" />
           )}
           {"color" in tipo && (
-            <Badge color={tipo.color} className="shrink-0">
+            <Badge color={tipo.color} size="compact" className="shrink-0">
               {tipo.label}
             </Badge>
           )}
           {email.rechazado && (
-            <Badge color={entrega.color} className="shrink-0">
+            <Badge color={entrega.color} size="compact" className="shrink-0">
               {entrega.label}
             </Badge>
           )}
