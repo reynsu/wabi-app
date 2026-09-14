@@ -52,7 +52,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useMeasuredHeight } from "@/hooks/use-measured-height";
+import { useEsMovil } from "@/hooks/use-es-movil";
+import { useListaInfinita } from "@/hooks/use-lista-infinita";
 import { usePaginacion } from "@/hooks/use-paginacion";
+import { BOTON_EN_PILDORA, CAMPO_EN_PILDORA } from "@/movil/buscador";
+import { Deslizable, type AccionDeslizable } from "@/movil/deslizable";
+import { ListaMovil } from "@/movil/lista";
 import { SizeProvider, useTypeScale } from "@/lib/size-context";
 import { spring } from "@/lib/springs";
 import { cn } from "@/lib/utils";
@@ -379,6 +384,128 @@ function AccionesDeCuenta({
   );
 }
 
+/* Lo que se le puede hacer a una cuenta desde la lista del teléfono: las dos
+   del menú de la tabla. Copiar el correo es lo que más se pide —es la identidad
+   de la fila, y lo que se pega en el buscador de otra pantalla o en un ticket—
+   y corregir abre la misma ficha que el `+`, con la cuenta adentro.
+
+   Ninguna saca el acceso: eso no es una acción suelta sino un campo de la
+   cuenta, y vive adentro de esa ficha, al lado del rol y de las
+   organizaciones. Un botón acá sería la misma decisión tomada desde dos
+   lugares, y encima sin el contexto que la explica. */
+const accionesDe = (
+  cuenta: CuentaDOC,
+  onEditar: (cuenta: CuentaDOC) => void,
+): AccionDeslizable[] => [
+  {
+    label: "Copy",
+    icon: Copy,
+    onSelect: () => {
+      /* Las dos puntas, como en el menú: un "copiado" sobre un portapapeles
+         vacío es peor que no decir nada. */
+      navigator.clipboard
+        .writeText(cuenta.email)
+        .then(() =>
+          sileo.success({ title: "Email copied", description: cuenta.email }),
+        )
+        .catch(() =>
+          sileo.error({
+            title: "Nothing was copied",
+            description: "The clipboard isn't available here.",
+          }),
+        );
+    },
+  },
+  { label: "Edit", icon: Pencil, onSelect: () => onEditar(cuenta) },
+];
+
+/* ─────────────────────── La fila del teléfono ───────────────────────
+
+   Siete columnas no entran en 375px —a la de Status le tocaban 37 píxeles para
+   escribir "Deactivated"—, así que la fila se apila en tres renglones, y el
+   primero y el último llevan su dato contra el borde derecho:
+
+     Lorena Cifuentes                     May 13, 2026
+     lorena.cifuentes@facilityhub.org
+     Facility Hub +2 · Limited Access      Deactivated
+
+   **El correo se lleva el renglón del medio**: es la identidad de la fila —hay
+   dos personas con el mismo nombre en este padrón— y es lo más largo. Por eso
+   tiene columna propia en la tabla y renglón propio acá.
+
+   Abajo, dónde trabaja y qué puede hacer, que son las dos cosas que definen un
+   acceso, separadas por un punto; y contra el borde, el estado. **Que sólo
+   habla cuando hay algo que decir**: son dos estados y trece de las dieciocho
+   cuentas están activas, así que "Deactivated" escrito en gris salta solo y
+   "Active" no ocupa lugar. Es la misma regla que la lista de buzones.
+
+   La fila no es un botón: en escritorio tampoco lleva a ningún lado. Lo que se
+   le hace se pide corriéndola. */
+function FilaDeCuenta({
+  cuenta,
+  onEditar,
+}: {
+  cuenta: CuentaDOC;
+  onEditar: (cuenta: CuentaDOC) => void;
+}) {
+  const escala = useTypeScale();
+  const estado = ESTADOS_DOC[cuenta.estado];
+  const donde = dondeTrabaja(cuenta);
+
+  return (
+    <li>
+      <Deslizable id={cuenta.id} acciones={accionesDe(cuenta, onEditar)}>
+        <span className="flex min-h-14 flex-col justify-center gap-0.5 px-4 py-2.5">
+          <span className="flex min-w-0 items-baseline gap-2">
+            <span
+              className="min-w-0 flex-1 truncate font-medium"
+              style={{ fontSize: escala.body }}
+            >
+              {cuenta.nombre}
+            </span>
+            {/* Desde cuándo tiene este acceso. La hora, cuando la tiene, no
+                sube acá: es una precisión del acceso y no algo que se recorra
+                —lo mismo que decide la tabla—. */}
+            <span
+              className="shrink-0 tabular-nums text-muted-foreground"
+              style={{ fontSize: escala.caption }}
+            >
+              {fechaDia(diaDe(cuenta.desde))}
+            </span>
+          </span>
+
+          <span
+            className="truncate text-muted-foreground"
+            style={{ fontSize: escala.caption }}
+          >
+            {cuenta.email}
+          </span>
+
+          <span className="flex min-w-0 items-baseline gap-2">
+            <span
+              className="min-w-0 flex-1 truncate text-muted-foreground/70"
+              style={{ fontSize: escala.caption }}
+            >
+              {donde.primera}
+              {donde.mas > 0 && <span className="tabular-nums"> +{donde.mas}</span>}
+              {" · "}
+              {ROLES_DOC[cuenta.rol].label}
+            </span>
+            {cuenta.estado !== "active" && (
+              <span
+                className="shrink-0 font-medium"
+                style={{ color: estado.tinte, fontSize: escala.caption }}
+              >
+                {estado.label}
+              </span>
+            )}
+          </span>
+        </span>
+      </Deslizable>
+    </li>
+  );
+}
+
 /* ─────────────────────────── La pantalla ─────────────────────────── */
 
 /** `tabId` es el de la pestaña que la monta: la ficha de alta se pone en **su**
@@ -386,16 +513,22 @@ function AccionesDeCuenta({
  *  montadas, y escribir contra "la activa" le pondría la ficha en la cara a
  *  otra. */
 export function DocAccounts({ tabId }: { tabId?: string }) {
+  /* Compacta en escritorio y normal en el teléfono, como las otras tablas: el
+     escalón denso es para cuarenta filas peleando por el alto de una ventana, y
+     en un teléfono lo que pelea es el dedo. */
+  const esMovil = useEsMovil();
+
   return (
     /* Una región densa entera, como las otras tablas: el buscador, el panel y la
        tabla leen el escalón de acá y no lo reciben cada uno por su cuenta. */
-    <SizeProvider size="compact">
+    <SizeProvider size={esMovil ? "default" : "compact"}>
       <Pantalla tabId={tabId} />
     </SizeProvider>
   );
 }
 
 function Pantalla({ tabId }: { tabId?: string }) {
+  const esMovil = useEsMovil();
   /* El alta vive en el riel y no en un diálogo: dar de alta a alguien es
      justamente cuando hace falta poder mirar las cuentas que ya están. Ver
      `NuevaCuentaDOC`. */
@@ -418,11 +551,19 @@ function Pantalla({ tabId }: { tabId?: string }) {
      cambiar el filtro vuelve a la primera, y la página se acota contra el total.
      Es el mismo hook que usan las otras cuatro tablas. */
   const clave = `${busqueda}|${JSON.stringify(filtros)}`;
-  const { pagina, paginas, desde, filas, dir, ancla, irA } = usePaginacion(
-    encontradas,
-    clave,
-    POR_PAGINA,
-  );
+  const {
+    pagina,
+    paginas,
+    desde,
+    dir,
+    ancla,
+    irA,
+    filas: paginadas,
+  } = usePaginacion(encontradas, clave, POR_PAGINA);
+  /* Y en el teléfono no hay páginas: la lista se sigue, como en las otras
+     cuatro. Ver `useListaInfinita`. */
+  const { filas: seguidas, centinela } = useListaInfinita(encontradas, clave);
+  const filas = esMovil ? seguidas : paginadas;
 
   /* El teclado de la tabla: una sola parada de tabulado —la fila donde
      quedaste— y las flechas adentro. Ver `tabla-teclado`. */
@@ -438,8 +579,47 @@ function Pantalla({ tabId }: { tabId?: string }) {
       animate="visible"
       className="flex h-full min-h-0 w-full flex-col"
     >
-      {/* El aire lateral es del header, no de la pantalla: así la tabla llega a
-          los dos bordes y son sus celdas las que se alinean con él. */}
+      {/* En el teléfono el header es el buscador, el filtro y el alta: el título
+          con su bajada se va —el header del shell ya dice "Admin / DOC
+          Accounts"— y esos dos renglones se los queda la lista. */}
+      {esMovil ? (
+        <motion.header
+          variants={entraBloque}
+          className="flex shrink-0 items-center gap-2 px-4 py-3"
+        >
+          <InputGroup className="min-w-0 flex-1">
+            <InputField
+              index={0}
+              label="Search accounts"
+              labelHidden
+              icon={Search}
+              placeholder="Search accounts"
+              value={busqueda}
+              onChange={setBusqueda}
+              className={cn(
+                "[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border",
+                CAMPO_EN_PILDORA,
+              )}
+            />
+          </InputGroup>
+
+          <FilterMenu
+            groups={GRUPOS}
+            align="end"
+            variant="secondary"
+            labelHidden
+            value={filtros}
+            onValueChange={setFiltros}
+            className={BOTON_EN_PILDORA}
+          />
+
+          <BotonDeAlta onClick={alta.abrir} disponible={alta.disponible}>
+            Account
+          </BotonDeAlta>
+        </motion.header>
+      ) : (
+      /* El aire lateral es del header, no de la pantalla: así la tabla llega a
+          los dos bordes y son sus celdas las que se alinean con él. */
       <motion.header
         variants={entraBloque}
         className="flex shrink-0 flex-wrap items-center justify-between gap-4 px-6 py-4"
@@ -497,6 +677,7 @@ function Pantalla({ tabId }: { tabId?: string }) {
           </BotonDeAlta>
         </div>
       </motion.header>
+      )}
 
       {filas.length === 0 ? (
         <AnimatedEmpty>
@@ -511,6 +692,24 @@ function Pantalla({ tabId }: { tabId?: string }) {
             </AnimatedEmptyDescription>
           </AnimatedEmptyHeader>
         </AnimatedEmpty>
+      ) : esMovil ? (
+        <ScrollArea
+          className="min-h-0 flex-1"
+          viewportClassName="scroll-fade scrollbar-hide"
+        >
+          <ListaMovil>
+            {filas.map((cuenta) => (
+              <FilaDeCuenta
+                key={cuenta.id}
+                cuenta={cuenta}
+                onEditar={alta.editar}
+              />
+            ))}
+          </ListaMovil>
+
+          {/* El final de la lista: cuando se acerca, entra el próximo tramo. */}
+          <div ref={centinela} aria-hidden className="h-px" />
+        </ScrollArea>
       ) : (
         <motion.div variants={entraTabla} className="relative min-h-0 flex-1">
           {/* Los títulos van afuera del scroller y flotando encima: adentro,
@@ -691,7 +890,7 @@ function Pantalla({ tabId }: { tabId?: string }) {
       {/* El pie: de cuántas se está viendo cuáles, y por dónde se pasa a las que
           siguen. Va afuera del scroller y pegado abajo —es del mueble, no de la
           lista—, así que el pager no se va con el scroll. */}
-      {filas.length > 0 && (
+      {!esMovil && filas.length > 0 && (
         <motion.footer
           variants={entraBloque}
           className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border px-6 py-3"
