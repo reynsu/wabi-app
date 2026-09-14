@@ -37,6 +37,7 @@ import {
   AnimatedEmptyTitle,
 } from "@/components/animated-empty";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useEsMovil } from "@/hooks/use-es-movil";
 import { Elevated } from "@/lib/elevated";
 import {
   GLIFOS,
@@ -612,6 +613,24 @@ function Documento({ url, nombre }: { url: string; nombre: string }) {
  *
  * **Las flechas de página no aparecen en un documento de una sola.** Un control
  * que nunca va a hacer nada es ruido, y casi todos los reportes son de una hoja.
+ *
+ * **En el teléfono ocupa el ancho y los controles se reparten.** La píldora
+ * centrada mide lo que miden sus botones —211px— y esos botones miden 24: en un
+ * puntero es un blanco cómodo y en un pulgar es la mitad de lo que hace falta.
+ * Estirada de borde a borde, los mismos controles pasan a 42 de ancho cada uno
+ * y a 32 de alto. No cambia ninguno de lugar: la barra sigue siendo páginas a
+ * la izquierda y tamaño a la derecha, sólo que con aire adentro.
+ *
+ * El blanco crece a lo ancho y no a lo alto a propósito. Los 44 del escalón
+ * táctil miden un blanco cuadrado; acá el ancho ya lo trae, y estirar también
+ * el alto sumaba doce píxeles de barra encima de una hoja que se está leyendo,
+ * que es lo único que esta barra no puede gastar —flota justamente para no
+ * comerle alto al documento—.
+ *
+ * Y ahí va **siempre entera**: apagarse al 70% es una respuesta al puntero, y
+ * sin puntero no hay acercarse, así que se quedaría a medio pintar para
+ * siempre. Una barra a medio pintar no se lee como apartada, se lee como
+ * deshabilitada. Es la misma decisión que tomó la barra flotante de un ticket.
  */
 function Controles({
   escalaTexto,
@@ -636,8 +655,16 @@ function Controles({
   onAcercar: () => void;
   onAjustar: () => void;
 }) {
+  const esMovil = useEsMovil();
+
   const boton = cn(
-    "flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md",
+    "flex cursor-pointer items-center justify-center rounded-md",
+    /* En el teléfono cada control se lleva su parte del ancho; en escritorio,
+       la caja de 24 de siempre. El alto es 32 y no los 44 del escalón táctil:
+       el escalón mide un blanco cuadrado, y acá el ancho ya trae de sobra —42px
+       cada uno—, así que lo que agregaban esos doce píxeles no era blanco sino
+       barra encima de lo que se está leyendo. */
+    esMovil ? "h-8 flex-1" : "size-6 shrink-0",
     "text-muted-foreground transition-colors duration-80",
     "hover:bg-hover hover:text-foreground focus-visible:bg-hover focus-visible:text-foreground",
     "outline-none disabled:pointer-events-none disabled:opacity-40",
@@ -651,9 +678,10 @@ function Controles({
     <Elevated
       offset={2}
       className={cn(
-        "absolute bottom-3 left-1/2 z-10 -translate-x-1/2",
+        "absolute bottom-3 z-10",
+        esMovil ? "inset-x-3" : "left-1/2 -translate-x-1/2",
         "flex items-center gap-1 rounded-xl border border-border p-1",
-        "opacity-70 transition-opacity duration-150 hover:opacity-100",
+        !esMovil && "opacity-70 transition-opacity duration-150 hover:opacity-100",
       )}
       style={{ fontSize: escalaTexto }}
     >
@@ -669,7 +697,12 @@ function Controles({
               <ChevronLeft size={icono} strokeWidth={1.5} />
             </button>
 
-            <span className="px-1 tabular-nums text-muted-foreground select-none">
+            <span
+              className={cn(
+                "px-1 tabular-nums text-muted-foreground select-none",
+                esMovil && "text-center",
+              )}
+            >
               {pagina} / {paginas}
             </span>
 
@@ -710,6 +743,7 @@ function Controles({
           onClick={onAjustar}
           className={cn(
             "min-w-11 cursor-pointer rounded-md px-1 py-0.5 tabular-nums",
+            esMovil && "h-8 flex-1",
             "text-muted-foreground transition-colors duration-80 outline-none",
             "hover:bg-hover hover:text-foreground focus-visible:bg-hover",
             "disabled:pointer-events-none",
