@@ -39,6 +39,8 @@ import { Button } from "@/components/ui/button";
 import { InputField, InputGroup } from "@/components/ui/input-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SizeProvider, useSize, useTypeScale } from "@/lib/size-context";
+import { useEsMovil } from "@/hooks/use-es-movil";
+import { BOTON_EN_PILDORA, CAMPO_EN_PILDORA } from "@/movil/buscador";
 import { spring } from "@/lib/springs";
 import { useWorkspace } from "@/stores/workspace";
 import { cn } from "@/lib/utils";
@@ -533,6 +535,16 @@ function FilaDeReporte({ reporte, indice }: { reporte: Reporte; indice: number }
 const BALDOSAS =
   "grid gap-1 [grid-template-columns:repeat(auto-fill,minmax(7.5rem,1fr))]";
 
+/** Y en el teléfono, tres fijas.
+ *
+ *  Es el único ancho donde `auto-fill` no sirve: el mínimo de 120px entra dos
+ *  veces en los 343 que quedan y sobran ochenta, así que la grilla se dibujaba
+ *  de a dos con una franja muerta a la derecha —y catorce meses en siete
+ *  renglones, que es una lista con dibujos—. Con tres columnas la baldosa mide
+ *  109 y las catorce entran en cinco renglones, que es lo que esta vista
+ *  promete: verlas todas de una. */
+const BALDOSAS_MOVIL = "grid grid-cols-3 gap-1";
+
 /** El glifo de una baldosa.
  *
  *  Cuarenta, y no el `icon` del escalón —catorce—, porque acá el ícono no es la
@@ -775,6 +787,7 @@ function BaldosaDeMes({ mes, onAbrir }: { mes: MesDeReportes; onAbrir: () => voi
 function GrillaDeReportes({ meses }: { meses: MesDeReportes[] }) {
   const escala = useTypeScale();
   const medidas = useSize();
+  const esMovil = useEsMovil();
   /* La clave del mes abierto, o nada si se está en la raíz. Se guarda aunque
      haya una búsqueda puesta: al borrarla, se vuelve a la carpeta que se estaba
      mirando en vez de a la raíz. */
@@ -783,7 +796,10 @@ function GrillaDeReportes({ meses }: { meses: MesDeReportes[] }) {
 
   return (
     <ScrollArea className="h-full" viewportClassName="scroll-fade">
-      <div className="flex flex-col gap-1 px-6 pb-6">
+      {/* En el teléfono la sangría es la del header —16px—, o las baldosas
+          arrancarían ocho píxeles adentro del campo de buscar que tienen
+          arriba. */}
+      <div className={cn("flex flex-col gap-1 pb-6", esMovil ? "px-4" : "px-6")}>
         {/* La miga de pan. Ocupa el lugar también en la raíz —con "Reports"
             solo— para que entrar a una carpeta no empuje la grilla hacia abajo.
             Pegajosa, como el encabezado de un mes en la lista: es lo que evita
@@ -822,7 +838,7 @@ function GrillaDeReportes({ meses }: { meses: MesDeReportes[] }) {
           variants={cascadaBaldosas}
           initial="oculto"
           animate="visible"
-          className={BALDOSAS}
+          className={esMovil ? BALDOSAS_MOVIL : BALDOSAS}
         >
           {mes
             ? mes.reportes.map((r) => (
@@ -873,6 +889,7 @@ function Pantalla() {
      ésta es una. */
   const [vista, setVista] = useState<Vista>("grilla");
   const escala = useTypeScale();
+  const esMovil = useEsMovil();
   /* Las medidas del escalón. De acá sale el tamaño del glifo de la carpeta, que
      es el mismo que el de cualquier ícono de control en esta densidad. */
   const medidas = useSize();
@@ -948,25 +965,54 @@ function Pantalla() {
           los dos bordes y son sus celdas las que se alinean con él. */}
       <motion.header
         variants={entraBloque}
-        className="flex shrink-0 flex-wrap items-center justify-between gap-4 px-6 py-4"
+        className={cn(
+          "flex shrink-0 flex-wrap items-center justify-between gap-4",
+          /* El mismo aire que las listas del teléfono —16px—: los 24 de
+             escritorio vienen de una pantalla que tiene sidebar a la izquierda,
+             y acá se los come el renglón de controles. */
+          esMovil ? "gap-3 px-4 py-3" : "px-6 py-4",
+        )}
       >
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <h1
-            className="font-medium tracking-tight"
-            style={{ fontSize: escala.title }}
-          >
-            Email Reports
-          </h1>
-          <p
-            className="text-muted-foreground"
-            style={{ fontSize: escala.caption }}
-          >
-            Every week the house closed, filed by the month it closed in.
-          </p>
-        </div>
+        {/* El título con su bajada, sólo en escritorio: en el teléfono el header
+            del shell ya dice "Email / Reports" dos centímetros más arriba, y la
+            bajada explica una pantalla que se explica sola apenas se la ve
+            —catorce carpetas de meses—. Esos dos renglones se los queda la
+            grilla, que es lo que se vino a mirar. Es lo mismo que hacen las
+            otras nueve pantallas del teléfono. */}
+        {!esMovil && (
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <h1
+              className="font-medium tracking-tight"
+              style={{ fontSize: escala.title }}
+            >
+              Email Reports
+            </h1>
+            <p
+              className="text-muted-foreground"
+              style={{ fontSize: escala.caption }}
+            >
+              Every week the house closed, filed by the month it closed in.
+            </p>
+          </div>
+        )}
 
-        <div className="flex items-center gap-2">
-          <InputGroup className="w-56">
+        {/* En el teléfono los tres entran en un renglón y no en dos: el campo
+            deja de medir 224px fijos y se queda con lo que sobra, y "Filters"
+            se guarda la palabra —el embudo ya la dice, y el panel que abre la
+            repite en su cabecera—. Los 224 del campo salen de una barra que a
+            la derecha tiene media ventana libre; acá no hay derecha.
+
+            Y los tres van redondeados del todo. Ver `movil/buscador`: arriba de
+            una lista hay dos o tres controles flotando sobre filas sin marco, y
+            en píldora se leen como una barra de búsqueda en vez de como la
+            primera fila de un formulario. */}
+        <div
+          className={cn(
+            "flex items-center gap-2",
+            esMovil && "w-full min-w-0",
+          )}
+        >
+          <InputGroup className={esMovil ? "min-w-0 flex-1" : "w-56"}>
             <InputField
               index={0}
               label="Search reports"
@@ -975,7 +1021,10 @@ function Pantalla() {
               placeholder="Search reports"
               value={busqueda}
               onChange={setBusqueda}
-              className="[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border"
+              className={cn(
+                "[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border",
+                esMovil && CAMPO_EN_PILDORA,
+              )}
             />
           </InputGroup>
 
@@ -983,8 +1032,10 @@ function Pantalla() {
             groups={GRUPOS}
             align="end"
             variant="secondary"
+            labelHidden={esMovil}
             value={filtros}
             onValueChange={setFiltros}
+            className={esMovil ? BOTON_EN_PILDORA : undefined}
           />
 
           {/* Cómo se ven los resultados. Va después del panel de filtros y no
@@ -999,6 +1050,11 @@ function Pantalla() {
             valor={vistaEfectiva}
             onElegir={setVista}
             rotuloOculto
+            /* La cápsula y sus dos botones, redondos: la píldora es de los tres
+               controles del renglón o de ninguno. El radio de adentro va por
+               el call site porque el control lo comparten dos pantallas y sólo
+               ésta lo pone en un teléfono. */
+            className={esMovil ? "rounded-full [&>button]:rounded-full" : undefined}
             opciones={[
               {
                 value: "lista",
