@@ -39,7 +39,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useMeasuredHeight } from "@/hooks/use-measured-height";
+import { useEsMovil } from "@/hooks/use-es-movil";
+import { useListaInfinita } from "@/hooks/use-lista-infinita";
 import { usePaginacion } from "@/hooks/use-paginacion";
+import { BOTON_EN_PILDORA, CAMPO_EN_PILDORA } from "@/movil/buscador";
+import { ListaMovil } from "@/movil/lista";
 import { SizeProvider, useTypeScale } from "@/lib/size-context";
 import { spring } from "@/lib/springs";
 import { cn } from "@/lib/utils";
@@ -377,6 +381,144 @@ function Engagement({ anuncio }: { anuncio: Anuncio }) {
   );
 }
 
+/* ─────────────────────── La fila del teléfono ───────────────────────
+
+   Cinco columnas no entran en 375px: al título —que es el anuncio— le tocaban
+   122 píxeles y a la fecha 45, o sea "A." y "J.". La fila se apila en tres
+   renglones y una barra:
+
+     Water will be off Tuesday from 9 to 12
+     Everyone · Hugo Sarmiento            Aug 13, 2026
+     20 reads of 47                                43%
+     ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+
+   **El título se lleva el primer renglón entero.** Es lo que se dijo —"Water
+   will be off Tuesday from 9 to 12"—, o sea lo único que no se puede resumir,
+   y en la tabla ya era la columna más ancha.
+
+   Debajo, a quiénes salió y quién lo mandó: dos datos cortos que contestan la
+   misma pregunta —de dónde a dónde fue esto— y que juntos dejan la fecha
+   contra el borde, donde arma su columna.
+
+   **Y la lectura se queda con su propio renglón, con los tres formatos.** En la
+   tabla son una celda de 67px con los números, el porcentaje y la barra; acá
+   tienen el ancho entero, y por una vez el teléfono muestra *más* que el
+   escritorio: la barra a 343px tiene resolución de verdad —un 43% y un 47% se
+   distinguen— cuando a 67 era casi un adorno. Es la columna por la que se entra
+   a esta pantalla, así que es la que gana el lugar que sobra.
+
+   La fila no es un botón: en escritorio tampoco lleva a ningún lado. Lo que se
+   toca es a quiénes salió, que asoma la lista con quién lo leyó. */
+function FilaDeAnuncio({
+  anuncio,
+  aQuienes,
+  onPerfil,
+}: {
+  anuncio: Anuncio;
+  /** A quiénes salió, ya escrito por la pantalla. */
+  aQuienes: string;
+  onPerfil: (usuario: Usuario) => void;
+}) {
+  const escala = useTypeScale();
+  const total = cuantosRecibieron(anuncio);
+  const leidos = anuncio.leidos.length;
+  const porcentaje = total === 0 ? 0 : Math.round(tasaDeLectura(anuncio) * 100);
+
+  /* Los mismos tres casos que la celda de la tabla: una cuenta sola se muestra
+     como cuenta —con su ficha detrás—, varios elegidos se asoman, y un grupo se
+     nombra y nada más. */
+  const propios = anuncio.objetivos.length > 0;
+  const renglones = propios
+    ? anuncio.objetivos
+    : anuncio.destinatarios.map((u) => ({ id: u.id, nombre: u.name }));
+  const aCuentas = anuncio.audiencia.clase === "cuentas";
+  const unico =
+    aCuentas && !propios && anuncio.destinatarios.length === 1
+      ? anuncio.destinatarios[0]
+      : undefined;
+  const seAsoma = (propios || aCuentas) && renglones.length > 1;
+
+  return (
+    <li className="flex flex-col gap-1 px-4 py-2.5">
+      <span className="truncate" style={{ fontSize: escala.body }}>
+        {anuncio.titulo}
+      </span>
+
+      <span className="flex min-w-0 items-baseline gap-2">
+        <span
+          className="flex min-w-0 flex-1 items-baseline gap-1 truncate text-muted-foreground"
+          style={{ fontSize: escala.caption }}
+        >
+          {unico ? (
+            <TarjetaUsuario
+              usuario={unico}
+              onEstado={cambiarEstado}
+              onPerfil={onPerfil}
+            >
+              {unico.name}
+            </TarjetaUsuario>
+          ) : seAsoma ? (
+            <AnnouncementRecipients
+              destinatarios={renglones}
+              leidos={anuncio.leidos}
+              resumen={aQuienes}
+            />
+          ) : (
+            <span className="min-w-0 truncate">{aQuienes}</span>
+          )}
+          <span className="shrink-0">· {anuncio.remitente}</span>
+        </span>
+
+        <span
+          className="shrink-0 tabular-nums text-muted-foreground"
+          style={{ fontSize: escala.caption }}
+        >
+          {fechaDia(anuncio.enviadoEl)}
+        </span>
+      </span>
+
+      {/* Cuántos lo abrieron. Sin destinatarios no hay nada que medir, y una
+          barra vacía diría "no lo leyó nadie" cuando lo que pasó es que no le
+          llegó a nadie: son dos hechos distintos. */}
+      {total === 0 ? (
+        <span
+          className="text-muted-foreground/70"
+          style={{ fontSize: escala.caption }}
+        >
+          No recipients
+        </span>
+      ) : (
+        <>
+          <span
+            className="flex items-baseline justify-between gap-2 text-muted-foreground"
+            style={{ fontSize: escala.caption }}
+          >
+            <span className="min-w-0 truncate">
+              <span className="text-foreground tabular-nums">{leidos}</span>{" "}
+              {leidos === 1 ? "read" : "reads"} of{" "}
+              <span className="tabular-nums">{total}</span>
+            </span>
+            <span className="shrink-0 tabular-nums">{porcentaje}%</span>
+          </span>
+
+          {/* La barra, escondida para quien lee de a un renglón: es el mismo
+              dato que la línea de arriba dibujado, y anunciarlo dos veces es
+              contar dos hechos. */}
+          <span
+            aria-hidden
+            className="mt-0.5 block h-0.5 w-full overflow-hidden rounded-full bg-border"
+          >
+            <span
+              className={cn("block h-full rounded-full", RELLENO)}
+              style={{ width: `${porcentaje}%` }}
+            />
+          </span>
+        </>
+      )}
+    </li>
+  );
+}
+
 /* ─────────────────────────── La pantalla ─────────────────────────── */
 
 /** `tabId` es el de la pestaña que la monta: la ficha de alta se pone en **su**
@@ -384,16 +526,22 @@ function Engagement({ anuncio }: { anuncio: Anuncio }) {
  *  montadas, y escribir contra "la activa" le pondría la ficha en la cara a
  *  otra. */
 export function Announcements({ tabId }: { tabId?: string }) {
+  /* Compacta en escritorio y normal en el teléfono, como las otras tablas: el
+     escalón denso es para cuarenta filas peleando por el alto de una ventana, y
+     en un teléfono lo que pelea es el dedo. */
+  const esMovil = useEsMovil();
+
   return (
     /* Una región densa entera, como las otras tablas: el buscador, el panel y la
        tabla leen el escalón de acá y no lo reciben cada uno por su cuenta. */
-    <SizeProvider size="compact">
+    <SizeProvider size={esMovil ? "default" : "compact"}>
       <Pantalla tabId={tabId} />
     </SizeProvider>
   );
 }
 
 function Pantalla({ tabId }: { tabId?: string }) {
+  const esMovil = useEsMovil();
   /* El alta vive en el riel y no en un diálogo: escribir un aviso es justamente
      cuando hace falta poder mirar los que ya salieron. Ver `NuevoAnuncio`. */
   const alta = useAltaDeAnuncio(tabId);
@@ -432,11 +580,19 @@ function Pantalla({ tabId }: { tabId?: string }) {
      cambiar el filtro vuelve a la primera, y la página se acota contra el total.
      Es el mismo hook que usan Email Search, Provisioning y Policies. */
   const clave = `${busqueda}|${JSON.stringify(filtros)}`;
-  const { pagina, paginas, desde, filas, dir, ancla, irA } = usePaginacion(
-    encontrados,
-    clave,
-    POR_PAGINA,
-  );
+  const {
+    pagina,
+    paginas,
+    desde,
+    dir,
+    ancla,
+    irA,
+    filas: paginadas,
+  } = usePaginacion(encontrados, clave, POR_PAGINA);
+  /* Y en el teléfono no hay páginas: la lista se sigue, como en las otras
+     cinco. Ver `useListaInfinita`. */
+  const { filas: seguidas, centinela } = useListaInfinita(encontrados, clave);
+  const filas = esMovil ? seguidas : paginadas;
 
   /* El teclado de la tabla: una sola parada de tabulado —la fila donde
      quedaste— y las flechas adentro. Ver `tabla-teclado`. */
@@ -452,8 +608,47 @@ function Pantalla({ tabId }: { tabId?: string }) {
       animate="visible"
       className="flex h-full min-h-0 w-full flex-col"
     >
-      {/* El aire lateral es del header, no de la pantalla: así la tabla llega a
-          los dos bordes y son sus celdas las que se alinean con él. */}
+      {/* En el teléfono el header es el buscador, el filtro y el alta: el título
+          con su bajada se va —el header del shell ya dice "Announcements"— y
+          esos dos renglones se los queda la lista. */}
+      {esMovil ? (
+        <motion.header
+          variants={entraBloque}
+          className="flex shrink-0 items-center gap-2 px-4 py-3"
+        >
+          <InputGroup className="min-w-0 flex-1">
+            <InputField
+              index={0}
+              label="Search announcements"
+              labelHidden
+              icon={Search}
+              placeholder="Search announcements"
+              value={busqueda}
+              onChange={setBusqueda}
+              className={cn(
+                "[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border",
+                CAMPO_EN_PILDORA,
+              )}
+            />
+          </InputGroup>
+
+          <FilterMenu
+            groups={GRUPOS}
+            align="end"
+            variant="secondary"
+            labelHidden
+            value={filtros}
+            onValueChange={setFiltros}
+            className={BOTON_EN_PILDORA}
+          />
+
+          <BotonDeAlta onClick={alta.abrir} disponible={alta.disponible}>
+            Announcement
+          </BotonDeAlta>
+        </motion.header>
+      ) : (
+      /* El aire lateral es del header, no de la pantalla: así la tabla llega a
+          los dos bordes y son sus celdas las que se alinean con él. */
       <motion.header
         variants={entraBloque}
         className="flex shrink-0 flex-wrap items-center justify-between gap-4 px-6 py-4"
@@ -517,6 +712,7 @@ function Pantalla({ tabId }: { tabId?: string }) {
           </BotonDeAlta>
         </div>
       </motion.header>
+      )}
 
       {filas.length === 0 ? (
         <AnimatedEmpty>
@@ -531,6 +727,25 @@ function Pantalla({ tabId }: { tabId?: string }) {
             </AnimatedEmptyDescription>
           </AnimatedEmptyHeader>
         </AnimatedEmpty>
+      ) : esMovil ? (
+        <ScrollArea
+          className="min-h-0 flex-1"
+          viewportClassName="scroll-fade scrollbar-hide"
+        >
+          <ListaMovil>
+            {filas.map(({ anuncio, aQuienes }) => (
+              <FilaDeAnuncio
+                key={anuncio.id}
+                anuncio={anuncio}
+                aQuienes={aQuienes}
+                onPerfil={abrirCuenta}
+              />
+            ))}
+          </ListaMovil>
+
+          {/* El final de la lista: cuando se acerca, entra el próximo tramo. */}
+          <div ref={centinela} aria-hidden className="h-px" />
+        </ScrollArea>
       ) : (
         <motion.div variants={entraTabla} className="relative min-h-0 flex-1">
           {/* Los títulos van afuera del scroller y flotando encima: adentro,
@@ -718,7 +933,7 @@ function Pantalla({ tabId }: { tabId?: string }) {
       {/* El pie: de cuántos se está viendo cuáles, y por dónde se pasa a los que
           siguen. Va afuera del scroller y pegado abajo —es del mueble, no de la
           lista—, así que el pager no se va con el scroll. */}
-      {filas.length > 0 && (
+      {!esMovil && filas.length > 0 && (
         <motion.footer
           variants={entraBloque}
           className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border px-6 py-3"
