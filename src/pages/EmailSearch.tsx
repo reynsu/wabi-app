@@ -50,7 +50,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useMeasuredHeight } from "@/hooks/use-measured-height";
+import { useEsMovil } from "@/hooks/use-es-movil";
+import { useListaInfinita } from "@/hooks/use-lista-infinita";
 import { usePaginacion } from "@/hooks/use-paginacion";
+import { BOTON_EN_PILDORA, CAMPO_EN_PILDORA } from "@/movil/buscador";
+import { ListaMovil } from "@/movil/lista";
 import { useShape } from "@/lib/shape-context";
 import { SizeProvider, useTypeScale } from "@/lib/size-context";
 import { spring } from "@/lib/springs";
@@ -528,6 +532,97 @@ function pasa(
   });
 }
 
+/* ─────────────────────── La fila del teléfono ───────────────────────
+
+   La misma forma que la bandeja del perfil —ver `UserEmails`—: quién y cuándo
+   arriba, el asunto en el medio, y un renglón de cuerpo abajo. Son las dos
+   listas de correo de esta app y se leen con el mismo pulgar, así que se leen
+   igual: el escalón `body` para quién, `caption` para el resto, y el cuerpo en
+   el gris secundario porque lo que decide si se abre es el asunto y el cuerpo
+   sólo confirma.
+
+   **Lo que esta lista agrega son las marcas**, que allá no hacen falta: en una
+   bandeja de una cuenta todo es del mismo tipo y nada fue rechazado, y acá se
+   busca en el correo de la casa entera. Van pegadas al asunto y no se encogen
+   —un "3" de adjuntos a medias no es un número, un "Rejected" cortado es peor
+   que no estar—: lo que cede es el asunto, que para eso trunca.
+
+   El clip con su número reemplaza al clip a secas del perfil por lo mismo:
+   cuántos adjuntos trae es un dato que en una búsqueda se filtra. */
+function FilaDeCorreo({
+  email,
+  usuario,
+  onAbrir,
+}: {
+  email: Email;
+  usuario: Usuario;
+  onAbrir: () => void;
+}) {
+  const escala = useTypeScale();
+  const tipo = TIPOS_EMAIL[email.tipo];
+  const entrega = ENTREGAS[entregaDe(email)];
+
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onAbrir}
+        data-cuelume-press="tick"
+        className={cn(
+          "flex min-h-14 w-full cursor-pointer flex-col justify-center gap-1 px-4 py-2.5 text-left outline-none",
+          "active:bg-hover focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
+        )}
+      >
+        {/* Quién lo mandó, y cuándo. `items-baseline`: son dos cuerpos
+            distintos y lo que se alinea es el renglón sobre el que se apoyan. */}
+        <span className="flex min-w-0 items-baseline gap-2">
+          <span
+            className="min-w-0 flex-1 truncate"
+            style={{ fontSize: escala.body }}
+          >
+            {autorDe(email, usuario)}
+          </span>
+          <span
+            className="shrink-0 tabular-nums text-muted-foreground"
+            style={{ fontSize: escala.caption }}
+          >
+            {haceCuanto(email.cuando)}
+          </span>
+        </span>
+
+        <span className="flex min-w-0 items-center gap-2">
+          <span
+            className="min-w-0 flex-1 truncate text-foreground/80"
+            style={{ fontSize: escala.caption }}
+          >
+            {email.asunto}
+          </span>
+          {email.adjuntos.length > 0 && (
+            <Adjuntos cuantos={email.adjuntos.length} />
+          )}
+          {"color" in tipo && (
+            <Badge color={tipo.color} className="shrink-0">
+              {tipo.label}
+            </Badge>
+          )}
+          {email.rechazado && (
+            <Badge color={entrega.color} className="shrink-0">
+              {entrega.label}
+            </Badge>
+          )}
+        </span>
+
+        <span
+          className="min-w-0 truncate text-muted-foreground"
+          style={{ fontSize: escala.caption }}
+        >
+          {email.cuerpo.join(" ")}
+        </span>
+      </button>
+    </li>
+  );
+}
+
 /* ─────────────────────────── La tabla ─────────────────────────── */
 
 /* Las columnas, declaradas una vez y usadas por las dos tablas —la de los
@@ -556,17 +651,23 @@ function Columnas() {
 const POR_PAGINA = 40;
 
 export function EmailSearch() {
+  /* Compacta en escritorio y normal en el teléfono, como las otras tablas: el
+     escalón denso es para cuarenta filas peleando por el alto de una ventana, y
+     en un teléfono lo que pelea es el dedo. */
+  const esMovil = useEsMovil();
+
   return (
     /* Una región densa entera, como la tabla de Accounts: el buscador, el panel
        y la tabla leen el escalón de acá y no lo reciben cada uno por su
        cuenta. */
-    <SizeProvider size="compact">
+    <SizeProvider size={esMovil ? "default" : "compact"}>
       <Pantalla />
     </SizeProvider>
   );
 }
 
 function Pantalla() {
+  const esMovil = useEsMovil();
   const [busqueda, setBusqueda] = useState("");
   const [filtros, setFiltros] = useState<FilterSelection>({});
   /* Los correos de todas las cuentas, del más nuevo al más viejo. Salen de la
@@ -628,11 +729,19 @@ function Pantalla() {
      total, y cambiar de página vuelve arriba. Las tres decisiones viven en el
      hook —lo mismo hace Provisioning, que es la otra tabla que se pagina—. */
   const clave = `${busqueda}|${JSON.stringify(filtros)}`;
-  const { pagina, paginas, desde, filas, dir, ancla, irA } = usePaginacion(
-    encontrados,
-    clave,
-    POR_PAGINA,
-  );
+  const {
+    pagina,
+    paginas,
+    desde,
+    dir,
+    ancla,
+    irA,
+    filas: paginadas,
+  } = usePaginacion(encontrados, clave, POR_PAGINA);
+  /* Y en el teléfono no hay páginas: la lista se sigue, como en las otras seis.
+     Ver `useListaInfinita`. */
+  const { filas: seguidas, centinela } = useListaInfinita(encontrados, clave);
+  const filas = esMovil ? seguidas : paginadas;
 
   /* El teclado de la tabla: una sola parada de tabulado —la fila donde
      quedaste— y las flechas adentro. Ver `tabla-teclado`.
@@ -657,8 +766,42 @@ function Pantalla() {
       animate="visible"
       className="flex h-full min-h-0 w-full flex-col"
     >
-      {/* El aire lateral es del header, no de la pantalla: así la tabla llega a
-          los dos bordes y son sus celdas las que se alinean con él. */}
+      {/* En el teléfono el header es el buscador y el filtro: el título con su
+          bajada se va —el header del shell ya dice "Email / Search"— y esos dos
+          renglones se los queda la lista. */}
+      {esMovil ? (
+        <motion.header
+          variants={entraBloque}
+          className="flex shrink-0 items-center gap-2 px-4 py-3"
+        >
+          <InputGroup className="min-w-0 flex-1">
+            <InputField
+              index={0}
+              label="Search emails"
+              labelHidden
+              icon={Search}
+              placeholder="Search emails"
+              value={busqueda}
+              onChange={setBusqueda}
+              className={cn(
+                "[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border",
+                CAMPO_EN_PILDORA,
+              )}
+            />
+          </InputGroup>
+
+          <FilterMenu
+            groups={GRUPOS}
+            align="end"
+            variant="secondary"
+            value={filtros}
+            onValueChange={setFiltros}
+            className={BOTON_EN_PILDORA}
+          />
+        </motion.header>
+      ) : (
+      /* El aire lateral es del header, no de la pantalla: así la tabla llega a
+          los dos bordes y son sus celdas las que se alinean con él. */
       <motion.header
         variants={entraBloque}
         className="flex shrink-0 flex-wrap items-center justify-between gap-4 px-6 py-4"
@@ -702,6 +845,7 @@ function Pantalla() {
           />
         </div>
       </motion.header>
+      )}
 
       {filas.length === 0 ? (
         <AnimatedEmpty>
@@ -716,6 +860,41 @@ function Pantalla() {
             </AnimatedEmptyDescription>
           </AnimatedEmptyHeader>
         </AnimatedEmpty>
+      ) : esMovil ? (
+        /* En el teléfono la tabla se deshace en filas apiladas —ver
+           `movil/lista`—. Las tres columnas no se angostan, se truncan: a 375px
+           la dirección quedaba en "renata.bian…", el asunto en cuatro palabras y
+           "2 h ago" en "2 h…".
+
+           **Y la fila es la de la bandeja del perfil**: quién y cuándo arriba,
+           el asunto en el medio, el cuerpo abajo. Son las dos listas de correo
+           de esta app leídas con el mismo pulgar —una de una cuenta, la otra de
+           la casa entera— y con dos formas distintas se leerían como dos
+           productos. Ver `FilaDeCorreo`.
+
+           La dirección deja de ser un botón: en escritorio abre la ficha de la
+           cuenta y la fila abre el correo —dos blancos en la misma fila, que con
+           un puntero se distinguen y con un pulgar no—. Acá la fila hace una
+           sola cosa, y a la cuenta se llega desde el pie del vistazo, que dice
+           "Open in account emails". */
+        <ScrollArea
+          className="min-h-0 flex-1"
+          viewportClassName="scroll-fade scrollbar-hide"
+        >
+          <ListaMovil>
+            {filas.map(({ email, usuario }) => (
+              <FilaDeCorreo
+                key={email.id}
+                email={email}
+                usuario={usuario}
+                onAbrir={() => abrirCorreo({ email, usuario })}
+              />
+            ))}
+          </ListaMovil>
+
+          {/* El final de la lista: cuando se acerca, entra el próximo tramo. */}
+          <div ref={centinela} aria-hidden className="h-px" />
+        </ScrollArea>
       ) : (
         <motion.div variants={entraTabla} className="relative min-h-0 flex-1">
           {/* Los títulos van afuera del scroller y flotando encima: adentro,
@@ -875,7 +1054,7 @@ function Pantalla() {
           Sólo cuando hay resultados. Un pager sobre una tabla vacía ofrece
           páginas que no existen, y el estado vacío ya dice todo lo que hay para
           decir. */}
-      {filas.length > 0 && (
+      {!esMovil && filas.length > 0 && (
         <motion.footer
           variants={entraBloque}
           className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border px-6 py-3"
