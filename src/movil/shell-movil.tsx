@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ChevronLeft,
   Ellipsis,
@@ -97,13 +97,41 @@ export function ShellMovil() {
   const [boardEn, setBoardEn] = useState<string | null>(null);
   const verBoard = boardEn !== null && boardEn === activeId;
 
+  /* Y sí se abre cuando una pantalla lo pide. Escribir una política o una cuenta
+     DOC no abre un diálogo: pone la ficha en el board y llama a `abrirBoard`,
+     que en escritorio despliega el riel. En el teléfono el board es esta hoja, y
+     sin esto tocar el `+` no hacía nada visible —la ficha quedaba puesta detrás
+     del botón de la grilla, esperando que a alguien se le ocurriera abrirlo—.
+     
+     Se mira el cambio de `open` y no su valor: es la diferencia entre "lo
+     acaban de pedir" y "vino puesto", que es lo que hace que Chat › Analytics
+     no salte con la hoja en la cara apenas se entra. */
+  useEffect(
+    () =>
+      useBoards.subscribe((b, antes) => {
+        if (!activeId) return;
+        const ahora = b.porPestaña[activeId]?.open;
+        if (ahora && !antes.porPestaña[activeId]?.open) setBoardEn(activeId);
+      }),
+    [activeId],
+  );
+
   /* El vistazo, en cambio, sí se abre solo: lo pidió una fila que se acaba de
      tocar, y es la respuesta a ese toque. */
   const hojaAbierta = !enInicio && (preview !== null || verBoard);
 
   const cerrarHoja = () => {
-    if (preview !== null) cerrarPreview();
-    else setBoardEn(null);
+    if (preview !== null) {
+      cerrarPreview();
+      return;
+    }
+    setBoardEn(null);
+    /* Y se le avisa a la tienda. El `open` del riel de escritorio queda puesto
+       cuando una pantalla pide el board, y si no se lo baja al cerrar la hoja
+       el próximo pedido no cambia nada —`abrirBoard` sale temprano si ya estaba
+       abierto— y la hoja no vuelve a subir: corregir una política después de
+       haber escrito una no abría nada. */
+    if (activeId) editarBoard(activeId, (b) => ({ ...b, open: false }));
   };
 
   /* Y el atrás del sistema la cierra, como a cualquier cosa que se abra encima.
