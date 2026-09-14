@@ -3,6 +3,8 @@
 import { Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { useEsMovil } from "@/hooks/use-es-movil";
+import { cn } from "@/lib/utils";
 import { useTemaOscuro } from "@/stores/tema";
 
 /**
@@ -34,6 +36,14 @@ import { useTemaOscuro } from "@/stores/tema";
  * están apoyadas sobre un plano liso. Va puesto igual —el día que algo scrollee
  * por debajo, funciona solo— y lo que hace el efecto mientras tanto son el velo
  * y los dos cantos.
+ *
+ * **En el teléfono se queda sin la palabra.** El sustantivo al lado de un campo
+ * de búsqueda y de un botón de filtros no entra en 375px, y de las tres cosas
+ * de esa fila ésta es la que mejor se banca quedarse muda: un `+` arriba de una
+ * lista es "agregar uno de éstos" en cualquier teléfono, y lo que agrega lo
+ * termina de decir lo que se abre al tocarlo. El sustantivo no se pierde —pasa
+ * al `aria-label`, que es donde un lector de pantalla lo busca— y el botón se
+ * redondea entero, para acompañar a la píldora del campo que tiene al lado.
  */
 export function BotonDeAlta({
   /** El sustantivo, sin el "New": "Announcement", "Account". */
@@ -48,14 +58,20 @@ export function BotonDeAlta({
   disponible?: boolean;
 }) {
   const oscuro = useTemaOscuro();
+  const esMovil = useEsMovil();
 
   return (
     <Button
       variant="ghost"
-      leadingIcon={Plus}
+      {...(esMovil
+        ? { size: "icon" as const, "aria-label": `New ${children}` }
+        : { leadingIcon: Plus })}
       /* `text-foreground` porque el `ghost` nace en el gris secundario: sobre el
          velo, la etiqueta va a la misma tinta que el resto de la barra. */
-      className="bg-foreground/[0.04] text-foreground backdrop-blur-md dark:bg-foreground/[0.08]"
+      className={cn(
+        "bg-foreground/[0.04] text-foreground backdrop-blur-md dark:bg-foreground/[0.08]",
+        esMovil && "rounded-full",
+      )}
       onClick={onClick}
       disabled={!disponible}
       style={{
@@ -64,7 +80,7 @@ export function BotonDeAlta({
           : "0 0 0 1px rgb(0 0 0 / 0.10), inset 0 0 0 1px rgb(255 255 255 / 0.90)",
       }}
     >
-      {children}
+      {esMovil ? <Plus /> : children}
     </Button>
   );
 }
