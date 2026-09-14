@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Download, FileChartColumn } from "lucide-react";
+import {
+  CircleAlert,
+  Clock,
+  Download,
+  FileChartColumn,
+  LoaderCircle,
+} from "lucide-react";
 
 import {
   AnimatedEmpty,
@@ -21,8 +27,12 @@ import {
   csvDeReporteDOC,
   formatoDeReporteDOC,
   pdfDeReporteDOC,
+  sePuedeBajar,
   useReporteDOC,
+  type EstadoDeReporte,
+  type ReporteDOC,
 } from "@/pages/reportes-admin";
+import { fechaLarga } from "@/pages/tiempo";
 import { useUsuarios } from "@/pages/usuarios";
 
 /**
@@ -52,7 +62,7 @@ export function VistaDeReporteDOC({ id }: { id: string }) {
      depende lo que dice. */
   const texto = useMemo(
     () =>
-      reporte && formatoDeReporteDOC(reporte.tipo) === "csv"
+      reporte && sePuedeBajar(reporte) && formatoDeReporteDOC(reporte.tipo) === "csv"
         ? csvDeReporteDOC(reporte, usuarios, cuentas)
         : undefined,
     [reporte, usuarios, cuentas],
@@ -68,7 +78,8 @@ export function VistaDeReporteDOC({ id }: { id: string }) {
   const [url, setUrl] = useState<string>();
 
   useEffect(() => {
-    if (!reporte || formatoDeReporteDOC(reporte.tipo) !== "pdf") return;
+    if (!reporte || !sePuedeBajar(reporte)) return;
+    if (formatoDeReporteDOC(reporte.tipo) !== "pdf") return;
     const bytes = pdfDeReporteDOC(reporte, usuarios, cuentas);
     const direccion = URL.createObjectURL(
       new Blob([bytes], { type: "application/pdf" }),
@@ -92,6 +103,14 @@ export function VistaDeReporteDOC({ id }: { id: string }) {
   /* Los hooks van antes de cualquier salida: la bajada existe aunque el reporte
      no, y moverla adentro del `if` la haría condicional. */
   const { bajando, alTocar } = useBajadaDOC(reporte);
+
+  /* Todavía no hay archivo, y eso no es un error: la pestaña abre igual y
+     cuenta en qué anda. Antes de esto, la fila de un pedido sin terminar no se
+     dejaba tocar; abrir y encontrar el motivo es más barato que descubrir que
+     una fila no responde. Ver `EnQueAnda`. */
+  if (reporte && !sePuedeBajar(reporte)) {
+    return <EnQueAnda reporte={reporte} />;
+  }
 
   if (!reporte || !contenido) {
     return (
@@ -133,5 +152,74 @@ export function VistaDeReporteDOC({ id }: { id: string }) {
         }
       />
     </SizeProvider>
+  );
+}
+
+/* ─────────────────────── Lo que todavía no es ───────────────────────
+
+   Un pedido que espera, uno que se está armando y uno que se cayó abren la
+   misma pestaña que los demás, pero adentro no hay archivo que mirar: hay un
+   motivo. Va en el mismo bloque vacío que usa el resto de la consola —el de
+   "no hay reportes" de la tabla, el de "no está más en el archivo" de acá
+   arriba— porque es la misma clase de respuesta: no falló nada, no hay nada
+   que mostrar todavía.
+
+   La figura es el mismo ícono que la fila le cuelga al archivo en la lista del
+   teléfono: el reloj, la rueda y el signo. Lo que se tocó y lo que se abre
+   tienen que verse como lo mismo.
+
+   Y dice **cuándo se lo pidió**, que es lo único que uno puede querer saber
+   acá: si lo pidió hace dos minutos, esperar; si fue anteayer, algo se trabó.
+
+   El mapa es exhaustivo —`completed` va escrito, con su `null`—: el día que la
+   cola tenga un quinto estado, esto no compila hasta que alguien diga qué se
+   ve mientras tanto. */
+
+const EN_QUE_ANDA: Record<
+  EstadoDeReporte,
+  { icono: typeof Clock; titulo: string; dice: (cuando: string) => string } | null
+> = {
+  pending: {
+    icono: Clock,
+    titulo: "Waiting in the queue",
+    dice: (cuando) =>
+      `This one hasn't started yet. It was asked for on ${cuando}, and the file shows up here as soon as it's built.`,
+  },
+  processing: {
+    icono: LoaderCircle,
+    titulo: "Being put together",
+    dice: (cuando) =>
+      `The console is pulling this one now. It was asked for on ${cuando} — this page turns into the file when it lands.`,
+  },
+  completed: null,
+  failed: {
+    icono: CircleAlert,
+    titulo: "This one didn't make it",
+    dice: (cuando) =>
+      `Something broke while building it, so there's no file. It was asked for on ${cuando}; asking again is the way to get one.`,
+  },
+};
+
+function EnQueAnda({ reporte }: { reporte: ReporteDOC }) {
+  const queda = EN_QUE_ANDA[reporte.estado];
+
+  if (!queda) return null;
+
+  const Icono = queda.icono;
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <AnimatedEmpty>
+        <AnimatedEmptyHeader>
+          <AnimatedEmptyMedia variant="icon">
+            <Icono />
+          </AnimatedEmptyMedia>
+          <AnimatedEmptyTitle>{queda.titulo}</AnimatedEmptyTitle>
+          <AnimatedEmptyDescription>
+            {queda.dice(fechaLarga(reporte.pedidoEl))}
+          </AnimatedEmptyDescription>
+        </AnimatedEmptyHeader>
+      </AnimatedEmpty>
+    </div>
   );
 }

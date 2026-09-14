@@ -521,10 +521,16 @@ function MiniaturaDelReporte({ reporte }: { reporte: ReporteDOC }) {
    siete primeras filas— y una con el botón de bajar dibujado en cada fila, que
    gasta 44px y le corta el nombre a todas.
 
-   Lo que se toca: la fila abre el reporte —lo mismo que en la tabla hace su
-   nombre— y correrla ofrece bajarlo. Un reporte que todavía no está listo no
-   abre ni baja: no hay archivo todavía. Ahí el gesto no muestra nada, que es lo
-   que `Deslizable` hace con una lista de acciones vacía. */
+   Lo que se toca: **las veinticinco filas abren**, también las tres que
+   todavía no tienen archivo. Ésas abren la pestaña con el motivo adentro —en
+   qué anda el pedido y de cuándo es— en vez de un archivo: ver `EnQueAnda`, en
+   `VistaDeReporteDOC`. Tocar y encontrar la razón cuesta menos que descubrir
+   que una fila no responde, que es lo que pasaba antes; y son justo las tres
+   filas sobre las que uno tiene una pregunta.
+
+   Bajar, en cambio, sigue siendo sólo de las terminadas: correr una que no lo
+   está no muestra nada, que es lo que `Deslizable` hace con una lista de
+   acciones vacía. No hay archivo, y un botón que prometa traerlo miente. */
 function FilaDeReporte({
   reporte,
   quien,
@@ -591,21 +597,17 @@ function FilaDeReporte({
   return (
     <li>
       <Deslizable id={reporte.id} acciones={acciones}>
-        {listo ? (
-          <button
-            type="button"
-            onClick={onAbrir}
-            data-cuelume-press="tick"
-            className={cn(
-              "w-full cursor-pointer text-left outline-none",
-              "active:bg-hover focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
-            )}
-          >
-            {cuerpo}
-          </button>
-        ) : (
-          cuerpo
-        )}
+        <button
+          type="button"
+          onClick={onAbrir}
+          data-cuelume-press="tick"
+          className={cn(
+            "w-full cursor-pointer text-left outline-none",
+            "active:bg-hover focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
+          )}
+        >
+          {cuerpo}
+        </button>
       </Deslizable>
     </li>
   );
