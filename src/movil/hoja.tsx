@@ -1,8 +1,6 @@
 import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
-import { X } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { SurfaceProvider } from "@/lib/surface-context";
 
@@ -15,10 +13,18 @@ import { SurfaceProvider } from "@/lib/surface-context";
  * atrapado adentro y devuelto al cerrar, Escape, el portal, el fondo que no se
  * toca—. Lo único que cambia es de dónde entra y cómo se va.
  *
- * **Se baja con el pulgar**, desde la manija o desde el título, nunca desde el
- * cuerpo: el cuerpo scrollea, y si el gesto de bajar la hoja empezara ahí se
- * comería el de scrollear. Pasados 90px —o soltada con envión— se cierra; si
- * no, vuelve a su lugar.
+ * **Se baja con el pulgar**, desde la manija, nunca desde el cuerpo: el cuerpo
+ * scrollea, y si el gesto de bajar la hoja empezara ahí se comería el de
+ * scrollear. Pasados 90px —o soltada con envión— se cierra; si no, vuelve a su
+ * lugar. El atrás del sistema la cierra igual, y eso es lo que la deja sin
+ * cabecera.
+ *
+ * **No tiene título a la vista ni botón de cerrar.** Los tuvo: una barra con el
+ * nombre —"Board"— y una × de 44px. El nombre no decía nada que no dijera lo
+ * que hay abajo —la ficha de una política ya se llama "New policy"— y la ×
+ * duplicaba dos gestos que ya cierran: la manija y el atrás del sistema. Eran
+ * 45px de alto para repetir lo que ya estaba dicho. El nombre sigue existiendo
+ * para el lector de pantalla, que es quien lo necesita: no ve la manija.
  *
  * **Y ocupa la pantalla entera.** Subía hasta el 85% y dejaba ver una franja de
  * lo que había abajo. Esa franja es lo que hace que una hoja se lea como algo
@@ -42,20 +48,16 @@ interface HojaProps {
   /** El nombre de la hoja. Siempre hace falta —es lo que un lector de pantalla
    *  anuncia al abrir—, aunque no siempre se vea. */
   titulo: ReactNode;
-  /** Sin cabecera propia: sólo la manija. Para lo que ya trae la suya —el
-   *  `LateralPreview` tiene título y botón de cerrar—, que con dos se leería
-   *  como una hoja adentro de otra. */
-  sinCabecera?: boolean;
   children: ReactNode;
 }
 
-export function Hoja({ abierta, onCerrar, titulo, sinCabecera, children }: HojaProps) {
+export function Hoja({ abierta, onCerrar, titulo, children }: HojaProps) {
   const popup = useRef<HTMLDivElement>(null);
 
   /* La hoja se va con lo que mostraba. Casi siempre se cierra *porque* cambió
      lo que hay abajo —un widget que abre su pestaña—, y sin esto, durante los
      200ms de bajada, se ve el board de la pestaña nueva en la hoja vieja. */
-  const ahora = { titulo, children, sinCabecera };
+  const ahora = { titulo, children };
   const ultimo = useRef(ahora);
   useLayoutEffect(() => {
     if (abierta) ultimo.current = ahora;
@@ -117,24 +119,14 @@ export function Hoja({ abierta, onCerrar, titulo, sinCabecera, children }: HojaP
               mover(0, true);
             }}
           >
-            <div className="flex justify-center pt-2 pb-1">
+            <div className="flex justify-center pt-2 pb-2">
               <span className="h-1 w-9 rounded-full bg-foreground/20" />
             </div>
-            {muestra.sinCabecera ? (
-              <DialogPrimitive.Title className="sr-only">{muestra.titulo}</DialogPrimitive.Title>
-            ) : (
-              <div className="flex items-center justify-between gap-3 pr-2 pb-1 pl-4">
-                <DialogPrimitive.Title className="min-w-0 truncate text-[15px] font-semibold">
-                  {muestra.titulo}
-                </DialogPrimitive.Title>
-                <DialogPrimitive.Close
-                  render={<Button variant="ghost" size="icon" className="size-11 rounded-full" />}
-                  aria-label="Close"
-                >
-                  <X />
-                </DialogPrimitive.Close>
-              </div>
-            )}
+            {/* El nombre de la hoja no se ve: lo dice el lector de pantalla al
+                abrirla, que es para lo que hace falta. Ver arriba. */}
+            <DialogPrimitive.Title className="sr-only">
+              {muestra.titulo}
+            </DialogPrimitive.Title>
           </div>
 
           {/* Adentro todo arranca del escalón de la hoja: un popover en el

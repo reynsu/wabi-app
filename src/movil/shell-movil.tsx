@@ -266,7 +266,6 @@ export function ShellMovil() {
           abierta={hojaAbierta}
           onCerrar={cerrarHoja}
           titulo={preview !== null ? activa?.label : "Board"}
-          sinCabecera={preview !== null}
         >
           {preview ?? (
             <WidgetBoard
