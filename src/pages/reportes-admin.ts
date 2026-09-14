@@ -100,6 +100,20 @@ export const ORDEN_TIPOS_DOC = Object.keys(
   TIPOS_DE_REPORTE_DOC,
 ) as TipoDeReporteDOC[];
 
+/** El tipo sin la palabra "Report", para cuando la pantalla ya la dijo.
+ *
+ *  La lista del teléfono nombra cada pedido por su tipo —"User ID"— y no por el
+ *  nombre del archivo: el header dice "Admin / Reports", así que las
+ *  veinticinco filas repetían "Report" veinticinco veces abajo de un rótulo que
+ *  ya lo decía, y en 375px esa palabra es lo que empujaba al nombre contra el
+ *  truncado.
+ *
+ *  Se saca de la etiqueta y no se guarda al lado: dos campos para el mismo
+ *  nombre son dos que un día dicen cosas distintas. Es la misma razón por la
+ *  que el nombre del reporte se arma y no se guarda. */
+export const tipoCortoDOC = (tipo: TipoDeReporteDOC) =>
+  TIPOS_DE_REPORTE_DOC[tipo].label.replace(/ Report$/, "");
+
 /* ─────────────────────────── El reporte ─────────────────────────── */
 
 export interface ReporteDOC {
