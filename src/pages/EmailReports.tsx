@@ -667,8 +667,13 @@ function BaldosaDeArchivo({ reporte }: { reporte: Reporte }) {
     </>
   );
 
+  /* `w-full` y no el ancho de su contenido: un `<button>` se encoge hasta lo
+     que tiene adentro, así que la baldosa medía lo que mide su rótulo —"May
+     2026" ocupaba 68px de una celda de 110— y el glifo caía a la izquierda del
+     centro de la columna, distinto en cada fila. La grilla ya reparte el ancho
+     en partes iguales; lo que faltaba era que la baldosa se lo tomara. */
   const pinta = cn(
-    "flex flex-col items-center gap-1.5 rounded-lg px-2 py-3",
+    "flex w-full flex-col items-center gap-1.5 rounded-lg px-2 py-3",
     "transition-colors duration-80",
   );
 
@@ -725,7 +730,8 @@ function BaldosaDeMes({ mes, onAbrir }: { mes: MesDeReportes; onAbrir: () => voi
       onHoverEnd={() => setEncima(false)}
       animate={encima ? "encima" : "quieta"}
       className={cn(
-        "flex cursor-pointer flex-col items-center gap-1.5 rounded-lg px-2 py-3",
+        /* Ancho de la celda y no del rótulo: ver `pinta`, en la otra baldosa. */
+        "flex w-full cursor-pointer flex-col items-center gap-1.5 rounded-lg px-2 py-3",
         "text-left transition-colors duration-80 outline-none",
         "hover:bg-hover focus-visible:bg-hover",
       )}
