@@ -2,9 +2,13 @@ import { useCallback, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AtSign,
+  Ban,
   CalendarPlus,
   ChevronDown,
+  CircleCheck,
+  CirclePause,
   Contact,
+  KeyRound,
   Loader,
   MailX,
   Search,
@@ -52,7 +56,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useMeasuredHeight } from "@/hooks/use-measured-height";
+import { useEsMovil } from "@/hooks/use-es-movil";
+import { useListaInfinita } from "@/hooks/use-lista-infinita";
 import { usePaginacion } from "@/hooks/use-paginacion";
+import { BOTON_EN_PILDORA, CAMPO_EN_PILDORA } from "@/movil/buscador";
+import { Deslizable, type AccionDeslizable } from "@/movil/deslizable";
+import { ListaMovil } from "@/movil/lista";
 import { SizeProvider, useTypeScale } from "@/lib/size-context";
 import { spring } from "@/lib/springs";
 import { cn } from "@/lib/utils";
@@ -63,12 +72,18 @@ import {
   cambiarEstadoBuzon,
   useBuzones,
   type Buzon,
+  type EstadoBuzon,
 } from "@/pages/buzones";
 import { contiene } from "@/pages/texto";
 import { tabDePerfil } from "@/pages/perfil-tab";
 import { fechaDia, tramoAlta } from "@/pages/tiempo";
 import { TarjetaUsuario } from "@/pages/Users";
-import { cambiarEstado, type Usuario } from "@/pages/usuarios";
+import {
+  ORGANIZACION_DE_LA_CASA,
+  cambiarEstado,
+  organizacionDe,
+  type Usuario,
+} from "@/pages/usuarios";
 import {
   AIRE_FILA,
   AIRE_TITULOS,
@@ -259,6 +274,161 @@ function EstadoDelBuzon({ buzon }: { buzon: Buzon }) {
   );
 }
 
+/* Lo que se le puede hacer a un buzón desde la lista del teléfono, según cómo
+   esté. Son las mismas tres maneras de estar del menú de la tabla, dichas como
+   verbos: al menú se le elige un estado, y acá se le pide un cambio.
+
+   **No están las tres siempre.** Elegir "Active" estando activo es una opción
+   que no hace nada, y en un menú de radio eso se entiende —es la que está
+   marcada— pero como botón sería un botón muerto. Así que cada estado ofrece
+   las salidas que tiene: el que anda se puede suspender o dar de baja, el
+   suspendido volver o darse de baja, y el de baja sólo volver. Suspender uno
+   que ya está de baja es pasar por un estado intermedio para llegar al mismo
+   lado.
+
+   Reset password va primero y en todas: no depende del estado —una casilla de
+   baja igual tiene una contraseña que rotar— y es lo que más se pide. Todavía
+   no hace nada, igual que en Accounts y en el perfil: no hay backend detrás.
+
+   Dar de baja va en rojo porque es la que saca algo de circulación; las otras
+   dos, calladas. Si las tres gritan, ninguna grita. */
+function accionesDe(buzon: Buzon): AccionDeslizable[] {
+  const mover = (estado: EstadoBuzon) => () => cambiarEstadoBuzon(buzon, estado);
+  const reset = { label: "Reset", icon: KeyRound, onSelect: () => {} };
+  const baja = {
+    label: "Deactivate",
+    icon: Ban,
+    onSelect: mover("inactive"),
+    tono: "peligro" as const,
+  };
+  const volver = { label: "Reactivate", icon: CircleCheck, onSelect: mover("active") };
+
+  if (buzon.estado === "active")
+    return [reset, { label: "Suspend", icon: CirclePause, onSelect: mover("suspended") }, baja];
+  if (buzon.estado === "suspended") return [reset, volver, baja];
+  return [reset, volver];
+}
+
+/* ─────────────────────── La fila del teléfono ───────────────────────
+
+   Cinco columnas no entran en 375px, así que la fila se apila, y no en la forma
+   genérica de `FilaMovil`: son **tres renglones, y dos de ellos tienen su
+   propio dato contra el borde derecho**.
+
+     Nahuel Vidal                      Aug 26, 2026
+     nahuel.vidal@wabihouse.example
+     Kitchen                                      —
+
+   El alta va arriba, en el renglón del nombre: es el dato por el que se recorre
+   una tabla de provisioning —qué se dio de alta y cuándo— y ahí arma su propia
+   columna, con `tabular-nums`, que es lo que la hace barrible.
+
+   El estado va abajo, en el renglón de la organización. Los dos son de la misma
+   clase de dato —a qué pertenece y cómo está, lo que se mira *después* de
+   saber cuál es— y puestos en el mismo renglón el bloque del medio queda para
+   la dirección sola, que es lo más largo de la fila y lo que más necesita el
+   ancho entero.
+
+   **Y el estado sólo habla cuando hay algo que decir**, en el color de su
+   estado: Suspended e Inactive se escriben, y Active se calla y deja un guion.
+   Treinta y siete de los cuarenta y un buzones andan, así que la columna queda
+   casi vacía y los cuatro que no saltan sin buscarlos —que es justo lo que uno
+   viene a hacer acá—. La píldora que había antes decía "Active" cuarenta veces
+   con un fondo verde, y cuarenta cosas gritando lo mismo se dejan de ver a las
+   tres filas.
+
+   Lo que cuesta: confirmar que uno *sí* anda pasa a ser leer el silencio. Por
+   eso el guion y no la nada —hay un lugar donde el estado se dice, y está
+   vacío— y por eso el menú cuelga igual de él: se toca el guion y se elige.
+
+   La fila no es un botón: lo que se toca es el nombre —que abre la ficha de la
+   cuenta— y el estado. Un botón adentro de otro no existe. */
+function FilaDeBuzon({
+  buzon,
+  onPerfil,
+}: {
+  buzon: Buzon;
+  onPerfil: (usuario: Usuario) => void;
+}) {
+  const escala = useTypeScale();
+  const estado = ESTADOS_BUZON[buzon.estado];
+  const anda = buzon.estado === "active";
+
+  return (
+    /* Correr la fila muestra lo que se le puede hacer —ver `Deslizable`—. Es el
+       mismo gesto que en Accounts y por el mismo motivo: en escritorio esto
+       cuelga de un menú que se abre con el puntero sobre la celda del estado, y
+       en un táctil no hay puntero ni celda. La fila la envuelve entera, así que
+       lo que se corre son los tres renglones. */
+    <li>
+      <Deslizable id={buzon.direccion} acciones={accionesDe(buzon)}>
+        <span className="flex min-h-14 flex-col justify-center gap-0.5 px-4 py-2.5">
+      {/* Quién es, y de cuándo data. `items-baseline` y no `items-center`: son
+          dos cuerpos distintos —13 y 12— y lo que tiene que quedar alineado es
+          el renglón sobre el que se apoyan, no sus cajas. */}
+      <span className="flex min-w-0 items-baseline gap-2">
+        <span className="min-w-0 flex-1 truncate" style={{ fontSize: escala.body }}>
+          {buzon.usuario ? (
+            <TarjetaUsuario
+              usuario={buzon.usuario}
+              onEstado={cambiarEstado}
+              onPerfil={onPerfil}
+            >
+              {buzon.nombre}
+            </TarjetaUsuario>
+          ) : (
+            buzon.nombre
+          )}
+        </span>
+        <span
+          className="shrink-0 tabular-nums text-muted-foreground"
+          style={{ fontSize: escala.caption }}
+        >
+          {fechaDia(buzon.creadoEl)}
+        </span>
+      </span>
+
+      {/* La dirección, con el renglón entero: es lo más largo de la fila. */}
+      <span
+        className="truncate text-muted-foreground"
+        style={{ fontSize: escala.caption }}
+      >
+        {buzon.direccion}
+      </span>
+
+      {/* De qué unidad de la casa es —los buzones que no son de nadie son de la
+          casa misma, ver `organizacionDe`— y cómo está.
+
+          **Y si anda, no dice nada.** Tuvo un guion en el lugar del estado, que
+          existía para dos cosas: decir "acá se dice el estado, y está en el
+          normal" y ser el blanco del menú. Lo segundo se lo lleva el gesto —las
+          acciones están al correr la fila— y lo primero no hacía falta: un
+          renglón vacío en la columna del estado, en una lista donde cuatro
+          filas sí dicen algo, se lee como lo que es. */}
+      <span className="flex min-w-0 items-baseline gap-2">
+        <span
+          className="min-w-0 flex-1 truncate text-muted-foreground/70"
+          style={{ fontSize: escala.caption }}
+        >
+          {buzon.usuario
+            ? organizacionDe(buzon.usuario)
+            : ORGANIZACION_DE_LA_CASA}
+        </span>
+        {!anda && (
+          <span
+            className="shrink-0 font-medium"
+            style={{ color: estado.tinte, fontSize: escala.caption }}
+          >
+            {estado.label}
+          </span>
+        )}
+        </span>
+        </span>
+      </Deslizable>
+    </li>
+  );
+}
+
 /* ─────────────────────────── Los filtros ─────────────────────────── */
 
 /* Los conteos salen de la lista que se está mirando y no de una constante: un
@@ -401,17 +571,23 @@ function Columnas() {
 const POR_PAGINA = 40;
 
 export function Provisioning() {
+  /* Compacta en escritorio y normal en el teléfono, como las otras tablas: el
+     escalón denso existe porque son cuarenta filas peleando por el alto de una
+     ventana, y en un teléfono lo que pelea no es el alto sino el dedo. */
+  const esMovil = useEsMovil();
+
   return (
     /* Una región densa entera, como las otras dos tablas: el buscador, el panel
        y la tabla leen el escalón de acá y no lo reciben cada uno por su
        cuenta. */
-    <SizeProvider size="compact">
+    <SizeProvider size={esMovil ? "default" : "compact"}>
       <Pantalla />
     </SizeProvider>
   );
 }
 
 function Pantalla() {
+  const esMovil = useEsMovil();
   const [busqueda, setBusqueda] = useState("");
   const [filtros, setFiltros] = useState<FilterSelection>({});
   /* La lista viva, de la tienda del módulo: los buzones salen de las cuentas
@@ -450,11 +626,19 @@ function Pantalla() {
      Las tres decisiones viven en el hook, que es el mismo que usa Email
      Search. */
   const clave = `${busqueda}|${JSON.stringify(filtros)}`;
-  const { pagina, paginas, desde, filas, dir, ancla, irA } = usePaginacion(
-    encontrados,
-    clave,
-    POR_PAGINA,
-  );
+  const {
+    pagina,
+    paginas,
+    desde,
+    dir,
+    ancla,
+    irA,
+    filas: paginadas,
+  } = usePaginacion(encontrados, clave, POR_PAGINA);
+  /* Y en el teléfono no hay páginas: la lista se sigue, como en Accounts y en
+     Chat Search. Ver `useListaInfinita`. */
+  const { filas: seguidas, centinela } = useListaInfinita(encontrados, clave);
+  const filas = esMovil ? seguidas : paginadas;
 
   /* El teclado de la tabla: una sola parada de tabulado —la fila donde
      quedaste— y las flechas adentro. Ver `tabla-teclado`. */
@@ -474,8 +658,49 @@ function Pantalla() {
       animate="visible"
       className="flex h-full min-h-0 w-full flex-col"
     >
-      {/* El aire lateral es del header, no de la pantalla: así la tabla llega a
-          los dos bordes y son sus celdas las que se alinean con él. */}
+      {/* En el teléfono el header es el buscador, el filtro y el alta: el título
+          con su bajada se va —el header del shell ya dice "Email /
+          Provisioning"— y esos dos renglones se los queda la tabla.
+
+          El botón del alta se queda sin la palabra solo: lo decide él, que es
+          quien sabe cómo se ve —ver `BotonDeAlta`—. Acá se le sigue pasando el
+          sustantivo, que allá va al `aria-label`. */}
+      {esMovil ? (
+        <motion.header
+          variants={entraBloque}
+          className="flex shrink-0 items-center gap-2 px-4 py-3"
+        >
+          <InputGroup className="min-w-0 flex-1">
+            <InputField
+              index={0}
+              label="Search mailboxes"
+              labelHidden
+              icon={Search}
+              placeholder="Search mailboxes"
+              value={busqueda}
+              onChange={setBusqueda}
+              className={cn(
+                "[&>div:has(>input)]:bg-card [&>div:has(>input)]:ring-border",
+                CAMPO_EN_PILDORA,
+              )}
+            />
+          </InputGroup>
+
+          <FilterMenu
+            groups={GRUPOS}
+            align="end"
+            variant="secondary"
+            labelHidden
+            value={filtros}
+            onValueChange={setFiltros}
+            className={BOTON_EN_PILDORA}
+          />
+
+          <BotonDeAlta onClick={alta.abrir}>Mailbox</BotonDeAlta>
+        </motion.header>
+      ) : (
+      /* El aire lateral es del header, no de la pantalla: así la tabla llega a
+          los dos bordes y son sus celdas las que se alinean con él. */
       <motion.header
         variants={entraBloque}
         className="flex shrink-0 flex-wrap items-center justify-between gap-4 px-6 py-4"
@@ -538,6 +763,7 @@ function Pantalla() {
           <BotonDeAlta onClick={alta.abrir}>Mailbox</BotonDeAlta>
         </div>
       </motion.header>
+      )}
 
       {/* El renglón donde se escribe, entre el header y la tabla. Va afuera del
           scroller —se lo usa todo el tiempo y con el scroll se iría— y adentro
@@ -560,6 +786,46 @@ function Pantalla() {
             </AnimatedEmptyDescription>
           </AnimatedEmptyHeader>
         </AnimatedEmpty>
+      ) : esMovil ? (
+        /* En el teléfono la tabla se deshace en filas apiladas —ver
+           `movil/lista`—. De las cinco columnas sobreviven tres: cómo se llama
+           el buzón, cuál es la dirección y si anda.
+
+           **Se caen el creador y la fecha de alta.** Son las dos columnas del
+           registro y no del buzón: contestan "quién lo dio de alta y cuándo",
+           que es una auditoría y no lo que uno viene a mirar acá. Y no
+           desaparecen del todo, que es lo que las hace prescindibles en la
+           fila: el panel de filtros sigue preguntando por las dos —los buzones
+           de un creador, los del último mes— así que la pregunta se puede
+           hacer, sólo que no está impresa en las cuarenta y una filas.
+
+           La fila no es un botón: acá no hay adónde llevar. Lo que se toca es
+           el nombre —que abre la ficha de la cuenta, cuando el buzón es de
+           alguien— y el estado, que abre su menú. Los dos son botones de
+           verdad, y por eso la fila no puede serlo: un botón adentro de otro no
+           existe. Es lo mismo que pasa en escritorio, donde la fila tampoco
+           lleva a ningún lado. */
+        <ScrollArea
+          className="min-h-0 flex-1"
+          viewportClassName="scroll-fade scrollbar-hide"
+        >
+          {/* Lo que se está por crear, arriba de la primera fila real: ahí es
+              donde van a estar cuando existan. */}
+          {alta.abierto && <FilasBorrador alta={alta} />}
+
+          <ListaMovil>
+            {filas.map((buzon) => (
+              <FilaDeBuzon
+                key={buzon.direccion}
+                buzon={buzon}
+                onPerfil={abrirCuenta}
+              />
+            ))}
+          </ListaMovil>
+
+          {/* El final de la lista: cuando se acerca, entra el próximo tramo. */}
+          <div ref={centinela} aria-hidden className="h-px" />
+        </ScrollArea>
       ) : (
         <motion.div variants={entraTabla} className="relative min-h-0 flex-1">
           {/* Los títulos van afuera del scroller y flotando encima: adentro,
@@ -716,9 +982,9 @@ function Pantalla() {
           siguen. Va afuera del scroller y pegado abajo —es del mueble, no de la
           lista—, así que el pager no se va con el scroll.
 
-          Sólo cuando hay resultados. Un pager sobre una tabla vacía ofrece
-          páginas que no existen. */}
-      {filas.length > 0 && (
+          Sólo cuando hay resultados, y sólo en escritorio: en el teléfono la
+          lista se sigue y no hay páginas por las que pasar. */}
+      {!esMovil && filas.length > 0 && (
         <motion.footer
           variants={entraBloque}
           className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border px-6 py-3"
