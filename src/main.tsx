@@ -8,6 +8,7 @@ import { ShapeProvider } from "@/lib/shape-context";
 import { SizeProvider } from "@/lib/size-context";
 import { SurfaceProvider } from "@/lib/surface-context";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { fijarOrientacion } from "@/lib/orientacion";
 import { iniciarSonido } from "@/stores/sonido";
 
 /*
@@ -21,11 +22,17 @@ import { iniciarSonido } from "@/stores/sonido";
  *              todo lo que se levanta lo hace *relativo* a este número.
  *  figuras   — `ShapeProvider` maneja la escalera de radios.
  *
- * Y uno más, que no es un provider porque no envuelve nada: el sonido. Sus
- * listeners son delegados en el documento, así que se atan una vez acá y
- * alcanzan a todo lo que React monte después. Ver `stores/sonido.ts`.
+ * Y dos más, que no son providers porque no envuelven nada:
+ *
+ *  sonido      — sus listeners son delegados en el documento, así que se atan
+ *                una vez acá y alcanzan a todo lo que React monte después. Ver
+ *                `stores/sonido.ts`.
+ *  orientación — la app se mira de pie y no gira con el aparato. Hasta dónde
+ *                llega eso —y por qué el manifiesto también lo dice— está en
+ *                `lib/orientacion.ts`.
  */
 iniciarSonido();
+fijarOrientacion();
 
 /* El service worker, sólo en el sitio construido.
  *

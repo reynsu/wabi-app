@@ -23,7 +23,10 @@
  * es la manera de tirar lo viejo.
  */
 
-const VERSION = "v1";
+/* v2: el manifiesto cambió —la app se fija de pie— y su nombre es estable, así
+   que la regla de "primero la caché" se lo quedaba para siempre. Subir la
+   versión es lo que tira la copia vieja. */
+const VERSION = "v2";
 const CACHE = `wabi-${VERSION}`;
 
 /* El documento con el que abre la app, resuelto contra el alcance del worker:
