@@ -9,6 +9,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "fix:fluid": "node scripts/patch-fluid.mjs",
+    "fix:wabi": "node scripts/patch-wabi.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },

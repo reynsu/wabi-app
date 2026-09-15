@@ -73,6 +73,8 @@ import {
 } from "@/lib/size-context";
 import { exitFallbackMs, spring } from "@/lib/springs";
 import { cn } from "@/lib/utils";
+// Local deviation, kept by `npm run fix:wabi`: see `enfocarCampo` below.
+import { useEsMovil } from "@/hooks/use-es-movil";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -808,6 +810,10 @@ function PanelList({
 // FilterMenu
 // ---------------------------------------------------------------------------
 
+/** Local deviation, kept by `npm run fix:wabi`: `initialFocus` returning false
+ *  is how Base UI is told to leave focus where it is. */
+const SIN_FOCO = () => false;
+
 function FilterMenu({
   groups,
   label = "Filters",
@@ -846,6 +852,20 @@ function FilterMenu({
   const [query, setQuery] = useState("");
 
   const inputRef = useRef<HTMLInputElement>(null);
+
+  /* Local deviation, kept by `npm run fix:wabi`.
+
+     On a phone the search box never takes focus on its own. Everything in here
+     is driven from that field on a desktop —it holds focus while a highlight
+     travels the rows— so opening the panel, stepping into an attribute or
+     coming back all put focus there. On a touch screen, focus means the
+     keyboard: half the panel disappears behind it before you've read a single
+     row, and you didn't ask to type. Whoever wants to search taps the field. */
+  const esMovil = useEsMovil();
+  const enfocarCampo = useCallback(() => {
+    if (esMovil) return;
+    inputRef.current?.focus();
+  }, [esMovil]);
   const listId = useId();
   const rowId = (index: number) => `${listId}-row-${index}`;
 
@@ -934,9 +954,9 @@ function FilterMenu({
       setDirection(1);
       setPath(next.id);
       search("");
-      inputRef.current?.focus();
+      enfocarCampo();
     },
-    [search],
+    [search, enfocarCampo],
   );
 
   const back = useCallback(() => {
@@ -944,8 +964,8 @@ function FilterMenu({
     setPath(null);
     setTrip((n) => n + 1);
     search("");
-    inputRef.current?.focus();
-  }, [search]);
+    enfocarCampo();
+  }, [search, enfocarCampo]);
 
   const activate = useCallback(
     (row: Row) => {
@@ -1090,7 +1110,7 @@ function FilterMenu({
           details.cancel();
           if (query) search("");
           else back();
-          inputRef.current?.focus();
+          enfocarCampo();
           return;
         }
         handleOpenChange(next);
@@ -1181,8 +1201,9 @@ function FilterMenu({
                 // footer in here don't need to know what it opened over.
                 render={<Elevated offset={2} shadowLevel={3} />}
                 // Focus lands on the search box and not on the panel: it's the
-                // only place everything else is driven from.
-                initialFocus={inputRef}
+                // only place everything else is driven from. On a phone
+                // nothing is focused — see `enfocarCampo`.
+                initialFocus={esMovil ? SIN_FOCO : inputRef}
                 aria-label={label}
                 className={cn(
                   "flex flex-col overflow-hidden outline-none",
@@ -1445,7 +1466,7 @@ function FilterMenu({
                                 ? clearAttribute(selection, attribute.id)
                                 : {},
                             );
-                            inputRef.current?.focus();
+                            enfocarCampo();
                           }}
                         >
                           Clear

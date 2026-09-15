@@ -88,6 +88,25 @@ del registry cambió de forma, es mejor enterarse que perder la desviación en
 silencio. El mismo script está en el showcase, con los mismos dos parches: las
 dos apps tienen que verse igual.
 
+### `npm run fix:wabi`
+
+La desviación local sobre lo que publica @wabi, con la misma forma y la misma
+regla. **Hay que correrlo después de cada instalación.**
+
+| archivo | qué |
+|---|---|
+| `components/filter-menu.tsx` | en el teléfono el campo de buscar no se enfoca solo —ni al abrir el panel, ni al entrar a un atributo, ni al volver— |
+
+En escritorio el panel entero se maneja desde ese campo: retiene el foco
+mientras un realce recorre las filas, así que enfocarlo al abrir es lo correcto.
+En un táctil, foco es **teclado**: medio panel desaparece detrás de él antes de
+haber leído una fila, y nadie pidió escribir. El que quiera buscar toca el
+campo.
+
+No se puede hacer desde el call site —`initialFocus` es del popup, y el
+`className` del `FilterMenu` cae en su botón—, y por eso es un parche y no una
+clase repetida en las nueve pantallas que lo usan.
+
 ## Cómo está armado
 
 - `src/main.tsx` — los cuatro sistemas del registry cableados una sola vez:
