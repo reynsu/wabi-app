@@ -151,7 +151,9 @@ export function ShellMovil() {
 
   /* El vistazo, en cambio, sí se abre solo: lo pidió una fila que se acaba de
      tocar, y es la respuesta a ese toque. */
-  const hojaAbierta = !enInicio && (preview !== null || verBoard || panel !== null);
+  /* Las dos hojas de la consola suben también en Inicio: sus botones están ahí.
+     El vistazo y el board no: los abre una pantalla, y en Inicio no hay. */
+  const hojaAbierta = panel !== null || (!enInicio && (preview !== null || verBoard));
 
   const cerrarHoja = () => {
     if (preview !== null) {
@@ -243,42 +245,41 @@ export function ShellMovil() {
               consola entera: qué pasó últimamente y lo que uno dejó a mano. Van
               en el header y no adentro de una pantalla porque se preguntan
               desde cualquiera —y la respuesta es la misma se esté donde se
-              esté—.
+              esté—. **También en Inicio**, que es justo desde donde más se
+              pregunta: ahí uno todavía no eligió pantalla, y la mitad de las
+              veces lo que viene a buscar es una de estas dos.
 
               Acá estaba el board de la pestaña. Se fue: el board sigue
               subiendo solo cuando una pantalla lo pide —escribir una política
               pone su ficha ahí y la hoja aparece— y eso es lo que hace en el
               teléfono. Abrirlo a mano era la otra mitad, la de escritorio,
               donde el riel está a la vista y cuesta un clic. */}
-          {enInicio ? (
-            <MenuDeCuenta />
-          ) : (
-            <>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Activity"
-                {...COMO_INTERRUPTOR}
-                aria-pressed={panel === "actividad"}
-                onClick={() => setPanel("actividad")}
-                className={cn(EN_EL_PLANO, PANEL_INK.knobOff)}
-              >
-                <Activity />
-              </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Activity"
+            {...COMO_INTERRUPTOR}
+            aria-pressed={panel === "actividad"}
+            onClick={() => setPanel("actividad")}
+            className={cn(EN_EL_PLANO, PANEL_INK.knobOff)}
+          >
+            <Activity />
+          </Button>
 
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Bookmarks"
-                {...COMO_INTERRUPTOR}
-                aria-pressed={panel === "guardados"}
-                onClick={() => setPanel("guardados")}
-                className={cn(EN_EL_PLANO, PANEL_INK.knobOff)}
-              >
-                <Bookmark />
-              </Button>
-            </>
-          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Bookmarks"
+            {...COMO_INTERRUPTOR}
+            aria-pressed={panel === "guardados"}
+            onClick={() => setPanel("guardados")}
+            className={cn(EN_EL_PLANO, PANEL_INK.knobOff)}
+          >
+            <Bookmark />
+          </Button>
+
+          {/* Y en Inicio, además, lo que es de la app. */}
+          {enInicio && <MenuDeCuenta />}
         </header>
 
         {/* El plano: el mismo gesto que el panel de escritorio —una superficie
