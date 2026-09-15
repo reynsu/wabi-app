@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import {
-  ChevronLeft,
   Ellipsis,
   House,
   LayoutGrid,
@@ -35,7 +34,6 @@ import {
   useAtrasCierra,
   useHistorialMovil,
   useNavegacionMovil,
-  volver,
 } from "./navegacion";
 
 /**
@@ -67,9 +65,16 @@ const SIN_PISAR_LA_BARRA = { paddingBottom: "env(safe-area-inset-bottom)" };
 /* El botón del header, sobre el plano de marca: la tinta y el realce del
    `login-block`, que es de donde sale el fondo. El `Button` saca su relleno de
    `--hover` y `--active`, negros sobre claro; acá el fondo es oscuro en los dos
-   temas, así que se los pisa por blancos. */
+   temas, así que se los pisa por blancos.
+
+   El glifo va en 20 y no en los 16 del `size="icon"`: ésos son los de un botón
+   de barra de herramientas, rodeado de texto y de otros controles que le dan
+   escala. Acá son dos o tres glifos solos sobre un plano de color, con el
+   nombre de la sección en el medio y nada más —y son lo único que se toca de
+   toda la barra—. En 16 se leen como marquitas; en 20 pesan lo que pesa lo que
+   hay que apretar. La caja sigue en 44, que es el escalón táctil. */
 const EN_EL_PLANO = [
-  "size-11 rounded-full",
+  "size-11 rounded-full [&_svg]:size-5",
   "[--hover:rgb(255_255_255_/_0.12)] [--active:rgb(255_255_255_/_0.2)]",
 ].join(" ");
 
@@ -79,7 +84,6 @@ export function ShellMovil() {
   const tabs = useWorkspace((w) => w.tabs);
   const activeId = useWorkspace((w) => w.activeId);
   const enInicio = useNavegacionMovil((n) => n.enInicio);
-  const puedeVolver = useNavegacionMovil((n) => n.indice > 0);
   const activa = tabs.find((t) => t.id === activeId);
   const grupo = activeId ? NAV.find((g) => g.items.some((h) => h.id === raiz(activeId))) : undefined;
 
@@ -184,12 +188,6 @@ export function ShellMovil() {
           >
             <House />
           </Button>
-
-          {!enInicio && puedeVolver && (
-            <Button variant="ghost" size="icon" aria-label="Back" onClick={volver} className={cn("-ml-1.5", EN_EL_PLANO)}>
-              <ChevronLeft />
-            </Button>
-          )}
 
           {/* El título: dónde se está. La sección va antes cuando dice algo —hay
               dos Search y dos Reports—; los grupos sin nombre no tienen qué
