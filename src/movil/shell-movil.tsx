@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+  Activity,
+  Bookmark,
   Ellipsis,
   House,
-  LayoutGrid,
   LogOut,
   Moon,
   Sun,
@@ -15,18 +16,20 @@ import { PANEL_ART, PANEL_INK } from "@/components/login-block";
 import { DropdownContent, DropdownMenu, DropdownSeparator, DropdownTrigger } from "@/components/ui/dropdown";
 import { MenuItem } from "@/components/ui/menu-item";
 import { WidgetBoard } from "@/components/widget-board";
+import type { WorkspaceTab } from "@/components/workspace-panel";
 import { WidgetDragProvider } from "@/components/widget-drag";
 import type { WidgetDefinition } from "@/components/widget";
 import { cn } from "@/lib/utils";
 import { SurfaceProvider } from "@/lib/surface-context";
 import { surfaceClasses } from "@/lib/surface-classes";
-import { NAV, raiz } from "@/navigation";
 import { useBoardActivo, useBoards } from "@/stores/board";
 import { usePreview, usePreviewActivo } from "@/stores/preview";
 import { useSesion } from "@/stores/sesion";
 import { COMO_INTERRUPTOR, sonar, useSonido } from "@/stores/sonido";
 import { useTema } from "@/stores/tema";
 import { useWorkspace } from "@/stores/workspace";
+import { ActividadDeLaConsola } from "./actividad";
+import { Guardados } from "./guardados";
 import { Hoja } from "./hoja";
 import { Inicio } from "./inicio";
 import {
@@ -34,6 +37,7 @@ import {
   useAtrasCierra,
   useHistorialMovil,
   useNavegacionMovil,
+  volver,
 } from "./navegacion";
 
 /**
@@ -85,7 +89,7 @@ export function ShellMovil() {
   const activeId = useWorkspace((w) => w.activeId);
   const enInicio = useNavegacionMovil((n) => n.enInicio);
   const activa = tabs.find((t) => t.id === activeId);
-  const grupo = activeId ? NAV.find((g) => g.items.some((h) => h.id === raiz(activeId))) : undefined;
+  const openTab = useWorkspace((w) => w.openTab);
 
   const oscuro = useTema((t) => t.oscuro);
   const board = useBoardActivo();
@@ -100,6 +104,31 @@ export function ShellMovil() {
      sería una hoja saltando en la cara apenas se entra—. */
   const [boardEn, setBoardEn] = useState<string | null>(null);
   const verBoard = boardEn !== null && boardEn === activeId;
+
+  /* Las dos hojas de la consola —lo que pasó, y lo guardado—. Son de la app y
+     no de una pestaña, así que no viven en el workspace: no hay a qué pestaña
+     atarlas y cambiar de pestaña no tiene por qué cerrarlas. */
+  const [panel, setPanel] = useState<"actividad" | "guardados" | null>(null);
+
+  /* Lo que una de esas hojas pidió abrir, mientras la hoja se va.
+ 
+     No se abre en el mismo toque, y ésta es la razón: en el teléfono abrir una
+     pestaña empuja una entrada del historial, y la hoja tiene la suya puesta
+     encima. Abriendo primero, la entrada de la pestaña queda arriba de la de la
+     hoja, y el `history.back()` con el que la hoja se despide se come la
+     pestaña recién abierta en vez de su propia entrada: el toque abría el
+     perfil y volvía solo a donde estaba.
+ 
+     Así que la hoja se cierra **por el mismo camino que el atrás del sistema**
+     —`volver()`— y la pestaña se abre recién cuando ese atrás llegó, que es
+     dentro de `cerrarHoja`. Un ref y no estado: no se pinta, y se lee en el
+     mismo turno en que se escribió. */
+  const pendiente = useRef<WorkspaceTab | null>(null);
+
+  const abrirDesdeLaHoja = (tab: WorkspaceTab) => {
+    pendiente.current = tab;
+    volver();
+  };
 
   /* Y sí se abre cuando una pantalla lo pide. Escribir una política o una cuenta
      DOC no abre un diálogo: pone la ficha en el board y llama a `abrirBoard`,
@@ -122,11 +151,20 @@ export function ShellMovil() {
 
   /* El vistazo, en cambio, sí se abre solo: lo pidió una fila que se acaba de
      tocar, y es la respuesta a ese toque. */
-  const hojaAbierta = !enInicio && (preview !== null || verBoard);
+  const hojaAbierta = !enInicio && (preview !== null || verBoard || panel !== null);
 
   const cerrarHoja = () => {
     if (preview !== null) {
       cerrarPreview();
+      return;
+    }
+    if (panel !== null) {
+      setPanel(null);
+      /* Y si se cerró para ir a algún lado, se va: acá la entrada de la hoja ya
+         se consumió, así que la de la pestaña queda arriba de la que había. */
+      const tab = pendiente.current;
+      pendiente.current = null;
+      if (tab) openTab(tab);
       return;
     }
     setBoardEn(null);
@@ -189,32 +227,57 @@ export function ShellMovil() {
             <House />
           </Button>
 
-          {/* El título: dónde se está. La sección va antes cuando dice algo —hay
-              dos Search y dos Reports—; los grupos sin nombre no tienen qué
-              poner. */}
-          <h1 className="flex min-w-0 flex-1 items-baseline gap-1.5 px-1">
-            {!enInicio && grupo?.label && (
-              <span className={cn("shrink-0 text-[13px]", PANEL_INK.body)}>{grupo.label} /</span>
-            )}
-            <span className="truncate text-[16px] font-semibold">{enInicio ? "Home" : activa?.label}</span>
+          {/* El título: dónde se está, y nada más.
+ 
+              Tuvo el grupo adelante —"Chat / Search"—, que es una miga de pan, y
+              una miga de pan promete dos cosas que acá no existen: que hay un
+              camino de vuelta por sus escalones —el grupo no es una pantalla, no
+              se puede abrir— y que se está adentro de algo. En el teléfono no se
+              entra por el árbol: se entra por Inicio, donde las secciones son
+              baldosas sueltas. */}
+          <h1 className="min-w-0 flex-1 truncate px-1 text-[16px] font-semibold">
+            {enInicio ? "Home" : activa?.label}
           </h1>
 
+          {/* A la derecha, las dos cosas que no son de esta pantalla sino de la
+              consola entera: qué pasó últimamente y lo que uno dejó a mano. Van
+              en el header y no adentro de una pantalla porque se preguntan
+              desde cualquiera —y la respuesta es la misma se esté donde se
+              esté—.
+
+              Acá estaba el board de la pestaña. Se fue: el board sigue
+              subiendo solo cuando una pantalla lo pide —escribir una política
+              pone su ficha ahí y la hoja aparece— y eso es lo que hace en el
+              teléfono. Abrirlo a mano era la otra mitad, la de escritorio,
+              donde el riel está a la vista y cuesta un clic. */}
           {enInicio ? (
             <MenuDeCuenta />
           ) : (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Show the board"
-              {...COMO_INTERRUPTOR}
-              onClick={() => setBoardEn(activeId ?? null)}
-              className={cn("relative", EN_EL_PLANO, PANEL_INK.knobOff)}
-            >
-              <LayoutGrid />
-              {board.widgets.length > 0 && (
-                <span className="absolute top-2.5 right-2.5 size-1.5 rounded-full bg-[oklch(0.58_0.2_292)]" />
-              )}
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Activity"
+                {...COMO_INTERRUPTOR}
+                aria-pressed={panel === "actividad"}
+                onClick={() => setPanel("actividad")}
+                className={cn(EN_EL_PLANO, PANEL_INK.knobOff)}
+              >
+                <Activity />
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Bookmarks"
+                {...COMO_INTERRUPTOR}
+                aria-pressed={panel === "guardados"}
+                onClick={() => setPanel("guardados")}
+                className={cn(EN_EL_PLANO, PANEL_INK.knobOff)}
+              >
+                <Bookmark />
+              </Button>
+            </>
           )}
         </header>
 
@@ -291,9 +354,22 @@ export function ShellMovil() {
         <Hoja
           abierta={hojaAbierta}
           onCerrar={cerrarHoja}
-          titulo={preview !== null ? activa?.label : "Board"}
+          titulo={
+            preview !== null
+              ? activa?.label
+              : panel === "actividad"
+                ? "Activity"
+                : panel === "guardados"
+                  ? "Bookmarks"
+                  : "Board"
+          }
         >
-          {preview ?? (
+          {panel === "actividad" ? (
+            <ActividadDeLaConsola alAbrir={abrirDesdeLaHoja} />
+          ) : panel === "guardados" ? (
+            <Guardados alAbrir={abrirDesdeLaHoja} />
+          ) : (
+            preview ?? (
             <WidgetBoard
               widgets={board.widgets}
               onWidgetClose={(id) => editar((b) => ({ ...b, widgets: b.widgets.filter((w) => w.id !== id) }))}
@@ -307,6 +383,7 @@ export function ShellMovil() {
               }
               className="min-h-40"
             />
+            )
           )}
         </Hoja>
       </main>
