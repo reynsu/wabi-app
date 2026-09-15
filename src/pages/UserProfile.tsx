@@ -1050,6 +1050,20 @@ function Perfil({
                        quedaría adentro de la del plano, dos curvas distintas a
                        tres píxeles una de la otra. */
                     !aPantalla && "rounded-t-xl",
+                    /* Y en el teléfono, sin el filete del escalón.
+ 
+                       El `Elevated` trae, además de la sombra, un anillo de
+                       1px al 6% que rodea la superficie por los cuatro lados.
+                       En escritorio eso es lo correcto: el panel es una tarjeta
+                       adentro de otra y el filete es dónde termina. Acá no
+                       termina en ningún lado —ocupa el ancho del plano y baja
+                       hasta el borde del aparato—, así que de los cuatro lados
+                       tres caen justo sobre el canto de la pantalla y se leen
+                       como una raya que no delimita nada: sobre todo la de
+                       abajo, que queda cruzando el pie de una lista que
+                       sigue. Lo que separa al panel de las secciones que tiene
+                       arriba es el escalón de color y su radio, que quedan. */
+                    esMovil && "shadow-none",
                   )
             }
           >
