@@ -102,8 +102,16 @@ export const COMO_INTERRUPTOR = {
 /**
  * Tocar una señal a mano, para lo que no es un gesto sino un resultado.
  *
- * Los gestos —pasar por encima, apretar, soltar, tildar— se marcan en el markup
- * con `data-cuelume-*` y no pasan por acá. Esto es para lo otro: se guardó, no
+ * Los gestos —apretar, soltar, tildar— se marcan en el markup con
+ * `data-cuelume-*` y no pasan por acá.
+ *
+ * **Pasar por encima no suena.** `cuelume` lo ofrece —`data-cuelume-hover`, un
+ * `chime` limitado a uno cada 150 ms— y esta app lo tuvo en las filas de un
+ * menú abierto, que era el último que quedaba encendido; el del sidebar ya se
+ * había sacado por lo mismo. Un sonido contesta algo que alguien hizo, y pasar
+ * por encima no es algo que se haga: el puntero cruza lo que sea que esté en el
+ * camino a donde va, y la consola terminaba comentando el viaje. Lo que suena
+ * es el toque. Esto es para lo otro: se guardó, no
  * se pudo, terminó de cargar. Cosas que no ocurren cuando el dedo baja sino un
  * rato después, cuando el servidor contestó.
  *
